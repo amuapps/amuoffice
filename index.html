@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>PT Auto Mitra Utama — Sistem Internal</title>
 
-<link rel="stylesheet" href="./css/style.css?v=1.0.2">
+<link rel="stylesheet" href="./css/style.css?v=1.0.4">
 </head>
 <body>
 
@@ -43,40 +43,54 @@
 <!-- ── Aplikasi ────────────────────────────────────────────── -->
 <div id="aplikasi" class="aplikasi" hidden>
 
-  <!-- Panel instrumen -->
-  <header class="panel">
-    <div class="panel-baris">
-      <span id="lampu-peran" class="lampu lampu--sein"></span>
-      <div class="panel-teks">
-        <span id="label-peran" class="panel-peran">Peran</span>
-        <span id="nama-pengguna" class="panel-nama">Pengguna</span>
+  <!-- Sidebar: menu berubah mengikuti peran -->
+  <aside id="sisi" class="sisi">
+    <div class="sisi-merek">
+      <span class="lampu lampu--sein"></span>
+      <span id="sisi-nama">PT Auto Mitra Utama</span>
+    </div>
+    <nav id="nav" class="nav"></nav>
+    <div class="sisi-kaki">
+      <span id="sisi-versi">v1.0.4</span>
+      <span data-merek>©SRISP 2026</span>
+    </div>
+  </aside>
+
+  <div class="utama">
+    <header class="panel">
+      <div class="panel-baris">
+        <button class="hamburger" id="buka-sisi" type="button"
+                aria-label="Buka menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="panel-teks">
+          <span id="label-peran" class="panel-peran">Peran</span>
+          <span id="nama-pengguna" class="panel-nama">Pengguna</span>
+        </div>
+        <span id="lampu-peran" class="lampu lampu--sein"></span>
+        <button class="tombol tombol--sunyi" id="tombol-keluar" type="button">
+          Keluar
+        </button>
       </div>
-      <button class="tombol tombol--sunyi" id="tombol-keluar" type="button">
-        Keluar
-      </button>
-    </div>
-    <div class="panel-baca">
-      <span id="batas-diskon" class="baca">Batas diskon</span>
-      <span id="penanda-uji" class="tanda tanda--uji" hidden>Data uji</span>
-    </div>
-    <div id="status-koneksi" class="pita-luring" hidden>
-      Tanpa koneksi — pekerjaan tersimpan di HP, terkirim saat sinyal kembali
-    </div>
-  </header>
+      <div class="panel-baca">
+        <span id="batas-diskon" class="baca">Batas diskon</span>
+        <span id="penanda-uji" class="tanda tanda--uji" hidden>Data uji</span>
+      </div>
+      <div id="status-koneksi" class="pita-luring" hidden>
+        Tanpa koneksi — pekerjaan tersimpan di HP, terkirim saat sinyal kembali
+      </div>
+    </header>
 
-  <main id="konten" class="konten"></main>
+    <main id="konten" class="konten"></main>
+  </div>
 
-  <nav id="nav" class="nav"></nav>
-
-  <footer class="kaki kaki--aplikasi">
-    <span data-merek>©SRISP 2026</span>
-  </footer>
+  <div id="tirai" class="tirai" hidden></div>
 </div>
 
 <div id="publik" class="publik" hidden></div>
 
 <div id="kabar" class="kabar-wadah" aria-live="polite"></div>
 
-<script type="module" src="./js/app.js?v=1.0.2"></script>
+<script type="module" src="./js/app.js?v=1.0.4"></script>
 </body>
 </html>
