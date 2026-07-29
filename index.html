@@ -8,14 +8,37 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>PT Auto Mitra Utama — Sistem Internal</title>
 
-<link rel="stylesheet" href="./css/style.css?v=1.0.4">
+<link rel="icon" href="./logo.png">
+<link rel="apple-touch-icon" href="./logo.png">
+<link rel="stylesheet" href="./css/style.css?v=1.0.6">
 </head>
 <body>
+
+<!-- Layar muat: tampil sampai status login diketahui -->
+<div id="muat" class="muat">
+  <div class="muat-isi">
+    <div class="logo-ubin">
+      <img class="logo" src="./logo.png" alt="Logo PT Auto Mitra Utama"
+           onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+      <svg class="logo" viewBox="0 0 72 72" hidden aria-hidden="true">
+        <rect x="2" y="2" width="68" height="68" rx="17" fill="#0071E3"/>
+        <circle cx="24" cy="47" r="7.5" fill="none" stroke="#fff" stroke-width="3.2"/>
+        <circle cx="50" cy="47" r="7.5" fill="none" stroke="#fff" stroke-width="3.2"/>
+        <path d="M17 47c-1-9 2-16 8-19l9-3 6 9h8c4 0 7 3 7 7v6"
+              fill="none" stroke="#fff" stroke-width="3.2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="muat-nama">PT AUTO MITRA UTAMA</p>
+    <div class="muat-bar"><span></span></div>
+  </div>
+</div>
 
 <!-- ── Layar masuk ─────────────────────────────────────────── -->
 <div id="layar-masuk" class="masuk">
   <div class="masuk-isi">
-    <span class="lampu lampu--sein lampu--besar"></span>
+    <img class="masuk-logo" src="./logo.png" alt=""
+         onerror="this.hidden=true">
     <p class="eyebrow">Sistem internal</p>
     <h1 id="nama-showroom" class="masuk-nama">PT Auto Mitra Utama</h1>
 
@@ -46,7 +69,9 @@
   <!-- Sidebar: menu berubah mengikuti peran -->
   <aside id="sisi" class="sisi">
     <div class="sisi-merek">
-      <span class="lampu lampu--sein"></span>
+      <img class="sisi-logo" src="./logo.png" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('span'),
+                    {className:'lampu lampu--sein'}))">
       <span id="sisi-nama">PT Auto Mitra Utama</span>
     </div>
     <nav id="nav" class="nav"></nav>
@@ -89,8 +114,10 @@
 
 <div id="publik" class="publik" hidden></div>
 
+<div id="dialog-wadah" class="dialog-wadah" hidden></div>
+
 <div id="kabar" class="kabar-wadah" aria-live="polite"></div>
 
-<script type="module" src="./js/app.js?v=1.0.4"></script>
+<script type="module" src="./js/app.js?v=1.0.6"></script>
 </body>
 </html>
