@@ -31,6 +31,11 @@
 
 * { box-sizing: border-box; }
 
+/* Elemen bertanda hidden harus benar-benar hilang. Tanpa ini,
+   aturan display di bawah menimpanya dan layar aplikasi ikut
+   tampil walaupun belum login. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;
