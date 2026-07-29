@@ -127,13 +127,15 @@ export async function halamanStok(wadah) {
 
   async function gambar() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
+    // Menyaring saja, tanpa orderBy — supaya Firestore tidak
+    // menuntut indeks gabungan. Urutannya dibereskan di sini.
     const snap = await getDocs(query(
       collection(dbase, "units"),
       where("status", "==", status),
-      orderBy("dibuatPada", "desc"),
       limit(60)
     ));
-    const unit = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const unit = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     daftarEl.innerHTML = unit.length
       ? unit.map((u) => kartuUnit(u, bisaLihatHarga)).join("")
       : `<div class="hampa"><p>Tidak ada unit berstatus

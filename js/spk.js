@@ -120,12 +120,15 @@ export async function halamanSpk(wadah) {
   async function gambar() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     const dasar = collection(dbase, "transaksi");
+    // Saat menyaring, orderBy sengaja tidak dipakai — kombinasi
+    // where + orderBy menuntut indeks gabungan di Firestore.
+    // Datanya sedikit, jadi diurutkan di sini saja.
     const q = saring === "semua"
       ? query(dasar, orderBy("dibuatPada", "desc"), limit(50))
-      : query(dasar, where("statusSPK", "==", saring),
-              orderBy("dibuatPada", "desc"), limit(50));
+      : query(dasar, where("statusSPK", "==", saring), limit(50));
     const snap = await getDocs(q);
-    const isi = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const isi = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     daftarEl.innerHTML = isi.length
       ? isi.map((s) => kartuSpk(s, bisaSetujui)).join("")
       : `<div class="hampa"><p>Belum ada SPK di kelompok ini.</p></div>`;
