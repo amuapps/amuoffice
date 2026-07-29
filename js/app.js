@@ -25,6 +25,8 @@ const el = (id) => document.getElementById(id);
 function siapkanLayarMasuk() {
   el("nama-showroom").textContent = SHOWROOM.nama;
   el("versi").textContent = `v${VERSI}`;
+  el("sisi-nama").textContent = SHOWROOM.nama;
+  el("sisi-versi").textContent = `v${VERSI}`;
   document.querySelectorAll("[data-merek]").forEach((n) => {
     n.textContent = MEREK;
   });
@@ -68,6 +70,11 @@ function gambarPanel(profil) {
 }
 
 // ── Navigasi bawah ────────────────────────────────────────────
+function tutupSisi() {
+  el("sisi").classList.remove("sisi--buka");
+  el("tirai").hidden = true;
+}
+
 function gambarNavigasi(profil) {
   const p = PERAN[profil.peran];
   el("nav").innerHTML = p.menu
@@ -78,6 +85,9 @@ function gambarNavigasi(profil) {
       </a>`
     )
     .join("");
+  // Di layar HP sidebar berupa laci, jadi ditutup begitu menu dipilih.
+  el("nav").querySelectorAll(".nav-butir")
+    .forEach((a) => a.addEventListener("click", tutupSisi));
 }
 
 // ── Halaman ───────────────────────────────────────────────────
@@ -205,6 +215,13 @@ window.addEventListener("hashchange", cekPublik);
 
 // ── Jalan ─────────────────────────────────────────────────────
 siapkanLayarMasuk();
+
+el("buka-sisi").addEventListener("click", () => {
+  const sisi = el("sisi");
+  const buka = sisi.classList.toggle("sisi--buka");
+  el("tirai").hidden = !buka;
+});
+el("tirai").addEventListener("click", tutupSisi);
 
 el("tombol-keluar").addEventListener("click", async () => {
   await keluar();
