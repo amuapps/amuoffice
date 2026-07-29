@@ -24,7 +24,6 @@ const el = (id) => document.getElementById(id);
 // ── Layar masuk ───────────────────────────────────────────────
 function siapkanLayarMasuk() {
   el("nama-showroom").textContent = SHOWROOM.nama;
-  el("jenis-showroom").textContent = SHOWROOM.jenis;
   el("versi").textContent = `v${VERSI}`;
   document.querySelectorAll("[data-merek]").forEach((n) => {
     n.textContent = MEREK;
