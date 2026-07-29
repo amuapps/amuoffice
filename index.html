@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14181F">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>PT Auto Mitra Utama — Sistem Internal</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css?v=1.0.0">
+</head>
+<body>
+
+<!-- ── Layar masuk ─────────────────────────────────────────── -->
+<div id="layar-masuk" class="masuk">
+  <div class="masuk-isi">
+    <span class="lampu lampu--sein lampu--besar"></span>
+    <p class="eyebrow">Sistem internal</p>
+    <h1 id="nama-showroom" class="masuk-nama">PT Auto Mitra Utama</h1>
+    <p id="jenis-showroom" class="masuk-jenis">Sub-dealer motor baru</p>
+
+    <form id="form-masuk" class="masuk-form" autocomplete="on">
+      <label class="label" for="email">Email</label>
+      <input class="isian" id="email" type="email"
+             autocomplete="username" placeholder="nama@showroom.id">
+
+      <label class="label" for="sandi">Kata sandi</label>
+      <input class="isian" id="sandi" type="password"
+             autocomplete="current-password" placeholder="••••••••">
+
+      <button class="tombol tombol--utama" id="tombol-masuk" type="submit">
+        Masuk
+      </button>
+    </form>
+
+    <p class="catatan">
+      Akun dibuat oleh owner. Belum punya akses? Hubungi owner showroom.
+    </p>
+  </div>
+  <footer class="kaki">
+    <span id="versi">v1.0.0</span>
+    <span data-merek>©SRISP 2026</span>
+  </footer>
+</div>
+
+<!-- ── Aplikasi ────────────────────────────────────────────── -->
+<div id="aplikasi" class="aplikasi" hidden>
+
+  <!-- Panel instrumen -->
+  <header class="panel">
+    <div class="panel-baris">
+      <span id="lampu-peran" class="lampu lampu--sein"></span>
+      <div class="panel-teks">
+        <span id="label-peran" class="panel-peran">Peran</span>
+        <span id="nama-pengguna" class="panel-nama">Pengguna</span>
+      </div>
+      <button class="tombol tombol--sunyi" id="tombol-keluar" type="button">
+        Keluar
+      </button>
+    </div>
+    <div class="panel-baca">
+      <span id="batas-diskon" class="baca">Batas diskon</span>
+      <span id="penanda-uji" class="tanda tanda--uji" hidden>Data uji</span>
+    </div>
+    <div id="status-koneksi" class="pita-luring" hidden>
+      Tanpa koneksi — pekerjaan tersimpan di HP, terkirim saat sinyal kembali
+    </div>
+  </header>
+
+  <main id="konten" class="konten"></main>
+
+  <nav id="nav" class="nav"></nav>
+
+  <footer class="kaki kaki--aplikasi">
+    <span data-merek>©SRISP 2026</span>
+  </footer>
+</div>
+
+<div id="publik" class="publik" hidden></div>
+
+<div id="kabar" class="kabar-wadah" aria-live="polite"></div>
+
+<script type="module" src="./js/app.js?v=1.0.0"></script>
+</body>
+</html>
