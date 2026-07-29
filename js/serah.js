@@ -13,6 +13,7 @@ import { sesi, bolehAkses } from "./auth.js";
 import { lepaskanTertahan } from "./kas.js";
 import { pecahHarga } from "./config.js";
 import { rupiah, aman, kabar, tanggal, kunciBulan } from "./ui.js";
+import { konfirmasi, tanya } from "./dialog.js";
 
 // Laba dihitung dari harga TANPA PPN di kedua sisi. Kalau memakai
 // angka bruto, selisih 11% bisa membalik untung jadi rugi di atas
@@ -42,10 +43,13 @@ async function tetapkanUnit(trx, unit) {
   const h = hitungLaba(trx, tebus, trx.tipeSnapshot?.mewah);
 
   if (tebus && h.laba < 0) {
-    const lanjut = confirm(
-      `Penjualan ini rugi ${rupiah(Math.abs(h.laba))} setelah dikurangi ` +
-      `harga tebus, fee agen, dan hadiah.\n\nTetap lanjutkan?`
-    );
+    const lanjut = await konfirmasi({
+      judul: "Penjualan ini rugi",
+      pesan: `Setelah dikurangi harga tebus, fee agen, dan hadiah, ` +
+             `penjualan ini rugi ${rupiah(Math.abs(h.laba))}.`,
+      oke: "Tetap lanjutkan",
+      bahaya: true,
+    });
     if (!lanjut) return false;
   }
 
@@ -208,15 +212,20 @@ export async function blokSerah(wadah, bisa = true) {
     b.addEventListener("click", async () => {
       const t = kerja.find((x) => x.id === b.dataset.serah);
       if (Number(t.sisa || 0) > 0) {
-        const lanjut = confirm(
-          `Sisa pembayaran ${rupiah(t.sisa)} belum lunas.\n\n` +
-          `Tetap serahkan unit?`
-        );
+        const lanjut = await konfirmasi({
+          judul: "Belum lunas",
+          pesan: `Sisa pembayaran ${rupiah(t.sisa)} belum diterima. ` +
+                 `Unit tetap akan tercatat sebagai terjual.`,
+          oke: "Tetap serahkan",
+          bahaya: true,
+        });
         if (!lanjut) return;
       }
-      const kelengkapan = prompt(
-        "Kelengkapan yang diserahkan:", "Helm, toolkit, buku servis"
-      );
+      const kelengkapan = await tanya({
+        judul: "Serah terima unit",
+        pesan: "Catat kelengkapan yang ikut diserahkan ke pembeli.",
+        nilai: "Helm, toolkit, buku servis",
+      });
       if (kelengkapan === null) return;
       b.disabled = true;
       try {

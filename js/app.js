@@ -9,6 +9,7 @@ import { saatKoneksiBerubah, catat } from "./db.js";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
   from "./router.js";
 import { kabar, rupiah, aman, kunciHari } from "./ui.js";
+import { konfirmasi } from "./dialog.js";
 import { halamanStok } from "./stok.js";
 import { halamanTipe } from "./tipe.js";
 import { halamanSpk } from "./spk.js";
@@ -224,12 +225,29 @@ el("buka-sisi").addEventListener("click", () => {
 el("tirai").addEventListener("click", tutupSisi);
 
 el("tombol-keluar").addEventListener("click", async () => {
+  const jadi = await konfirmasi({
+    judul: "Keluar dari sistem",
+    pesan: "Anda akan keluar dari akun ini. Pekerjaan yang belum " +
+           "tersimpan bisa hilang.",
+    oke: "Keluar",
+    batal: "Tetap di sini",
+    bahaya: true,
+  });
+  if (!jadi) return;
   await keluar();
   kabar("Anda sudah keluar.", "info");
 });
 
+function selesaiMemuat() {
+  const m = el("muat");
+  if (!m || m.classList.contains("muat--pergi")) return;
+  m.classList.add("muat--pergi");
+  setTimeout(() => (m.hidden = true), 320);
+}
+
 pantauSesi(
   (profil) => {
+    selesaiMemuat();
     if (cekPublik()) return;
     el("layar-masuk").hidden = true;
     el("aplikasi").hidden = false;
@@ -241,6 +259,7 @@ pantauSesi(
     kabar(`Selamat datang, ${profil.nama}.`, "netral");
   },
   () => {
+    selesaiMemuat();
     if (cekPublik()) return;
     el("aplikasi").hidden = true;
     el("layar-masuk").hidden = false;

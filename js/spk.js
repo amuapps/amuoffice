@@ -19,6 +19,7 @@ import {
   rupiah, terbilang, aman, kabar, tanggal, tanggalJam,
   pasangFormatUang, bacaAngka,
 } from "./ui.js";
+import { tanya } from "./dialog.js";
 
 const LABEL = {
   menunggu_persetujuan: "Menunggu persetujuan",
@@ -149,11 +150,15 @@ export async function halamanSpk(wadah) {
   });
 
   async function putuskan(id, setuju) {
-    const catatan = prompt(
-      setuju ? "Catatan persetujuan (boleh kosong):"
-             : "Alasan penolakan:"
-    );
-    if (!setuju && !catatan) return;
+    const catatan = await tanya({
+      judul: setuju ? "Setujui diskon" : "Tolak SPK",
+      pesan: setuju
+        ? "Tulis catatan persetujuan — misalnya nominal yang disetujui."
+        : "Tulis alasan penolakan supaya sales tahu langkah berikutnya.",
+      nilai: setuju ? "Disetujui" : "",
+      petunjuk: setuju ? "Catatan" : "Alasan penolakan",
+    });
+    if (catatan === null) return;
     try {
       await updateDoc(doc(dbase, "transaksi", id), {
         statusSPK: setuju ? "approve" : "reject",

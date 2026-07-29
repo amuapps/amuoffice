@@ -18,6 +18,7 @@ import {
   rupiah, terbilang, aman, kabar, tanggal, tanggalJam,
   pasangFormatUang, bacaAngka,
 } from "./ui.js";
+import { tanya } from "./dialog.js";
 
 const JENIS = {
   tanda_jadi:   "Tanda jadi",
@@ -364,7 +365,12 @@ export async function halamanKuitansi(wadah) {
   // saat QR dipindai.
   daftarEl.querySelectorAll("[data-void]").forEach((b) =>
     b.addEventListener("click", async () => {
-      const alasan = prompt("Alasan pembatalan kuitansi:");
+      const alasan = await tanya({
+        judul: "Batalkan kuitansi",
+        pesan: "Kuitansi tidak dihapus, hanya ditandai batal. " +
+               "Pembatalan langsung terlihat saat QR-nya dipindai.",
+        petunjuk: "Alasan pembatalan",
+      });
       if (!alasan) return;
       const k = isi.find((x) => x.id === b.dataset.void);
       try {
