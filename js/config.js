@@ -53,7 +53,7 @@ export function pecahHarga(otr, mewah = false) {
 // ── Penanda versi ─────────────────────────────────────────────
 // Naikkan angkanya setiap kali deploy supaya browser tidak
 // menyajikan file lama dari cache.
-export const VERSI = "1.0.6";
+export const VERSI = "1.0.9";
 
 // Zona waktu untuk semua tampilan tanggal.
 // Firestore menyimpan waktu dalam UTC — ini yang menerjemahkannya.
@@ -63,5 +63,34 @@ export const ZONA = "Asia/Jakarta";
 // supaya bisa dibersihkan sekaligus sebelum go-live.
 // Ubah ke false saat showroom mulai jalan sungguhan.
 export const MODE_UJI = true;
+
+// ── Ketentuan SPK ─────────────────────────────────────────────
+// Diambil dari formulir Surat Pesanan Kendaraan yang berlaku di
+// dealer Piaggio. Dicetak di lembar SPK, jadi mengikat pemesan.
+export const MASA_BERLAKU_SPK = 60; // hari, terhitung sejak unit siap
+
+export const SYARAT_SPK = [
+  "Harga yang tercantum dalam Surat Pesanan ini TIDAK MENGIKAT.",
+  "Surat Pesanan ini BUKAN merupakan BUKTI PEMBAYARAN.",
+  "Kelebihan harga BBN ditanggung oleh pembeli.",
+  "Surat Pesanan dianggap SAH apabila: (a) telah ditandatangani " +
+  "pemesan, (b) telah disetujui Sales Manager, (c) uang muka telah " +
+  "dibayar LUNAS oleh pemesan.",
+  "Pembayaran baru dianggap SAH apabila ada kuitansi yang " +
+  "dikeluarkan oleh " + "PT AUTO MITRA UTAMA" + ". Pembayaran yang " +
+  "dilakukan di luar rekening perusahaan dianggap tidak sah dan " +
+  "bukan tanggung jawab perusahaan.",
+  "Pembayaran dengan Cek atau Giro harus atas nama perusahaan.",
+  "Apabila pemesanan ini DIBATALKAN oleh pihak pembeli dengan " +
+  "alasan apa pun juga, maka 100% UANG MUKA menjadi hak perusahaan.",
+  "Pembayaran dapat ditransfer langsung ke rekening perusahaan.",
+  "Saya menyetujui syarat & ketentuan yang ditetapkan oleh dealer.",
+  "SPK ini berlaku paling lama 60 hari setelah unit siap.",
+];
+
+// Rekening resmi yang dicetak di SPK. Isi sesuai rekening PT.
+export const REKENING = [
+  // { bank: "BCA", cabang: "", nomor: "", atasNama: "PT AUTO MITRA UTAMA" },
+];
 
 export const MEREK = "\u00A9SRISP 2026";

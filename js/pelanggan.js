@@ -63,6 +63,9 @@ export function formPelanggan(p = {}, awalan = "p") {
     <label class="label label--gelap" for="${awalan}-alamat">Alamat</label>
     <input class="isian isian--terang" id="${awalan}-alamat"
            value="${aman(p.alamat || "")}" placeholder="Sesuai KTP">
+    <label class="label label--gelap" for="${awalan}-email">Email</label>
+    <input class="isian isian--terang" id="${awalan}-email" type="email"
+           value="${aman(p.email || "")}" placeholder="Opsional">
   `;
 }
 
@@ -76,6 +79,7 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
     telepon: v("telepon").replace(/\s/g, ""),
     nik: v("nik").replace(/\D/g, ""),
     alamat: v("alamat"),
+    email: v("email"),
   };
 }
 

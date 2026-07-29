@@ -18,11 +18,18 @@ export const PERAN = {
     beranda: "#/ringkasan",
     batasDiskon: null, // null = tanpa batas
     izin: ["*"],
+    // Owner melihat semuanya. Sidebar tidak punya batas 5 menu
+    // seperti navigasi bawah dulu, jadi tidak ada yang perlu
+    // dikorbankan.
     menu: [
       { label: "Ringkasan", rute: "#/ringkasan" },
       { label: "Stok", rute: "#/stok" },
       { label: "SPK", rute: "#/spk" },
+      { label: "Tagihan", rute: "#/tagihan" },
+      { label: "Kuitansi", rute: "#/kuitansi" },
       { label: "Kas", rute: "#/kas" },
+      { label: "Berkas", rute: "#/berkas" },
+      { label: "Pelanggan", rute: "#/pelanggan" },
       { label: "Kelola", rute: "#/kelola" },
     ],
   },
@@ -40,6 +47,7 @@ export const PERAN = {
       { label: "Berkas", rute: "#/berkas" },
       { label: "Stok", rute: "#/stok" },
       { label: "SPK", rute: "#/spk" },
+      { label: "Pelanggan", rute: "#/pelanggan" },
       { label: "Kas", rute: "#/kas" },
     ],
   },

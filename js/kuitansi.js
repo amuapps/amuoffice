@@ -62,7 +62,7 @@ async function gambarQR(teks) {
 }
 
 // ── Terbitkan kuitansi ────────────────────────────────────────
-async function terbitkan(trx, { jenis, nominal, metode }) {
+export async function terbitkan(trx, { jenis, nominal, metode }) {
   const nomor = await nomorBerikutnya(`kw_${new Date().getFullYear()}`, "KW");
   const token = tokenAcak();
   const pecah = pecahHarga(nominal, trx.tipeSnapshot?.mewah);
