@@ -1,12 +1,16 @@
-// spk.js — Surat Pesanan Kendaraan.
+// spk.js — Surat Pesanan Kendaraan, layar bergaya DMS dealer.
 //
-// Bentuknya mengikuti formulir SPK dealer Piaggio: data pembeli
-// terpisah dari data Faktur STNK, aksesoris menambah total, BBN
-// dan ongkir dihitung di luar harga unit, dan tanda jadi menyatu
-// dalam satu alur — tidak dibuat lewat menu terpisah.
+// Formulirnya memakai tab (Data Pembeli · Unit & Harga ·
+// Pembayaran), bukan wizard bertahap: seluruh isian tetap ada di
+// halaman, jadi pengguna bisa melompat bolak-balik memeriksa tanpa
+// kehilangan apa pun.
+//
+// Data pembeli dan data Faktur STNK dipasang sejajar dua kolom,
+// mengikuti formulir dealer — karena keduanya memang sering beda
+// orang, dan menyamakannya tanpa sadar itu kesalahan yang mahal.
 //
 // SPK lahir SEBELUM unit ditebus, jadi menempel ke tipe motor
-// dulu; nomor rangka diisi belakangan di menu Berkas.
+// dulu; nomor rangka diisi belakangan di menu Serah Terima.
 
 import {
   dbase, collection, doc, getDocs, updateDoc, query, where,
@@ -24,6 +28,9 @@ import {
 import { terbitkan } from "./kuitansi.js";
 import { cetakSpk } from "./cetak.js";
 import { tanya, konfirmasi } from "./dialog.js";
+import {
+  bilahLayar, seksi, pasangSeksi, bilahTab, pasangTab, bukaTab,
+} from "./layar.js";
 import {
   rupiah, terbilang, aman, kabar, tanggal, tanggalJam,
   pasangFormatUang, bacaAngka,
@@ -69,8 +76,8 @@ export function hitung(d, mewah) {
   };
 }
 
-// ── Daftar ────────────────────────────────────────────────────
-function kartuSpk(s, bisaSetujui) {
+// ── Daftar SPK ────────────────────────────────────────────────
+function barisSpk(s, bisaSetujui) {
   const perlu = s.statusSPK === "menunggu_persetujuan";
   return `<article class="kartu ${perlu ? "kartu--sorot" : ""}">
     <div class="kartu-atas">
@@ -118,24 +125,31 @@ export async function halamanSpk(wadah) {
   const bisaSetujui = bolehAkses("spk.setujui");
   let saring = bisaSetujui ? "menunggu_persetujuan" : "semua";
 
-  wadah.innerHTML = `<section class="lembar">
-    <div class="lembar-atas">
-      <h2 class="judul">SPK</h2>
-      ${bisaBuat ? `<button class="tombol tombol--kecil tombol--isi"
-        id="buat-spk">Buat SPK</button>` : ""}
-    </div>
-    <div class="chip-baris" id="saring-spk">
-      ${bisaSetujui ? `<button class="chip aktif"
-        data-s="menunggu_persetujuan">Perlu persetujuan</button>` : ""}
-      <button class="chip ${bisaSetujui ? "" : "aktif"}"
-              data-s="semua">Semua</button>
-      <button class="chip" data-s="approve">Disetujui</button>
-      <button class="chip" data-s="selesai">Selesai</button>
-    </div>
+  wadah.innerHTML = `<div class="layar">
+    ${bilahLayar({
+      kode: "PJL-01",
+      judul: "Daftar Surat Pesanan Kendaraan",
+      aksi: [
+        ...(bisaBuat
+          ? [{ id: "buat-spk", label: "Entri SPK", jenis: "utama" }] : []),
+        { id: "muat-spk", label: "Muat ulang" },
+      ],
+    })}
+    ${seksi("Saringan", `
+      <div class="chip-baris" id="saring-spk" style="margin:0">
+        ${bisaSetujui ? `<button class="chip aktif"
+          data-s="menunggu_persetujuan">Perlu persetujuan</button>` : ""}
+        <button class="chip ${bisaSetujui ? "" : "aktif"}"
+                data-s="semua">Semua</button>
+        <button class="chip" data-s="approve">Disetujui</button>
+        <button class="chip" data-s="selesai">Selesai</button>
+      </div>`)}
     <div id="wadah-spk"></div>
-    <div id="daftar-spk" class="daftar"><p class="hampa">Memuat…</p></div>
-  </section>`;
+    ${seksi("Detail", `<div id="daftar-spk" class="daftar">
+      <p class="hampa">Memuat…</p></div>`)}
+  </div>`;
 
+  pasangSeksi(wadah);
   const daftarEl = wadah.querySelector("#daftar-spk");
   const formEl = wadah.querySelector("#wadah-spk");
   let terakhir = [];
@@ -154,7 +168,7 @@ export async function halamanSpk(wadah) {
         (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
 
     daftarEl.innerHTML = terakhir.length
-      ? terakhir.map((s) => kartuSpk(s, bisaSetujui)).join("")
+      ? terakhir.map((s) => barisSpk(s, bisaSetujui)).join("")
       : `<div class="hampa"><p>Belum ada SPK di kelompok ini.</p></div>`;
 
     daftarEl.querySelectorAll("[data-cetak]").forEach((b) =>
@@ -203,75 +217,297 @@ export async function halamanSpk(wadah) {
     }
   }
 
+  wadah.querySelector("#muat-spk").addEventListener("click", gambar);
   if (bisaBuat) {
     wadah.querySelector("#buat-spk")
-      .addEventListener("click", () => wizard(formEl, gambar));
+      .addEventListener("click", () => layarEntri(formEl, gambar));
   }
   await gambar();
 }
 
-// ── Wizard tiga langkah ───────────────────────────────────────
-async function wizard(wadah, selesai) {
-  const draft = {
-    langkah: 1,
-    pelangganId: "", pelangganBaru: null,
-    stnkSama: true, stnkNama: "", stnkAlamat: "",
-    jumlah: 1, tipeId: "", warna: "", tahun: new Date().getFullYear(),
-    hargaOtr: 0, aksesoris: [], potongan: [],
-    tambahanBbn: 0, ongkir: 0,
-    pengiriman: "on", kota: "", rencanaKirim: "", catatan: "",
-    metode: "kredit", leasing: "", dp: 0, tenor: 0, angsuran: 0,
-    agenNama: "", agenFee: 0, kodeSales: "",
-    tandaJadi: 0, metodeTandaJadi: "tunai",
-  };
+// ── Layar entri SPK ───────────────────────────────────────────
+async function layarEntri(wadah, selesai) {
   const daftarTipe = await muatTipe();
   const daftarPelanggan = await muatPelanggan();
   if (!daftarTipe.length) {
-    kabar("Tambahkan tipe motor dulu sebelum membuat SPK.", "rem");
+    kabar("Tambahkan tipe motor dulu di Data Induk.", "rem");
     return;
   }
-  gambar();
 
-  function kepala() {
-    return `<div class="langkah-baris">
-      ${[1, 2, 3].map((n) => `<span class="langkah ${
-        n === draft.langkah ? "langkah--aktif" : ""
-      } ${n < draft.langkah ? "langkah--lewat" : ""}">${n}</span>`).join("")}
-      <span class="langkah-label">${
-        ["Pembeli & STNK", "Unit & harga", "Pembayaran"][draft.langkah - 1]
-      }</span>
-    </div>`;
-  }
+  // Daftar dinamis disimpan di sini; isian biasa dibaca dari DOM
+  // saat disimpan, supaya berpindah tab tidak menghapus apa pun.
+  const aksesoris = [];
+  const potongan = [];
+  const hariIni = new Date().getFullYear();
 
-  function gambar() {
-    wadah.innerHTML = `<div class="form">${kepala()}${
-      [isi1, isi2, isi3][draft.langkah - 1]()
-    }</div>`;
-    [pasang1, pasang2, pasang3][draft.langkah - 1]();
-    wadah.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  const opsiTipe = daftarTipe.map((t) =>
+    `<option value="${t.id}">${aman(t.merek)} ${aman(t.tipe)} ${
+      aman(t.varian || "")}</option>`).join("");
+  const opsiPelanggan = daftarPelanggan.map((p) =>
+    `<option value="${p.id}">${aman(p.nama)} — ${aman(p.telepon || "")}
+    </option>`).join("");
 
-  function tombolNav(akhir = false) {
-    return `<div class="aksi">
-      ${draft.langkah > 1
-        ? `<button class="tombol tombol--sunyi tombol--gelap" type="button"
-             id="mundur">Kembali</button>` : ""}
-      <button class="tombol tombol--utama" type="button" id="maju">
-        ${akhir ? "Simpan SPK" : "Lanjut"}
-      </button>
+  wadah.innerHTML = `<div class="layar layar--entri" id="entri-spk">
+    ${bilahLayar({
+      kode: "PJL-02",
+      judul: "Entri Surat Pesanan Kendaraan",
+      aksi: [
+        { id: "spk-simpan", label: "Simpan SPK", jenis: "utama" },
+        { id: "spk-reset", label: "Reset" },
+        { id: "spk-tutup", label: "Tutup" },
+      ],
+    })}
+
+    ${seksi("Header", `
+      <div class="tiga">
+        <div>
+          <label class="label label--gelap">Nomor SPK</label>
+          <input class="isian isian--terang kecil" value="otomatis" disabled>
+        </div>
+        <div>
+          <label class="label label--gelap">Tanggal SPK</label>
+          <input class="isian isian--terang kecil"
+                 value="${new Date().toLocaleDateString("id-ID")}" disabled>
+        </div>
+        <div>
+          <label class="label label--gelap">Sales</label>
+          <input class="isian isian--terang kecil"
+                 value="${aman(sesi.nama)}" disabled>
+        </div>
+      </div>`)}
+
+    ${bilahTab([
+      { id: "pembeli", label: "Data Pembeli" },
+      { id: "unit", label: "Unit & Harga" },
+      { id: "bayar", label: "Pembayaran" },
+    ], "pembeli")}
+
+    <div class="panel-tab">
+
+      <!-- ── Tab 1: pembeli & STNK ─────────────────────────── -->
+      <div data-panel="pembeli">
+        <label class="label label--gelap" for="s-pelanggan">
+          Pembeli terdaftar</label>
+        <select class="isian isian--terang" id="s-pelanggan">
+          <option value="">— pembeli baru —</option>${opsiPelanggan}
+        </select>
+
+        <div class="kolom-dua">
+          <div class="kolom">
+            <p class="kolom-judul">Pembeli</p>
+            <div id="pembeli-baru">${formPelanggan({})}</div>
+          </div>
+          <div class="kolom">
+            <p class="kolom-judul">Faktur STNK atas nama</p>
+            <label class="pilihan">
+              <input type="checkbox" id="s-stnk-sama" checked>
+              <span>Sama dengan data pembeli</span>
+            </label>
+            <div id="stnk-beda" hidden>
+              <label class="label label--gelap" for="s-stnk-nama">
+                Nama di STNK</label>
+              <input class="isian isian--terang" id="s-stnk-nama"
+                     placeholder="Sesuai KTP pemilik">
+              <label class="label label--gelap" for="s-stnk-alamat">
+                Alamat STNK</label>
+              <input class="isian isian--terang" id="s-stnk-alamat">
+              <p class="petunjuk">Salah di sini berarti berkas diulang
+                dan biro jasa menagih dua kali.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab 2: unit & harga ───────────────────────────── -->
+      <div data-panel="unit" hidden>
+        <label class="label label--gelap" for="s-tipe">Merk / tipe</label>
+        <select class="isian isian--terang" id="s-tipe">
+          <option value="">— pilih —</option>${opsiTipe}
+        </select>
+        <div class="tiga">
+          <div>
+            <label class="label label--gelap" for="s-warna">Warna</label>
+            <select class="isian isian--terang kecil" id="s-warna"></select>
+          </div>
+          <div>
+            <label class="label label--gelap" for="s-tahun">Tahun</label>
+            <input class="isian isian--terang kecil" id="s-tahun"
+                   inputmode="numeric" value="${hariIni}">
+          </div>
+          <div>
+            <label class="label label--gelap" for="s-jumlah">Jumlah</label>
+            <input class="isian isian--terang kecil" id="s-jumlah"
+                   inputmode="numeric" value="1">
+          </div>
+        </div>
+        <label class="label label--gelap" for="s-otr">Harga per unit</label>
+        <input class="isian isian--terang" id="s-otr" inputmode="numeric">
+
+        <div class="pemisah">Aksesoris tambahan</div>
+        <div id="daftar-aksesoris"></div>
+        <button class="tombol tombol--kecil" type="button"
+                id="tambah-aksesoris">Tambah aksesoris</button>
+
+        <div class="pemisah">Potongan</div>
+        <div id="daftar-potongan"></div>
+        <button class="tombol tombol--kecil" type="button"
+                id="tambah-potongan">Tambah potongan</button>
+
+        <div class="pemisah">Biaya lain</div>
+        <div class="dua">
+          <div>
+            <label class="label label--gelap" for="s-bbn">Penambahan BBN</label>
+            <input class="isian isian--terang kecil" id="s-bbn"
+                   inputmode="numeric">
+          </div>
+          <div>
+            <label class="label label--gelap" for="s-ongkir">Ongkir</label>
+            <input class="isian isian--terang kecil" id="s-ongkir"
+                   inputmode="numeric">
+          </div>
+        </div>
+        <p class="petunjuk">BBN dan ongkir diteruskan ke pihak ketiga,
+          jadi tidak ikut dihitung PPN-nya.</p>
+
+        <div class="pemisah">Pengiriman</div>
+        <div class="chip-baris" id="s-pengiriman">
+          <button class="chip aktif" type="button" data-k="on">
+            On The Road</button>
+          <button class="chip" type="button" data-k="off">
+            Off The Road</button>
+        </div>
+        <div class="dua">
+          <div>
+            <label class="label label--gelap" for="s-kota">Kota</label>
+            <input class="isian isian--terang kecil" id="s-kota">
+          </div>
+          <div>
+            <label class="label label--gelap" for="s-kirim">
+              Rencana delivery</label>
+            <input class="isian isian--terang kecil" id="s-kirim" type="date">
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab 3: pembayaran ─────────────────────────────── -->
+      <div data-panel="bayar" hidden>
+        <label class="label label--gelap">Cara pembayaran</label>
+        <div class="chip-baris" id="metode">
+          <button class="chip aktif" type="button" data-m="kredit">
+            Kredit</button>
+          <button class="chip" type="button" data-m="cash">Tunai</button>
+        </div>
+        <div id="isian-kredit">
+          <label class="label label--gelap" for="s-leasing">Kredit via</label>
+          <input class="isian isian--terang" id="s-leasing"
+                 placeholder="Nama leasing">
+          <div class="tiga">
+            <div>
+              <label class="label label--gelap" for="s-dp">DP</label>
+              <input class="isian isian--terang kecil" id="s-dp"
+                     inputmode="numeric">
+            </div>
+            <div>
+              <label class="label label--gelap" for="s-tenor">Tenor (bln)</label>
+              <input class="isian isian--terang kecil" id="s-tenor"
+                     inputmode="numeric">
+            </div>
+            <div>
+              <label class="label label--gelap" for="s-angsuran">Angsuran</label>
+              <input class="isian isian--terang kecil" id="s-angsuran"
+                     inputmode="numeric">
+            </div>
+          </div>
+        </div>
+
+        <div class="pemisah">Salesman &amp; agen</div>
+        <div class="tiga">
+          <input class="isian isian--terang kecil" id="s-kode"
+                 placeholder="Kode salesman">
+          <input class="isian isian--terang kecil" id="s-agen"
+                 placeholder="Nama agen">
+          <input class="isian isian--terang kecil" id="s-fee"
+                 inputmode="numeric" placeholder="Fee agen">
+        </div>
+
+        <div class="pemisah">Tanda jadi</div>
+        <div class="dua">
+          <input class="isian isian--terang kecil" id="s-tandajadi"
+                 inputmode="numeric" placeholder="Nominal diterima">
+          <select class="isian isian--terang kecil" id="s-tj-metode">
+            <option value="tunai">Tunai</option>
+            <option value="transfer">Transfer</option>
+          </select>
+        </div>
+        <p class="petunjuk">Isi kalau pembeli membayar tanda jadi sekarang —
+          kuitansinya terbit otomatis bersama SPK ini.</p>
+
+        <label class="label label--gelap" for="s-catatan">Catatan</label>
+        <input class="isian isian--terang" id="s-catatan"
+               placeholder="Opsional">
+      </div>
     </div>
-    <button class="tautan-batal" type="button" id="batal-spk">
-      Batalkan pembuatan SPK
-    </button>`;
-  }
 
-  function pasangNav(saatMaju) {
-    const m = wadah.querySelector("#mundur");
-    if (m) m.addEventListener("click", () => { draft.langkah--; gambar(); });
-    wadah.querySelector("#maju").addEventListener("click", saatMaju);
-    wadah.querySelector("#batal-spk")
-      .addEventListener("click", () => (wadah.innerHTML = ""));
+    ${seksi("Ringkasan Nilai", `<div id="ringkas-harga"></div>`)}
+  </div>`;
+
+  const layar = wadah.querySelector("#entri-spk");
+  pasangSeksi(layar);
+  pasangTab(layar);
+
+  const q = (s) => layar.querySelector(s);
+  ["#s-otr", "#s-bbn", "#s-ongkir", "#s-dp", "#s-angsuran",
+   "#s-fee", "#s-tandajadi"].forEach((id) => pasangFormatUang(q(id)));
+
+  // ── Pembeli & STNK ──────────────────────────────────────────
+  const pilihPel = q("#s-pelanggan");
+  const baruEl = q("#pembeli-baru");
+  const stnkSama = q("#s-stnk-sama");
+  const stnkBeda = q("#stnk-beda");
+  pilihPel.addEventListener("change", () => {
+    baruEl.hidden = !!pilihPel.value;
+  });
+  stnkSama.addEventListener("change", () => {
+    stnkBeda.hidden = stnkSama.checked;
+  });
+
+  // ── Unit & harga ────────────────────────────────────────────
+  const pTipe = q("#s-tipe");
+  const pWarna = q("#s-warna");
+  const pOtr = q("#s-otr");
+  let pengiriman = "on";
+  let metode = "kredit";
+
+  function isiWarna() {
+    const t = tipeDari(pTipe.value);
+    pWarna.innerHTML = `<option value="">— pilih —</option>` +
+      ((t && t.warna) || []).map((w) =>
+        `<option value="${aman(w)}">${aman(w)}</option>`).join("");
+    if (t && !pOtr.value) {
+      pOtr.value = Number(t.hargaOtr || 0).toLocaleString("id-ID");
+    }
+    ringkas();
   }
+  pTipe.addEventListener("change", isiWarna);
+  ["#s-otr", "#s-jumlah", "#s-bbn", "#s-ongkir"].forEach((id) =>
+    q(id).addEventListener("input", ringkas));
+
+  q("#s-pengiriman").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-k]");
+    if (!t) return;
+    pengiriman = t.dataset.k;
+    layar.querySelectorAll("#s-pengiriman .chip")
+      .forEach((c) => c.classList.toggle("aktif", c === t));
+  });
+
+  q("#metode").addEventListener("click", (e) => {
+    const t = e.target.closest("[data-m]");
+    if (!t) return;
+    metode = t.dataset.m;
+    layar.querySelectorAll("#metode .chip")
+      .forEach((c) => c.classList.toggle("aktif", c === t));
+    q("#isian-kredit").hidden = metode !== "kredit";
+  });
 
   function uang(f) {
     const bersih = f.value.replace(/\D/g, "");
@@ -279,465 +515,235 @@ async function wizard(wadah, selesai) {
     return Number(bersih || 0);
   }
 
-  // ── Langkah 1: pembeli & faktur STNK ────────────────────────
-  function isi1() {
-    const opsi = daftarPelanggan.map((p) =>
-      `<option value="${p.id}" ${draft.pelangganId === p.id ? "selected" : ""}>
-        ${aman(p.nama)} — ${aman(p.telepon || "")}</option>`).join("");
-    return `
-      <label class="label label--gelap" for="s-pelanggan">Pembeli terdaftar</label>
-      <select class="isian isian--terang" id="s-pelanggan">
-        <option value="">— pembeli baru —</option>${opsi}
-      </select>
-      <div id="pembeli-baru">${formPelanggan(draft.pelangganBaru || {})}</div>
-
-      <div class="pemisah">Faktur STNK atas nama</div>
-      <label class="pilihan">
-        <input type="checkbox" id="s-stnk-sama" ${draft.stnkSama ? "checked" : ""}>
-        <span>Sama dengan data pembeli</span>
-      </label>
-      <div id="stnk-beda" ${draft.stnkSama ? "hidden" : ""}>
-        <label class="label label--gelap" for="s-stnk-nama">Nama di STNK</label>
-        <input class="isian isian--terang" id="s-stnk-nama"
-               value="${aman(draft.stnkNama)}" placeholder="Sesuai KTP pemilik">
-        <label class="label label--gelap" for="s-stnk-alamat">Alamat STNK</label>
-        <input class="isian isian--terang" id="s-stnk-alamat"
-               value="${aman(draft.stnkAlamat)}">
-        <p class="petunjuk">Isi kalau motor didaftarkan atas nama orang lain.
-          Salah di sini berarti berkas diulang dan biro jasa menagih dua kali.</p>
-      </div>
-      ${tombolNav()}`;
-  }
-
-  function pasang1() {
-    const pilih = wadah.querySelector("#s-pelanggan");
-    const baru = wadah.querySelector("#pembeli-baru");
-    const sama = wadah.querySelector("#s-stnk-sama");
-    const beda = wadah.querySelector("#stnk-beda");
-    const segarkan = () => { baru.hidden = !!pilih.value; };
-    pilih.addEventListener("change", segarkan);
-    sama.addEventListener("change", () => { beda.hidden = sama.checked; });
-    segarkan();
-
-    pasangNav(() => {
-      if (pilih.value) {
-        draft.pelangganId = pilih.value;
-        draft.pelangganBaru = null;
-      } else {
-        const d = bacaFormPelanggan(wadah);
-        if (!d.nama || !d.telepon) {
-          kabar("Nama dan telepon pembeli wajib diisi.", "rem");
-          return;
-        }
-        draft.pelangganBaru = d;
-        draft.pelangganId = "";
-      }
-      draft.stnkSama = sama.checked;
-      draft.stnkNama = draft.stnkSama
-        ? "" : wadah.querySelector("#s-stnk-nama").value.trim();
-      draft.stnkAlamat = draft.stnkSama
-        ? "" : wadah.querySelector("#s-stnk-alamat").value.trim();
-      if (!draft.stnkSama && !draft.stnkNama) {
-        kabar("Nama di STNK belum diisi.", "rem");
-        return;
-      }
-      draft.langkah = 2;
-      gambar();
-    });
-  }
-
-  // ── Langkah 2: unit, harga, biaya ───────────────────────────
-  function isi2() {
-    const opsi = daftarTipe.map((t) =>
-      `<option value="${t.id}" ${draft.tipeId === t.id ? "selected" : ""}>
-        ${aman(t.merek)} ${aman(t.tipe)} ${aman(t.varian || "")}</option>`
-    ).join("");
-    return `
-      <label class="label label--gelap" for="s-tipe">Merk / tipe</label>
-      <select class="isian isian--terang" id="s-tipe">
-        <option value="">— pilih —</option>${opsi}
-      </select>
-      <div class="tiga">
-        <div>
-          <label class="label label--gelap" for="s-warna">Warna</label>
-          <select class="isian isian--terang kecil" id="s-warna"></select>
+  function gambarAksesoris() {
+    q("#daftar-aksesoris").innerHTML = aksesoris.map((a, i) =>
+      `<div class="potongan" data-ai="${i}">
+        <div class="dua">
+          <input class="isian isian--terang kecil" data-af="nama"
+                 value="${aman(a.nama || "")}" placeholder="Nama aksesoris">
+          <input class="isian isian--terang kecil" data-af="harga"
+                 inputmode="numeric" placeholder="Harga"
+                 value="${a.harga
+                   ? Number(a.harga).toLocaleString("id-ID") : ""}">
         </div>
-        <div>
-          <label class="label label--gelap" for="s-tahun">Tahun</label>
-          <input class="isian isian--terang kecil" id="s-tahun"
-                 inputmode="numeric" value="${draft.tahun}">
-        </div>
-        <div>
-          <label class="label label--gelap" for="s-jumlah">Jumlah</label>
-          <input class="isian isian--terang kecil" id="s-jumlah"
-                 inputmode="numeric" value="${draft.jumlah}">
-        </div>
-      </div>
-      <label class="label label--gelap" for="s-otr">Harga per unit</label>
-      <input class="isian isian--terang" id="s-otr" inputmode="numeric">
-
-      <div class="pemisah">Aksesoris tambahan</div>
-      <div id="daftar-aksesoris"></div>
-      <button class="tombol tombol--kecil" type="button" id="tambah-aksesoris">
-        Tambah aksesoris
-      </button>
-
-      <div class="pemisah">Potongan</div>
-      <div id="daftar-potongan"></div>
-      <button class="tombol tombol--kecil" type="button" id="tambah-potongan">
-        Tambah potongan
-      </button>
-
-      <div class="pemisah">Biaya lain</div>
-      <div class="dua">
-        <div>
-          <label class="label label--gelap" for="s-bbn">Penambahan BBN</label>
-          <input class="isian isian--terang kecil" id="s-bbn"
-                 inputmode="numeric">
-        </div>
-        <div>
-          <label class="label label--gelap" for="s-ongkir">Ongkir</label>
-          <input class="isian isian--terang kecil" id="s-ongkir"
-                 inputmode="numeric">
-        </div>
-      </div>
-      <p class="petunjuk">BBN dan ongkir diteruskan ke pihak ketiga,
-        jadi tidak ikut dihitung PPN-nya.</p>
-
-      <div class="pemisah">Pengiriman</div>
-      <div class="chip-baris" id="s-pengiriman">
-        <button class="chip ${draft.pengiriman === "on" ? "aktif" : ""}"
-                type="button" data-k="on">On The Road</button>
-        <button class="chip ${draft.pengiriman === "off" ? "aktif" : ""}"
-                type="button" data-k="off">Off The Road</button>
-      </div>
-      <div class="dua">
-        <div>
-          <label class="label label--gelap" for="s-kota">Kota</label>
-          <input class="isian isian--terang kecil" id="s-kota"
-                 value="${aman(draft.kota)}">
-        </div>
-        <div>
-          <label class="label label--gelap" for="s-kirim">Rencana delivery</label>
-          <input class="isian isian--terang kecil" id="s-kirim" type="date"
-                 value="${aman(draft.rencanaKirim)}">
-        </div>
-      </div>
-
-      <div id="ringkas-harga" class="ringkas"></div>
-      ${tombolNav()}`;
-  }
-
-  function barisAksesoris(a, i) {
-    return `<div class="potongan" data-ai="${i}">
-      <div class="dua">
-        <input class="isian isian--terang kecil" data-af="nama"
-               value="${aman(a.nama || "")}" placeholder="Nama aksesoris">
-        <input class="isian isian--terang kecil" data-af="harga"
-               inputmode="numeric" placeholder="Harga"
-               value="${a.harga ? Number(a.harga).toLocaleString("id-ID") : ""}">
-      </div>
-      <button class="tautan-batal" type="button" data-ahapus="${i}">Hapus</button>
-    </div>`;
-  }
-
-  function barisPotongan(p, i) {
-    return `<div class="potongan" data-i="${i}">
-      <div class="dua">
-        <select class="isian isian--terang kecil" data-f="jenis">
-          <option value="harga" ${p.jenis === "harga" ? "selected" : ""}>
-            Potongan harga</option>
-          <option value="barang" ${p.jenis === "barang" ? "selected" : ""}>
-            Hadiah barang</option>
-        </select>
-        <select class="isian isian--terang kecil" data-f="sumber">
-          <option value="showroom" ${p.sumber === "showroom" ? "selected" : ""}>
-            Ditanggung showroom</option>
-          <option value="atpm" ${p.sumber === "atpm" ? "selected" : ""}>
-            Program Piaggio</option>
-          <option value="leasing" ${p.sumber === "leasing" ? "selected" : ""}>
-            Program leasing</option>
-          <option value="komisi" ${p.sumber === "komisi" ? "selected" : ""}>
-            Potong komisi</option>
-        </select>
-      </div>
-      <div class="dua">
-        <input class="isian isian--terang kecil" data-f="nominal"
-               inputmode="numeric" placeholder="Nominal"
-               value="${p.nominal ? Number(p.nominal).toLocaleString("id-ID") : ""}">
-        <input class="isian isian--terang kecil" data-f="keterangan"
-               value="${aman(p.keterangan || "")}" placeholder="Keterangan">
-      </div>
-      <button class="tautan-batal" type="button" data-hapus="${i}">Hapus</button>
-    </div>`;
-  }
-
-  function pasang2() {
-    const pTipe = wadah.querySelector("#s-tipe");
-    const pWarna = wadah.querySelector("#s-warna");
-    const pOtr = wadah.querySelector("#s-otr");
-    const pJumlah = wadah.querySelector("#s-jumlah");
-    const pBbn = wadah.querySelector("#s-bbn");
-    const pOngkir = wadah.querySelector("#s-ongkir");
-    [pOtr, pBbn, pOngkir].forEach(pasangFormatUang);
-
-    if (draft.hargaOtr) {
-      pOtr.value = Number(draft.hargaOtr).toLocaleString("id-ID");
-    }
-    if (draft.tambahanBbn) {
-      pBbn.value = Number(draft.tambahanBbn).toLocaleString("id-ID");
-    }
-    if (draft.ongkir) {
-      pOngkir.value = Number(draft.ongkir).toLocaleString("id-ID");
-    }
-
-    function isiWarna() {
-      const t = tipeDari(pTipe.value);
-      pWarna.innerHTML = `<option value="">— pilih —</option>` +
-        ((t && t.warna) || []).map((w) =>
-          `<option value="${aman(w)}" ${draft.warna === w ? "selected" : ""}>
-            ${aman(w)}</option>`).join("");
-      if (t && !pOtr.value) {
-        pOtr.value = Number(t.hargaOtr || 0).toLocaleString("id-ID");
-      }
-      ringkas();
-    }
-    pTipe.addEventListener("change", isiWarna);
-    [pOtr, pJumlah, pBbn, pOngkir].forEach((el) =>
-      el.addEventListener("input", ringkas));
-    isiWarna();
-
-    wadah.querySelector("#s-pengiriman").addEventListener("click", (e) => {
-      const t = e.target.closest("[data-k]");
-      if (!t) return;
-      draft.pengiriman = t.dataset.k;
-      wadah.querySelectorAll("#s-pengiriman .chip")
-        .forEach((c) => c.classList.toggle("aktif", c === t));
-    });
-
-    function gambarAksesoris() {
-      wadah.querySelector("#daftar-aksesoris").innerHTML =
-        draft.aksesoris.map(barisAksesoris).join("");
-      wadah.querySelectorAll("[data-ai]").forEach((b) => {
-        b.querySelectorAll("[data-af]").forEach((f) => {
-          f.addEventListener("input", () => {
-            const i = Number(b.dataset.ai);
-            draft.aksesoris[i][f.dataset.af] =
-              f.dataset.af === "harga" ? uang(f) : f.value;
-            ringkas();
-          });
-        });
-      });
-      wadah.querySelectorAll("[data-ahapus]").forEach((b) =>
-        b.addEventListener("click", () => {
-          draft.aksesoris.splice(Number(b.dataset.ahapus), 1);
-          gambarAksesoris(); ringkas();
+        <button class="tautan-batal" type="button" data-ahapus="${i}">
+          Hapus</button>
+      </div>`).join("");
+    layar.querySelectorAll("[data-ai]").forEach((b) => {
+      b.querySelectorAll("[data-af]").forEach((f) =>
+        f.addEventListener("input", () => {
+          const i = Number(b.dataset.ai);
+          aksesoris[i][f.dataset.af] =
+            f.dataset.af === "harga" ? uang(f) : f.value;
+          ringkas();
         }));
-    }
+    });
+    layar.querySelectorAll("[data-ahapus]").forEach((b) =>
+      b.addEventListener("click", () => {
+        aksesoris.splice(Number(b.dataset.ahapus), 1);
+        gambarAksesoris(); ringkas();
+      }));
+  }
 
-    function gambarPotongan() {
-      wadah.querySelector("#daftar-potongan").innerHTML =
-        draft.potongan.map(barisPotongan).join("");
-      wadah.querySelectorAll("[data-i]").forEach((b) => {
-        b.querySelectorAll("[data-f]").forEach((f) => {
-          f.addEventListener("input", () => {
-            const i = Number(b.dataset.i);
-            draft.potongan[i][f.dataset.f] =
-              f.dataset.f === "nominal" ? uang(f) : f.value;
-            ringkas();
-          });
-        });
-      });
-      wadah.querySelectorAll("[data-hapus]").forEach((b) =>
-        b.addEventListener("click", () => {
-          draft.potongan.splice(Number(b.dataset.hapus), 1);
-          gambarPotongan(); ringkas();
+  function gambarPotongan() {
+    q("#daftar-potongan").innerHTML = potongan.map((p, i) =>
+      `<div class="potongan" data-i="${i}">
+        <div class="dua">
+          <select class="isian isian--terang kecil" data-f="jenis">
+            <option value="harga" ${p.jenis === "harga" ? "selected" : ""}>
+              Potongan harga</option>
+            <option value="barang" ${p.jenis === "barang" ? "selected" : ""}>
+              Hadiah barang</option>
+          </select>
+          <select class="isian isian--terang kecil" data-f="sumber">
+            <option value="showroom" ${
+              p.sumber === "showroom" ? "selected" : ""}>
+              Ditanggung showroom</option>
+            <option value="atpm" ${p.sumber === "atpm" ? "selected" : ""}>
+              Program Piaggio</option>
+            <option value="leasing" ${p.sumber === "leasing" ? "selected" : ""}>
+              Program leasing</option>
+            <option value="komisi" ${p.sumber === "komisi" ? "selected" : ""}>
+              Potong komisi</option>
+          </select>
+        </div>
+        <div class="dua">
+          <input class="isian isian--terang kecil" data-f="nominal"
+                 inputmode="numeric" placeholder="Nominal"
+                 value="${p.nominal
+                   ? Number(p.nominal).toLocaleString("id-ID") : ""}">
+          <input class="isian isian--terang kecil" data-f="keterangan"
+                 value="${aman(p.keterangan || "")}" placeholder="Keterangan">
+        </div>
+        <button class="tautan-batal" type="button" data-hapus="${i}">
+          Hapus</button>
+      </div>`).join("");
+    layar.querySelectorAll("[data-i]").forEach((b) => {
+      b.querySelectorAll("[data-f]").forEach((f) =>
+        f.addEventListener("input", () => {
+          const i = Number(b.dataset.i);
+          potongan[i][f.dataset.f] =
+            f.dataset.f === "nominal" ? uang(f) : f.value;
+          ringkas();
         }));
-    }
+    });
+    layar.querySelectorAll("[data-hapus]").forEach((b) =>
+      b.addEventListener("click", () => {
+        potongan.splice(Number(b.dataset.hapus), 1);
+        gambarPotongan(); ringkas();
+      }));
+  }
 
-    wadah.querySelector("#tambah-aksesoris").addEventListener("click", () => {
-      draft.aksesoris.push({ nama: "", harga: 0 });
-      gambarAksesoris();
-    });
-    wadah.querySelector("#tambah-potongan").addEventListener("click", () => {
-      draft.potongan.push({
-        jenis: "harga", sumber: "showroom", nominal: 0, keterangan: "",
-      });
-      gambarPotongan();
-    });
+  q("#tambah-aksesoris").addEventListener("click", () => {
+    aksesoris.push({ nama: "", harga: 0 });
     gambarAksesoris();
+  });
+  q("#tambah-potongan").addEventListener("click", () => {
+    potongan.push({
+      jenis: "harga", sumber: "showroom", nominal: 0, keterangan: "",
+    });
     gambarPotongan();
+  });
 
-    function ringkas() {
-      const t = tipeDari(pTipe.value);
-      const sementara = {
-        ...draft,
-        jumlah: Number(pJumlah.value || 1),
-        hargaOtr: bacaAngka(pOtr),
-        tambahanBbn: bacaAngka(pBbn),
-        ongkir: bacaAngka(pOngkir),
-      };
-      const h = hitung(sementara, t && t.mewah);
-      const batas = batasDiskon(sesi.peran);
-      const lewat = perluPersetujuan(sesi.peran, h.bebanShowroom);
-      wadah.querySelector("#ringkas-harga").innerHTML = `
-        <div class="ringkas-baris"><span>${h.jumlah} unit</span>
-          <span class="mono">${
-            rupiah(sementara.hargaOtr * h.jumlah)}</span></div>
-        ${h.aksesoris ? `<div class="ringkas-baris"><span>Aksesoris</span>
-          <span class="mono">${rupiah(h.aksesoris)}</span></div>` : ""}
-        ${h.potonganHarga ? `<div class="ringkas-baris"><span>Potongan</span>
-          <span class="mono">− ${rupiah(h.potonganHarga)}</span></div>` : ""}
-        ${sementara.tambahanBbn ? `<div class="ringkas-baris">
-          <span>Penambahan BBN</span>
-          <span class="mono">${rupiah(sementara.tambahanBbn)}</span></div>` : ""}
-        ${sementara.ongkir ? `<div class="ringkas-baris"><span>Ongkir</span>
-          <span class="mono">${rupiah(sementara.ongkir)}</span></div>` : ""}
-        <div class="ringkas-baris ringkas-total"><span>Total</span>
-          <b class="mono">${rupiah(h.total)}</b></div>
-        <div class="ringkas-baris"><span>DPP / PPN</span>
-          <span class="mono">${rupiah(h.dpp)} / ${rupiah(h.ppn)}</span></div>
-        ${h.bebanShowroom ? `<div class="ringkas-baris">
-          <span>Ditanggung showroom</span>
-          <b class="mono">${rupiah(h.bebanShowroom)}</b></div>` : ""}
-        ${h.piutangProgram ? `<div class="ringkas-baris">
-          <span>Klaim ke Piaggio</span>
-          <span class="mono">${rupiah(h.piutangProgram)}</span></div>` : ""}
-        ${lewat ? `<p class="peringatan">Melebihi batas Anda
-          (${rupiah(batas)}). SPK akan menunggu persetujuan owner.</p>` : ""}`;
-    }
-
-    pasangNav(() => {
-      if (!pTipe.value) { kabar("Pilih tipe motornya.", "rem"); return; }
-      if (!bacaAngka(pOtr)) { kabar("Harga unit belum diisi.", "rem"); return; }
-      draft.tipeId = pTipe.value;
-      draft.warna = pWarna.value;
-      draft.tahun = Number(wadah.querySelector("#s-tahun").value || 0);
-      draft.jumlah = Math.max(1, Number(pJumlah.value || 1));
-      draft.hargaOtr = bacaAngka(pOtr);
-      draft.tambahanBbn = bacaAngka(pBbn);
-      draft.ongkir = bacaAngka(pOngkir);
-      draft.kota = wadah.querySelector("#s-kota").value.trim();
-      draft.rencanaKirim = wadah.querySelector("#s-kirim").value;
-      draft.langkah = 3;
-      gambar();
-    });
+  function kumpulkan() {
+    return {
+      jumlah: Number(q("#s-jumlah").value || 1),
+      hargaOtr: bacaAngka(q("#s-otr")),
+      tambahanBbn: bacaAngka(q("#s-bbn")),
+      ongkir: bacaAngka(q("#s-ongkir")),
+      aksesoris, potongan,
+    };
   }
 
-  // ── Langkah 3: pembayaran & tanda jadi ──────────────────────
-  function isi3() {
-    return `
-      <label class="label label--gelap">Cara pembayaran</label>
-      <div class="chip-baris" id="metode">
-        <button class="chip ${draft.metode === "kredit" ? "aktif" : ""}"
-                type="button" data-m="kredit">Kredit</button>
-        <button class="chip ${draft.metode === "cash" ? "aktif" : ""}"
-                type="button" data-m="cash">Tunai</button>
-      </div>
-      <div id="isian-kredit">
-        <label class="label label--gelap" for="s-leasing">Kredit via</label>
-        <input class="isian isian--terang" id="s-leasing"
-               value="${aman(draft.leasing)}" placeholder="Nama leasing">
-        <div class="tiga">
-          <div>
-            <label class="label label--gelap" for="s-dp">DP</label>
-            <input class="isian isian--terang kecil" id="s-dp"
-                   inputmode="numeric">
-          </div>
-          <div>
-            <label class="label label--gelap" for="s-tenor">Tenor (bln)</label>
-            <input class="isian isian--terang kecil" id="s-tenor"
-                   inputmode="numeric" value="${draft.tenor || ""}">
-          </div>
-          <div>
-            <label class="label label--gelap" for="s-angsuran">Angsuran</label>
-            <input class="isian isian--terang kecil" id="s-angsuran"
-                   inputmode="numeric">
-          </div>
-        </div>
-      </div>
-
-      <div class="pemisah">Salesman & agen</div>
-      <div class="dua">
-        <input class="isian isian--terang kecil" id="s-kode"
-               value="${aman(draft.kodeSales)}" placeholder="Kode salesman">
-        <input class="isian isian--terang kecil" id="s-agen"
-               value="${aman(draft.agenNama)}" placeholder="Nama agen">
-      </div>
-      <input class="isian isian--terang kecil" id="s-fee" inputmode="numeric"
-             placeholder="Fee agen" style="margin-top:8px">
-
-      <div class="pemisah">Tanda jadi</div>
-      <div class="dua">
-        <input class="isian isian--terang kecil" id="s-tandajadi"
-               inputmode="numeric" placeholder="Nominal diterima">
-        <select class="isian isian--terang kecil" id="s-tj-metode">
-          <option value="tunai">Tunai</option>
-          <option value="transfer">Transfer</option>
-        </select>
-      </div>
-      <p class="petunjuk">Isi kalau pembeli membayar tanda jadi sekarang —
-        kuitansinya terbit otomatis bersama SPK ini. Kosongkan kalau
-        belum ada pembayaran.</p>
-
-      <label class="label label--gelap" for="s-catatan">Catatan</label>
-      <input class="isian isian--terang" id="s-catatan"
-             value="${aman(draft.catatan)}" placeholder="Opsional">
-      ${tombolNav(true)}`;
+  // Ringkasan hidup: ikut berubah tiap kali angka diketik, dan
+  // tetap terlihat walau pengguna sedang membuka tab lain.
+  function ringkas() {
+    const t = tipeDari(pTipe.value);
+    const d = kumpulkan();
+    const h = hitung(d, t && t.mewah);
+    const batas = batasDiskon(sesi.peran);
+    const lewat = perluPersetujuan(sesi.peran, h.bebanShowroom);
+    q("#ringkas-harga").innerHTML = `
+      <div class="ringkas-baris"><span>${h.jumlah} unit</span>
+        <span class="mono">${rupiah(d.hargaOtr * h.jumlah)}</span></div>
+      ${h.aksesoris ? `<div class="ringkas-baris"><span>Aksesoris</span>
+        <span class="mono">${rupiah(h.aksesoris)}</span></div>` : ""}
+      ${h.potonganHarga ? `<div class="ringkas-baris"><span>Potongan</span>
+        <span class="mono">− ${rupiah(h.potonganHarga)}</span></div>` : ""}
+      ${d.tambahanBbn ? `<div class="ringkas-baris">
+        <span>Penambahan BBN</span>
+        <span class="mono">${rupiah(d.tambahanBbn)}</span></div>` : ""}
+      ${d.ongkir ? `<div class="ringkas-baris"><span>Ongkir</span>
+        <span class="mono">${rupiah(d.ongkir)}</span></div>` : ""}
+      <div class="ringkas-baris ringkas-total"><span>Total</span>
+        <b class="mono">${rupiah(h.total)}</b></div>
+      <div class="ringkas-baris"><span>DPP / PPN</span>
+        <span class="mono">${rupiah(h.dpp)} / ${rupiah(h.ppn)}</span></div>
+      ${h.bebanShowroom ? `<div class="ringkas-baris">
+        <span>Ditanggung showroom</span>
+        <b class="mono">${rupiah(h.bebanShowroom)}</b></div>` : ""}
+      ${h.piutangProgram ? `<div class="ringkas-baris">
+        <span>Klaim ke Piaggio</span>
+        <span class="mono">${rupiah(h.piutangProgram)}</span></div>` : ""}
+      ${lewat ? `<p class="peringatan">Melebihi batas Anda
+        (${rupiah(batas)}). SPK akan menunggu persetujuan owner.</p>` : ""}`;
   }
+  ringkas();
 
-  function pasang3() {
-    ["s-dp", "s-angsuran", "s-fee", "s-tandajadi"].forEach((id) =>
-      pasangFormatUang(wadah.querySelector("#" + id)));
-    const kredit = wadah.querySelector("#isian-kredit");
-    kredit.hidden = draft.metode !== "kredit";
-
-    wadah.querySelector("#metode").addEventListener("click", (e) => {
-      const t = e.target.closest("[data-m]");
-      if (!t) return;
-      draft.metode = t.dataset.m;
-      wadah.querySelectorAll("#metode .chip")
-        .forEach((c) => c.classList.toggle("aktif", c === t));
-      kredit.hidden = draft.metode !== "kredit";
+  // ── Toolbar ────────────────────────────────────────────────
+  q("#spk-tutup").addEventListener("click", () => (wadah.innerHTML = ""));
+  q("#spk-reset").addEventListener("click", async () => {
+    const jadi = await konfirmasi({
+      judul: "Reset formulir",
+      pesan: "Semua isian pada layar ini akan dikosongkan.",
+      oke: "Reset", bahaya: true,
     });
+    if (jadi) layarEntri(wadah, selesai);
+  });
 
-    pasangNav(async () => {
-      draft.leasing = wadah.querySelector("#s-leasing").value.trim();
-      draft.dp = bacaAngka(wadah.querySelector("#s-dp"));
-      draft.tenor = Number(wadah.querySelector("#s-tenor").value || 0);
-      draft.angsuran = bacaAngka(wadah.querySelector("#s-angsuran"));
-      draft.kodeSales = wadah.querySelector("#s-kode").value.trim();
-      draft.agenNama = wadah.querySelector("#s-agen").value.trim();
-      draft.agenFee = bacaAngka(wadah.querySelector("#s-fee"));
-      draft.tandaJadi = bacaAngka(wadah.querySelector("#s-tandajadi"));
-      draft.metodeTandaJadi = wadah.querySelector("#s-tj-metode").value;
-      draft.catatan = wadah.querySelector("#s-catatan").value.trim();
-
-      if (draft.metode === "kredit" && !draft.leasing) {
-        kabar("Nama leasing wajib diisi untuk penjualan kredit.", "rem");
+  q("#spk-simpan").addEventListener("click", async () => {
+    // Pembeli
+    let pelangganId = pilihPel.value;
+    let pelangganBaru = null;
+    if (!pelangganId) {
+      const d = bacaFormPelanggan(layar);
+      if (!d.nama || !d.telepon) {
+        bukaTab(layar, "pembeli");
+        kabar("Nama dan telepon pembeli wajib diisi.", "rem");
         return;
       }
-      const tombol = wadah.querySelector("#maju");
-      tombol.disabled = true;
-      tombol.textContent = "Menyimpan…";
-      try {
-        const hasil = await simpan(draft);
-        wadah.innerHTML = "";
-        await selesai();
-        const cetak = await konfirmasi({
-          judul: `${hasil.kode} tersimpan`,
-          pesan: "Cetak lembar SPK sekarang untuk ditandatangani pemesan?",
-          oke: "Cetak SPK",
-          batal: "Nanti saja",
-        });
-        if (cetak) cetakSpk(hasil.data);
-      } catch (err) {
-        kabar("Gagal menyimpan SPK: " + err.message, "rem");
-        tombol.disabled = false;
-        tombol.textContent = "Simpan SPK";
-      }
-    });
-  }
+      pelangganBaru = d;
+    }
+    const sama = stnkSama.checked;
+    const stnkNama = sama ? "" : q("#s-stnk-nama").value.trim();
+    if (!sama && !stnkNama) {
+      bukaTab(layar, "pembeli");
+      kabar("Nama di STNK belum diisi.", "rem");
+      return;
+    }
+    // Unit
+    if (!pTipe.value) {
+      bukaTab(layar, "unit");
+      kabar("Pilih tipe motornya.", "rem");
+      return;
+    }
+    if (!bacaAngka(pOtr)) {
+      bukaTab(layar, "unit");
+      kabar("Harga unit belum diisi.", "rem");
+      return;
+    }
+    // Pembayaran
+    const leasing = q("#s-leasing").value.trim();
+    if (metode === "kredit" && !leasing) {
+      bukaTab(layar, "bayar");
+      kabar("Nama leasing wajib diisi untuk penjualan kredit.", "rem");
+      return;
+    }
+
+    const draft = {
+      pelangganId, pelangganBaru,
+      stnkSama: sama, stnkNama,
+      stnkAlamat: sama ? "" : q("#s-stnk-alamat").value.trim(),
+      tipeId: pTipe.value,
+      warna: pWarna.value,
+      tahun: Number(q("#s-tahun").value || 0),
+      ...kumpulkan(),
+      pengiriman,
+      kota: q("#s-kota").value.trim(),
+      rencanaKirim: q("#s-kirim").value,
+      catatan: q("#s-catatan").value.trim(),
+      metode, leasing,
+      dp: bacaAngka(q("#s-dp")),
+      tenor: Number(q("#s-tenor").value || 0),
+      angsuran: bacaAngka(q("#s-angsuran")),
+      kodeSales: q("#s-kode").value.trim(),
+      agenNama: q("#s-agen").value.trim(),
+      agenFee: bacaAngka(q("#s-fee")),
+      tandaJadi: bacaAngka(q("#s-tandajadi")),
+      metodeTandaJadi: q("#s-tj-metode").value,
+    };
+
+    const tombol = q("#spk-simpan");
+    tombol.disabled = true;
+    tombol.textContent = "Menyimpan…";
+    try {
+      const hasil = await simpan(draft);
+      wadah.innerHTML = "";
+      await selesai();
+      const cetak = await konfirmasi({
+        judul: `${hasil.kode} tersimpan`,
+        pesan: "Cetak lembar SPK sekarang untuk ditandatangani pemesan?",
+        oke: "Cetak SPK", batal: "Nanti saja",
+      });
+      if (cetak) cetakSpk(hasil.data);
+    } catch (err) {
+      kabar("Gagal menyimpan SPK: " + err.message, "rem");
+      tombol.disabled = false;
+      tombol.textContent = "Simpan SPK";
+    }
+  });
+
+  layar.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // ── Penyimpanan ───────────────────────────────────────────────
@@ -784,12 +790,12 @@ async function simpan(d) {
       : null,
     hargaOtr: d.hargaOtr,
     aksesoris: d.aksesoris.filter((a) => a.nama || a.harga),
-    potongan: d.potongan,
+    potongan: d.potongan.filter((p) => Number(p.nominal || 0) > 0),
     tambahanBbn: d.tambahanBbn,
     ongkir: d.ongkir,
     nilaiUnit: h.nilaiUnit,
     total: h.total,
-    hargaNet: h.total,        // dipakai modul pembayaran & kuitansi
+    hargaNet: h.total,
     dpp: h.dpp,
     ppn: h.ppn,
     bebanShowroom: h.bebanShowroom,
@@ -825,7 +831,6 @@ async function simpan(d) {
 
   await batch.commit();
 
-  // Tanda jadi menyatu dengan SPK, seperti potongan di formulir asli.
   let tandaJadiTerbit = 0;
   if (d.tandaJadi > 0) {
     try {

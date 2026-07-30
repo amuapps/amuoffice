@@ -62,6 +62,9 @@ function siapkanLayarMasuk() {
 // ── Panel atas ────────────────────────────────────────────────
 function gambarJejak() {
   const aktif = document.querySelector(".nav-butir.aktif");
+  if (aktif) {
+    aktif.closest(".nav-grup-wadah")?.classList.remove("nav-grup--tutup");
+  }
   const j = el("jejak");
   if (!j) return;
   if (!aktif) { j.innerHTML = ""; return; }
@@ -96,17 +99,37 @@ function tutupSisi() {
 
 function gambarNavigasi(profil) {
   const p = PERAN[profil.peran];
+  // Tiap kelompok melipat. Yang berisi halaman aktif dibuka
+  // sendiri; sisanya tertutup supaya sidebar tidak sesak saat
+  // modulnya bertambah banyak.
+  const rute = location.hash || p.beranda;
   el("nav").innerHTML = p.menu
-    .map(
-      (g) => `<p class="nav-grup">${aman(g.grup)}</p>` +
-        g.butir.map((m) =>
-          `<a class="nav-butir" data-rute="${m.rute}" href="${m.rute}"
-              data-grup="${aman(g.grup)}" data-nama="${aman(m.label)}">
-            <span class="nav-lampu"></span>
-            <span class="nav-label">${aman(m.label)}</span>
-          </a>`).join("")
-    )
+    .map((g, i) => {
+      const isiGrup = g.butir.some((m) => m.rute === rute);
+      const buka = isiGrup || (i === 0 && !p.menu.some((x) =>
+        x.butir.some((m) => m.rute === rute)));
+      return `<div class="nav-grup-wadah ${buka ? "" : "nav-grup--tutup"}">
+        <button class="nav-grup" type="button">
+          <span class="nav-grup-nama">${aman(g.grup)}</span>
+          <span class="nav-grup-panah">▾</span>
+        </button>
+        <div class="nav-butir-isi">
+          ${g.butir.map((m) =>
+            `<a class="nav-butir" data-rute="${m.rute}" href="${m.rute}"
+                data-grup="${aman(g.grup)}" data-nama="${aman(m.label)}">
+              <span class="nav-lampu"></span>
+              <span class="nav-label">${aman(m.label)}</span>
+            </a>`).join("")}
+        </div>
+      </div>`;
+    })
     .join("");
+
+  el("nav").querySelectorAll(".nav-grup").forEach((k) => {
+    k.addEventListener("click", () => {
+      k.closest(".nav-grup-wadah").classList.toggle("nav-grup--tutup");
+    });
+  });
   // Di layar HP sidebar berupa laci, jadi ditutup begitu menu dipilih.
   el("nav").querySelectorAll(".nav-butir")
     .forEach((a) => a.addEventListener("click", tutupSisi));
