@@ -42,6 +42,10 @@ export const PERAN = {
         { label: "Tipe Motor", rute: "#/kelola" },
         { label: "Pelanggan", rute: "#/pelanggan" },
       ]},
+      { grup: "Pengaturan", butir: [
+        { label: "Pengguna", rute: "#/pengguna" },
+        { label: "Penomoran", rute: "#/nomor" },
+      ]},
     ],
   },
 

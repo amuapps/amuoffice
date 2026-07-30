@@ -19,6 +19,7 @@ import { halamanTagihan, halamanKuitansi, halamanVerifikasi }
 import { halamanKas } from "./kas.js";
 import { halamanRingkasan } from "./ringkasan.js";
 import { halamanBerkas } from "./serah.js";
+import { halamanPengguna, halamanNomor } from "./pengaturan.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -134,6 +135,8 @@ function daftarkanHalaman(profil) {
     "#/kas": (w) => halamanKas(w),
     "#/ringkasan": (w) => halamanRingkasan(w),
     "#/berkas": (w) => halamanBerkas(w),
+    "#/pengguna": (w) => halamanPengguna(w),
+    "#/nomor": (w) => halamanNomor(w),
   };
 
   const isian = {
