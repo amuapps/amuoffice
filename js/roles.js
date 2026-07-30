@@ -31,6 +31,9 @@ export const PERAN = {
         { label: "Tagihan", rute: "#/tagihan" },
         { label: "Kuitansi", rute: "#/kuitansi" },
       ]},
+      { grup: "Pembelian", butir: [
+        { label: "Order Pembelian", rute: "#/pembelian" },
+      ]},
       { grup: "Inventori", butir: [
         { label: "Stok Unit", rute: "#/stok" },
         { label: "Serah Terima", rute: "#/berkas" },
@@ -60,6 +63,9 @@ export const PERAN = {
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
     ],
     menu: [
+      { grup: "Pembelian", butir: [
+        { label: "Order Pembelian", rute: "#/pembelian" },
+      ]},
       { grup: "Inventori", butir: [
         { label: "Serah Terima", rute: "#/berkas" },
         { label: "Stok Unit", rute: "#/stok" },

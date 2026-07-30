@@ -20,6 +20,7 @@ import { halamanKas } from "./kas.js";
 import { halamanRingkasan } from "./ringkasan.js";
 import { halamanBerkas } from "./serah.js";
 import { halamanPengguna, halamanNomor } from "./pengaturan.js";
+import { halamanPembelian } from "./pembelian.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -77,9 +78,14 @@ function gambarPanel(profil) {
   el("nama-pengguna").textContent = profil.nama;
   el("penanda-uji").hidden = !MODE_UJI;
 
+  // Hanya ditampilkan kalau perannya memang punya batas. Untuk
+  // owner, label "diskon bebas" cuma jadi tulisan yang menempel
+  // tanpa memberi informasi.
   const batas = batasDiskon(profil.peran);
-  el("batas-diskon").textContent =
-    batas === null ? "Diskon bebas" : `Batas diskon ${rupiah(batas)}`;
+  const batasEl = el("batas-diskon");
+  batasEl.hidden = batas === null;
+  batasEl.textContent = `Batas diskon ${rupiah(batas || 0)}`;
+  el("panel-baca").hidden = batas === null && !MODE_UJI;
 }
 
 // ── Navigasi bawah ────────────────────────────────────────────
@@ -137,6 +143,7 @@ function daftarkanHalaman(profil) {
     "#/berkas": (w) => halamanBerkas(w),
     "#/pengguna": (w) => halamanPengguna(w),
     "#/nomor": (w) => halamanNomor(w),
+    "#/pembelian": (w) => halamanPembelian(w),
   };
 
   const isian = {

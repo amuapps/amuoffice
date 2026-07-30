@@ -18,6 +18,10 @@ import { rupiah, aman, kabar, kunciBulan, tanggal } from "./ui.js";
 // CSV untuk dibuka di Excel dan diserahkan ke akuntan.
 // JSON untuk cadangan sesungguhnya — CSV itu tabel datar dan tidak
 // menyimpan subkoleksi, jadi tidak bisa dipulihkan kembali.
+//
+// Firestore sendiri punya backup terjadwal dan point-in-time
+// recovery, tapi keduanya menuntut penagihan aktif (Blaze). Selama
+// masih di paket Spark, unduhan ini satu-satunya jaring pengaman.
 const KOLEKSI = [
   "tipe_motor", "units", "pelanggan", "transaksi",
   "kuitansi", "kas", "ringkasan",
@@ -132,9 +136,11 @@ export async function halamanRingkasan(wadah) {
 
     ${bisaEkspor ? `
       <div class="pemisah">Cadangan &amp; ekspor</div>
-      <p class="petunjuk">Firestore paket gratis tidak punya pemulihan
-        otomatis. Unduh cadangan JSON secara berkala — hanya format ini
-        yang bisa dikembalikan utuh.</p>
+      <p class="petunjuk">Unduh cadangan JSON secara berkala — hanya
+        format ini yang bisa dipulihkan utuh; CSV kehilangan relasi
+        antar data. Setelah proyek Firebase pindah ke Blaze, backup
+        terjadwal bisa diaktifkan dan unduhan manual ini jadi
+        pelengkap saja.</p>
       <div class="chip-baris" style="margin-top:10px">
         <button class="chip" id="ek-json">Cadangan JSON</button>
         <button class="chip" id="ek-kas">CSV kas</button>
