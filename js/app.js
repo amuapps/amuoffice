@@ -21,6 +21,7 @@ import { halamanRingkasan } from "./ringkasan.js";
 import { halamanBerkas } from "./serah.js";
 import { halamanPengguna, halamanNomor } from "./pengaturan.js";
 import { halamanPembelian } from "./pembelian.js";
+import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
 
@@ -139,95 +140,39 @@ function gambarNavigasi(profil) {
 // Tahap 1 baru menyediakan kerangkanya. Tiap tahap berikutnya
 // menambah file sendiri dan mendaftarkan halamannya di sini,
 // tanpa mengubah apa pun yang sudah jalan.
-function kosong(judul, ajakan) {
-  return `<section class="lembar">
-    <h2 class="judul">${aman(judul)}</h2>
-    <div class="hampa">
-      <p>${aman(ajakan)}</p>
-    </div>
-  </section>`;
-}
-
 function daftarkanHalaman(profil) {
   bersihkanRute();
   const p = PERAN[profil.peran];
 
-  // Halaman bermodul. Tahap berikutnya cukup menambah baris di sini.
+  // Layar yang sudah dibangun. Sisanya otomatis memakai layar
+  // sementara dengan kode dan judul dari daftar menu, jadi susunan
+  // modulnya sudah bisa ditelusuri sejak sekarang.
   const khusus = {
+    "#/spk": (w) => halamanSpk(w),
+    "#/tagihan": (w) => halamanTagihan(w),
+    "#/kuitansi": (w) => halamanKuitansi(w),
     "#/stok": (w) => halamanStok(w),
     "#/katalog": (w) => halamanTipe(w, true),
     "#/kelola": (w) => halamanTipe(w, false),
-    "#/spk": (w) => halamanSpk(w),
     "#/pelanggan": (w) => halamanPelanggan(w),
-    "#/tagihan": (w) => halamanTagihan(w),
-    "#/kuitansi": (w) => halamanKuitansi(w),
-    "#/kas": (w) => halamanKas(w),
-    "#/ringkasan": (w) => halamanRingkasan(w),
-    "#/berkas": (w) => halamanBerkas(w),
+    "#/monitoring": (w) => halamanBerkas(w),
+    "#/po-inquiry": (w) => halamanPembelian(w),
     "#/pengguna": (w) => halamanPengguna(w),
     "#/nomor": (w) => halamanNomor(w),
-    "#/pembelian": (w) => halamanPembelian(w),
-  };
-
-  const isian = {
-    "#/ringkasan": () => kosong(
-      "Ringkasan",
-      "Angka stok, kas, dan laba bulan ini akan muncul di sini."
-    ),
-    "#/stok": () => kosong(
-      "Stok",
-      "Belum ada motor terdaftar. Tambahkan tipe motor dulu, " +
-      "lalu masukkan unit per nomor rangka."
-    ),
-    "#/katalog": () => kosong(
-      "Katalog",
-      "Daftar motor yang siap dijual akan tampil di sini."
-    ),
-    "#/spk": () => kosong(
-      "SPK",
-      "Belum ada surat pesanan. SPK dibuat saat pembeli memilih unit."
-    ),
-    "#/kas": () => kosong(
-      "Kas",
-      "Uang masuk dan keluar akan tercatat di sini, " +
-      "termasuk DP yang belum boleh dipakai."
-    ),
-    "#/tagihan": () => kosong(
-      "Tagihan hari ini",
-      "Pembayaran yang jatuh tempo hari ini akan muncul di sini."
-    ),
-    "#/kuitansi": () => kosong(
-      "Kuitansi",
-      "Kuitansi yang sudah terbit akan terdaftar di sini."
-    ),
-    "#/berkas": () => kosong(
-      "Berkas",
-      "Unit yang dokumennya belum beres akan muncul di sini."
-    ),
-    "#/pelanggan": () => kosong(
-      "Pelanggan",
-      "Data pembeli untuk keperluan tindak lanjut akan tampil di sini."
-    ),
-    "#/kelola": () => kosong(
-      "Kelola",
-      "Pengguna, tipe motor, dan cadangan data diatur di sini."
-    ),
+    "#/kas": (w) => halamanKas(w),
+    "#/ringkasan": (w) => halamanRingkasan(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
     daftar(m.rute, () => true, () => {
-      const wadah = el("konten");
-      // Halaman yang sudah punya modulnya sendiri.
+      const w = el("konten");
       if (khusus[m.rute]) {
-        wadah.innerHTML = `<section class="lembar">
-          <p class="hampa">Memuat…</p></section>`;
-        khusus[m.rute](wadah).catch((e) =>
-          kabar("Gagal memuat halaman: " + e.message, "rem"));
+        w.innerHTML = `<p class="hampa">Memuat…</p>`;
+        khusus[m.rute](w).catch((e) =>
+          kabar("Gagal memuat layar: " + e.message, "rem"));
         return;
       }
-      wadah.innerHTML = isian[m.rute]
-        ? isian[m.rute]()
-        : kosong(m.label, "Modul ini dibangun di tahap berikutnya.");
+      halamanSegera(w, { kode: m.kode || "—", judul: m.label });
     });
   });
 

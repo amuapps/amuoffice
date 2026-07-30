@@ -60,7 +60,7 @@ export function cetakSpk(t) {
       <div class="c-kiri">
         <p class="c-sub">KETERANGAN</p>
         <p class="c-unit">( ${aman(terbilang(t.jumlah || 1)
-          .replace(" rupiah", "").toLowerCase())} ) Unit Sepeda Motor</p>
+          .replace(" rupiah", "").toLowerCase())} ) Unit Sepeda Motor Vespa</p>
         <table class="c-tabel">
           ${baris("Merk / Tipe", t.tipeSnapshot?.nama)}
           ${baris("Warna / Tahun",

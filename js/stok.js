@@ -64,13 +64,13 @@ function formUnit(daftarTipe, bisaLihatHarga) {
 
     <label class="label label--gelap" for="u-rangka">Nomor rangka</label>
     <input class="isian isian--terang mono" id="u-rangka"
-           autocapitalize="characters" placeholder="MH1JM...">
+           autocapitalize="characters" placeholder="ZAPM…">
     <p class="petunjuk">Belum sempat mengetik? Isi belakangan —
       unit tetap bisa disimpan asal nomor rangkanya ada.</p>
 
     <label class="label label--gelap" for="u-mesin">Nomor mesin</label>
     <input class="isian isian--terang mono" id="u-mesin"
-           autocapitalize="characters" placeholder="JM51E...">
+           autocapitalize="characters" placeholder="M81M…">
 
     <div class="dua">
       <div>
@@ -88,7 +88,7 @@ function formUnit(daftarTipe, bisaLihatHarga) {
         ? `<label class="label label--gelap" for="u-tebus">Harga tebus
              <span class="kunci">terkunci</span></label>
            <input class="isian isian--terang" id="u-tebus" inputmode="numeric"
-                  placeholder="17.200.000">
+                  placeholder="39.800.000">
            <p class="petunjuk">Hanya owner dan admin yang bisa melihat angka
              ini. Disimpan terpisah dari data unit.</p>`
         : ""

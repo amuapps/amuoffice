@@ -15,7 +15,7 @@ import {
   pakaiNilaiUnik, sertakanLog, tandaBaru, catat,
 } from "./db.js";
 import { sesi, bolehAkses } from "./auth.js";
-import { pecahHarga } from "./config.js";
+import { pecahHarga, MAIN_DEALER } from "./config.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { sisipkanKas } from "./kas.js";
 import { konfirmasi, tanya } from "./dialog.js";
@@ -171,7 +171,7 @@ export async function halamanPembelian(wadah) {
     formEl.innerHTML = `<form class="form" id="f-po">
       <label class="label label--gelap" for="po-dealer">Main dealer</label>
       <input class="isian isian--terang" id="po-dealer"
-             placeholder="Nama main dealer">
+             value="${MAIN_DEALER}" placeholder="Nama main dealer">
       <div class="dua">
         <div>
           <label class="label label--gelap" for="po-do">No. DO</label>

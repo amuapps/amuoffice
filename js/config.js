@@ -19,12 +19,36 @@ export const FIREBASE = {
 export const SHOWROOM = {
   nama: "PT AUTO MITRA UTAMA",
   namaPendek: "Auto Mitra Utama",
-  jenis: "Sub-dealer motor baru",
+  jenis: "Sub-dealer Vespa",
   alamat: "",
   kota: "",
   telepon: "",
   npwp: "",
 };
+
+// ── Merek yang dijual ─────────────────────────────────────────
+// Semua nilai bawaan di formulir mengacu ke sini, jadi kalau suatu
+// saat menambah merek lain cukup diubah di satu tempat.
+export const MEREK_UTAMA = "Vespa";
+export const PRINSIPAL = "Piaggio";
+export const MAIN_DEALER = "PT Piaggio Indonesia";
+
+// Dipakai sebagai saran isian saat menambah tipe motor.
+export const TIPE_VESPA = [
+  "LX 125 i-get", "S 125 i-get",
+  "Primavera 125 i-get", "Primavera 150 i-get", "Primavera S 150",
+  "Sprint 150 i-get", "Sprint S 150",
+  "GTS 150", "GTS Super 150", "GTS Super Sport 150",
+  "GTS 300 HPE", "GTS Super Tech 300 HPE",
+  "Sei Giorni II", "946",
+];
+
+// Warna yang lazim ada di showroom Vespa.
+export const WARNA_VESPA = [
+  "Bianco Innocenza", "Nero Vulcano", "Rosso Passione",
+  "Blu Energia", "Verde Relax", "Giallo Positano",
+  "Grigio Materia", "Beige Avvolgente",
+];
 
 // ── Pajak ─────────────────────────────────────────────────────
 // Perusahaan berstatus PKP, jadi harga OTR sudah termasuk PPN.
@@ -53,7 +77,7 @@ export function pecahHarga(otr, mewah = false) {
 // ── Penanda versi ─────────────────────────────────────────────
 // Naikkan angkanya setiap kali deploy supaya browser tidak
 // menyajikan file lama dari cache.
-export const VERSI = "1.4.1";
+export const VERSI = "1.5.1";
 
 // Zona waktu untuk semua tampilan tanggal.
 // Firestore menyimpan waktu dalam UTC — ini yang menerjemahkannya.

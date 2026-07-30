@@ -8,7 +8,8 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { pecahHarga } from "./config.js";
+import { pecahHarga, MEREK_UTAMA, TIPE_VESPA, WARNA_VESPA }
+  from "./config.js";
 import {
   rupiah, aman, kabar, pasangFormatUang, bacaAngka,
 } from "./ui.js";
@@ -94,40 +95,50 @@ function formTipe(t = {}) {
       <div>
         <label class="label label--gelap" for="t-merek">Merek</label>
         <input class="isian isian--terang" id="t-merek"
-               value="${aman(t.merek || "")}" placeholder="Honda">
+               value="${aman(t.merek || MEREK_UTAMA)}"
+               placeholder="${MEREK_UTAMA}">
       </div>
       <div>
         <label class="label label--gelap" for="t-tipe">Tipe</label>
-        <input class="isian isian--terang" id="t-tipe"
-               value="${aman(t.tipe || "")}" placeholder="Beat">
+        <input class="isian isian--terang" id="t-tipe" list="daftar-tipe"
+               value="${aman(t.tipe || "")}" placeholder="Primavera">
+        <datalist id="daftar-tipe">
+          ${TIPE_VESPA.map((x) => `<option value="${aman(x)}">`).join("")}
+        </datalist>
       </div>
     </div>
     <label class="label label--gelap" for="t-varian">Varian</label>
     <input class="isian isian--terang" id="t-varian"
-           value="${aman(t.varian || "")}" placeholder="Deluxe CBS">
+           value="${aman(t.varian || "")}" placeholder="150 i-get ABS">
     <div class="dua">
       <div>
         <label class="label label--gelap" for="t-cc">Isi silinder (cc)</label>
         <input class="isian isian--terang" id="t-cc" inputmode="numeric"
-               value="${aman(t.cc || "")}" placeholder="110">
+               value="${aman(t.cc || "")}" placeholder="150">
       </div>
       <div>
         <label class="label label--gelap" for="t-transmisi">Transmisi</label>
         <input class="isian isian--terang" id="t-transmisi"
-               value="${aman(t.transmisi || "")}" placeholder="Otomatis">
+               value="${aman(t.transmisi || "Otomatis CVT")}"
+               placeholder="Otomatis CVT">
       </div>
     </div>
     <label class="label label--gelap" for="t-warna">Warna tersedia</label>
-    <input class="isian isian--terang" id="t-warna"
+    <input class="isian isian--terang" id="t-warna" list="daftar-warna"
            value="${aman((t.warna || []).join(", "))}"
-           placeholder="Hitam, Merah, Putih">
+           placeholder="${aman(WARNA_VESPA.slice(0, 3).join(", "))}">
+    <datalist id="daftar-warna">
+      ${WARNA_VESPA.map((x) => `<option value="${aman(x)}">`).join("")}
+    </datalist>
+    <p class="petunjuk">Pisahkan dengan koma. Nama warna resmi Vespa
+      muncul sebagai saran saat mengetik.</p>
     <label class="label label--gelap" for="t-harga">Harga OTR</label>
     <input class="isian isian--terang" id="t-harga" inputmode="numeric"
            value="${t.hargaOtr ? Number(t.hargaOtr).toLocaleString("id-ID") : ""}"
-           placeholder="18.500.000">
+           placeholder="43.500.000">
     <label class="pilihan">
       <input type="checkbox" id="t-mewah" ${t.mewah ? "checked" : ""}>
-      <span>Di atas 250 cc (kena PPnBM, PPN dihitung 12% penuh)</span>
+      <span>Di atas 250 cc — misalnya GTS 300 (kena PPnBM, PPN 12% penuh)</span>
     </label>
     <label class="label label--gelap" for="t-foto">Tautan foto</label>
     <input class="isian isian--terang" id="t-foto"
