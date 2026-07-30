@@ -715,3 +715,98 @@ select.isian {
   .panel-nama { max-width: 96px; }
   .jejak-modul, .jejak-pisah { display: none; }
 }
+
+/* ══════════════════════════════════════════════════════════
+   Layar masuk dua kolom — kiri identitas, kanan panel masuk.
+   Bentuk yang lazim di sistem internal perbankan: perusahaan
+   tampil dulu, formulirnya menyusul di sisi kanan.
+   ══════════════════════════════════════════════════════════ */
+
+.masuk {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  height: 100%; min-height: 0;
+  background: var(--kartu);
+  padding: 0; align-items: stretch;
+}
+
+/* ── Kolom identitas ─────────────────────────────────────── */
+.masuk-brand {
+  background:
+    radial-gradient(at 80% 8%, rgba(255,255,255,.14) 0%, transparent 55%),
+    linear-gradient(158deg, #0A66C2 0%, #004578 100%);
+  color: #fff;
+  padding: 44px 44px 24px;
+  display: flex; flex-direction: column; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.masuk-brand::after {
+  /* garis halus di kanan bawah, memberi kedalaman tanpa gambar */
+  content: ""; position: absolute;
+  right: -80px; bottom: -120px;
+  width: 320px; height: 320px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.16);
+  box-shadow: 0 0 0 40px rgba(255,255,255,.05);
+}
+.masuk-brand-isi { position: relative; z-index: 1; }
+.masuk-logo {
+  width: 76px; height: 76px; object-fit: contain;
+  display: block; margin: 0 0 22px;
+  background: #fff; border-radius: 12px; padding: 10px;
+}
+.masuk-nama {
+  font-family: var(--papan);
+  font-size: 27px; font-weight: 600; line-height: 1.2;
+  margin: 0 0 6px; letter-spacing: -.01em;
+}
+.masuk-tag { font-size: 14px; color: rgba(255,255,255,.78); margin: 0; }
+.masuk-poin {
+  list-style: none; margin: 26px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 9px;
+}
+.masuk-poin li {
+  font-size: 13.5px; color: rgba(255,255,255,.86);
+  padding-left: 18px; position: relative;
+}
+.masuk-poin li::before {
+  content: ""; position: absolute; left: 0; top: 8px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(255,255,255,.6);
+}
+.masuk-kaki-brand {
+  position: relative; z-index: 1;
+  margin: 34px 0 0; display: flex; gap: 12px;
+  font-size: 11.5px; color: rgba(255,255,255,.6);
+}
+
+/* ── Kolom panel masuk ───────────────────────────────────── */
+.masuk-panel {
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px; background: var(--kartu);
+}
+.masuk-panel-isi { width: 100%; max-width: 340px; }
+.masuk-judul {
+  font-family: var(--papan); font-size: 24px; font-weight: 600;
+  margin: 2px 0 24px;
+}
+.masuk-form {
+  display: flex; flex-direction: column; gap: 2px;
+  background: none; border: 0; padding: 0; box-shadow: none;
+}
+.masuk-bantuan {
+  font-size: 12.5px; color: var(--abu);
+  margin: 20px 0 0; padding-top: 18px;
+  border-top: 1px solid var(--garis-2);
+}
+
+/* ── Layar sempit: menumpuk ──────────────────────────────── */
+@media (max-width: 860px) {
+  .masuk { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .masuk-brand { padding: 26px 22px 20px; }
+  .masuk-logo { width: 52px; height: 52px; margin-bottom: 14px; }
+  .masuk-nama { font-size: 21px; }
+  .masuk-poin, .masuk-kaki-brand { display: none; }
+  .masuk-brand::after { display: none; }
+  .masuk-panel { padding: 26px 22px; align-items: flex-start; }
+  .masuk-panel-isi { max-width: none; }
+}
