@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="icon" href="./logo.png">
 <link rel="apple-touch-icon" href="./logo.png">
-<link rel="stylesheet" href="./css/style.css?v=1.2.0">
+<link rel="stylesheet" href="./css/style.css?v=1.3.2">
 </head>
 <body>
 
@@ -39,31 +39,50 @@
 
 <!-- ── Layar masuk ─────────────────────────────────────────── -->
 <div id="layar-masuk" class="masuk">
-  <div class="masuk-isi">
-    <img class="masuk-logo" src="./logo.png" alt=""
-         onerror="this.hidden=true">
-    <p class="eyebrow">Sistem internal</p>
-    <h1 id="nama-showroom" class="masuk-nama">PT Auto Mitra Utama</h1>
 
-    <form id="form-masuk" class="masuk-form" autocomplete="on">
-      <label class="label" for="email">Email</label>
-      <input class="isian" id="email" type="email"
-             autocomplete="username">
+  <!-- Kolom kiri: identitas perusahaan -->
+  <aside class="masuk-brand">
+    <div class="masuk-brand-isi">
+      <img class="masuk-logo" src="./logo.png"
+           alt="Logo PT Auto Mitra Utama" onerror="this.hidden=true">
+      <h1 id="nama-showroom" class="masuk-nama">PT AUTO MITRA UTAMA</h1>
+      <p class="masuk-tag">Sistem Informasi Terpadu</p>
+      <ul class="masuk-poin">
+        <li>Penjualan &amp; Surat Pesanan Kendaraan</li>
+        <li>Pembelian, Inventori &amp; Serah Terima</li>
+        <li>Kas, Piutang &amp; Utang Main Dealer</li>
+      </ul>
+    </div>
+    <p class="masuk-kaki-brand">
+      <span id="versi">v1.0.0</span>
+      <span data-merek>©SRISP 2026</span>
+    </p>
+  </aside>
 
-      <label class="label" for="sandi">Kata sandi</label>
-      <input class="isian" id="sandi" type="password"
-             autocomplete="current-password" placeholder="••••••••">
+  <!-- Kolom kanan: panel masuk -->
+  <section class="masuk-panel">
+    <div class="masuk-panel-isi">
+      <p class="eyebrow">Akses terbatas karyawan</p>
+      <h2 class="masuk-judul">Masuk ke sistem</h2>
 
-      <button class="tombol tombol--utama" id="tombol-masuk" type="submit">
-        Masuk
-      </button>
-    </form>
+      <form id="form-masuk" class="masuk-form" autocomplete="on">
+        <label class="label" for="email">Email</label>
+        <input class="isian" id="email" type="email"
+               autocomplete="username">
 
-  </div>
-  <footer class="kaki">
-    <span id="versi">v1.0.0</span>
-    <span data-merek>©SRISP 2026</span>
-  </footer>
+        <label class="label" for="sandi">Kata sandi</label>
+        <input class="isian" id="sandi" type="password"
+               autocomplete="current-password" placeholder="••••••••">
+
+        <button class="tombol tombol--utama" id="tombol-masuk" type="submit">
+          Masuk
+        </button>
+      </form>
+
+      <p class="masuk-bantuan">Lupa kata sandi atau belum punya akses?
+        Hubungi owner untuk pengaturan akun.</p>
+    </div>
+  </section>
 </div>
 
 <!-- ── Aplikasi ────────────────────────────────────────────── -->
@@ -101,7 +120,7 @@
           Keluar
         </button>
       </div>
-      <div class="panel-baca">
+      <div class="panel-baca" id="panel-baca">
         <span id="batas-diskon" class="baca">Batas diskon</span>
         <span id="penanda-uji" class="tanda tanda--uji" hidden>Data uji</span>
       </div>
@@ -124,6 +143,6 @@
 
 <div id="kabar" class="kabar-wadah" aria-live="polite"></div>
 
-<script type="module" src="./js/app.js?v=1.2.0"></script>
+<script type="module" src="./js/app.js?v=1.3.2"></script>
 </body>
 </html>
