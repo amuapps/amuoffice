@@ -11,31 +11,43 @@
 //   agen.lihat        → nominal fee agen
 //   kelola.pengguna   ekspor   log.lihat
 
+// Menu disusun per MODUL, bukan daftar datar — inilah bentuk ERP:
+// tiap kelompok mewakili satu fungsi perusahaan, dan modul baru
+// tinggal ditambahkan ke kelompok yang sesuai.
 export const PERAN = {
   owner: {
     label: "Owner",
+    kode: "OWN",
     warna: "sein",
     beranda: "#/ringkasan",
     batasDiskon: null, // null = tanpa batas
     izin: ["*"],
-    // Owner melihat semuanya. Sidebar tidak punya batas 5 menu
-    // seperti navigasi bawah dulu, jadi tidak ada yang perlu
-    // dikorbankan.
     menu: [
-      { label: "Ringkasan", rute: "#/ringkasan" },
-      { label: "Stok", rute: "#/stok" },
-      { label: "SPK", rute: "#/spk" },
-      { label: "Tagihan", rute: "#/tagihan" },
-      { label: "Kuitansi", rute: "#/kuitansi" },
-      { label: "Kas", rute: "#/kas" },
-      { label: "Berkas", rute: "#/berkas" },
-      { label: "Pelanggan", rute: "#/pelanggan" },
-      { label: "Kelola", rute: "#/kelola" },
+      { grup: "Beranda", butir: [
+        { label: "Dasbor", rute: "#/ringkasan" },
+      ]},
+      { grup: "Penjualan", butir: [
+        { label: "SPK", rute: "#/spk" },
+        { label: "Tagihan", rute: "#/tagihan" },
+        { label: "Kuitansi", rute: "#/kuitansi" },
+      ]},
+      { grup: "Inventori", butir: [
+        { label: "Stok Unit", rute: "#/stok" },
+        { label: "Serah Terima", rute: "#/berkas" },
+      ]},
+      { grup: "Keuangan", butir: [
+        { label: "Kas", rute: "#/kas" },
+      ]},
+      { grup: "Data Induk", butir: [
+        { label: "Tipe Motor", rute: "#/kelola" },
+        { label: "Pelanggan", rute: "#/pelanggan" },
+      ]},
     ],
   },
 
   admin: {
     label: "Admin",
+    kode: "ADM",
     warna: "netral",
     beranda: "#/berkas",
     batasDiskon: 500000,
@@ -44,40 +56,66 @@ export const PERAN = {
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
     ],
     menu: [
-      { label: "Berkas", rute: "#/berkas" },
-      { label: "Stok", rute: "#/stok" },
-      { label: "SPK", rute: "#/spk" },
-      { label: "Pelanggan", rute: "#/pelanggan" },
-      { label: "Kas", rute: "#/kas" },
+      { grup: "Inventori", butir: [
+        { label: "Serah Terima", rute: "#/berkas" },
+        { label: "Stok Unit", rute: "#/stok" },
+      ]},
+      { grup: "Penjualan", butir: [
+        { label: "SPK", rute: "#/spk" },
+      ]},
+      { grup: "Keuangan", butir: [
+        { label: "Kas", rute: "#/kas" },
+      ]},
+      { grup: "Data Induk", butir: [
+        { label: "Pelanggan", rute: "#/pelanggan" },
+      ]},
     ],
   },
 
   sales: {
     label: "Sales",
+    kode: "SLS",
     warna: "sein",
     beranda: "#/katalog",
     batasDiskon: 200000,
     izin: ["stok.lihat", "spk.buat", "spk.lihat"],
     menu: [
-      { label: "Katalog", rute: "#/katalog" },
-      { label: "SPK Saya", rute: "#/spk" },
-      { label: "Pelanggan", rute: "#/pelanggan" },
+      { grup: "Penjualan", butir: [
+        { label: "Katalog", rute: "#/katalog" },
+        { label: "SPK Saya", rute: "#/spk" },
+      ]},
+      { grup: "Data Induk", butir: [
+        { label: "Pelanggan", rute: "#/pelanggan" },
+      ]},
     ],
   },
 
   kasir: {
     label: "Kasir",
+    kode: "KAS",
     warna: "netral",
     beranda: "#/tagihan",
     batasDiskon: 0,
     izin: ["spk.lihat", "kas.input", "kas.lihat", "agen.lihat"],
     menu: [
-      { label: "Tagihan", rute: "#/tagihan" },
-      { label: "Kas", rute: "#/kas" },
-      { label: "Kuitansi", rute: "#/kuitansi" },
+      { grup: "Penerimaan", butir: [
+        { label: "Tagihan", rute: "#/tagihan" },
+        { label: "Kuitansi", rute: "#/kuitansi" },
+      ]},
+      { grup: "Keuangan", butir: [
+        { label: "Kas", rute: "#/kas" },
+      ]},
     ],
   },
 };
+
+// Semua butir menu dalam satu daftar datar, untuk pendaftaran rute.
+export function semuaMenu(peran) {
+  const p = PERAN[peran];
+  if (!p) return [];
+  return p.menu.flatMap((g) =>
+    g.butir.map((b) => ({ ...b, grup: g.grup })));
+}
 
 export function boleh(peran, izin) {
   const p = PERAN[peran];

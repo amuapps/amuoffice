@@ -4,7 +4,7 @@
 import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi }
   from "./auth.js";
-import { PERAN, batasDiskon } from "./roles.js";
+import { PERAN, batasDiskon, semuaMenu } from "./roles.js";
 import { saatKoneksiBerubah, catat } from "./db.js";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
   from "./router.js";
@@ -58,6 +58,17 @@ function siapkanLayarMasuk() {
 }
 
 // ── Panel atas ────────────────────────────────────────────────
+function gambarJejak() {
+  const aktif = document.querySelector(".nav-butir.aktif");
+  const j = el("jejak");
+  if (!j) return;
+  if (!aktif) { j.innerHTML = ""; return; }
+  j.innerHTML =
+    `<span class="jejak-modul">${aman(aktif.dataset.grup || "")}</span>` +
+    `<span class="jejak-pisah">›</span>` +
+    `<span class="jejak-kini">${aman(aktif.dataset.nama || "")}</span>`;
+}
+
 function gambarPanel(profil) {
   const p = PERAN[profil.peran];
   el("lampu-peran").className = `lampu lampu--${p.warna}`;
@@ -80,10 +91,13 @@ function gambarNavigasi(profil) {
   const p = PERAN[profil.peran];
   el("nav").innerHTML = p.menu
     .map(
-      (m) => `<a class="nav-butir" data-rute="${m.rute}" href="${m.rute}">
-        <span class="nav-lampu"></span>
-        <span class="nav-label">${aman(m.label)}</span>
-      </a>`
+      (g) => `<p class="nav-grup">${aman(g.grup)}</p>` +
+        g.butir.map((m) =>
+          `<a class="nav-butir" data-rute="${m.rute}" href="${m.rute}"
+              data-grup="${aman(g.grup)}" data-nama="${aman(m.label)}">
+            <span class="nav-lampu"></span>
+            <span class="nav-label">${aman(m.label)}</span>
+          </a>`).join("")
     )
     .join("");
   // Di layar HP sidebar berupa laci, jadi ditutup begitu menu dipilih.
@@ -167,7 +181,7 @@ function daftarkanHalaman(profil) {
     ),
   };
 
-  p.menu.forEach((m) => {
+  semuaMenu(profil.peran).forEach((m) => {
     daftar(m.rute, () => true, () => {
       const wadah = el("konten");
       // Halaman yang sudah punya modulnya sendiri.
@@ -180,7 +194,7 @@ function daftarkanHalaman(profil) {
       }
       wadah.innerHTML = isian[m.rute]
         ? isian[m.rute]()
-        : kosong(m.label, "Halaman ini dibangun di tahap berikutnya.");
+        : kosong(m.label, "Modul ini dibangun di tahap berikutnya.");
     });
   });
 
@@ -212,7 +226,10 @@ function cekPublik() {
   el("publik").hidden = true;
   return false;
 }
-window.addEventListener("hashchange", cekPublik);
+window.addEventListener("hashchange", () => {
+  cekPublik();
+  setTimeout(gambarJejak, 0);
+});
 
 // ── Jalan ─────────────────────────────────────────────────────
 siapkanLayarMasuk();
@@ -256,6 +273,7 @@ pantauSesi(
     daftarkanHalaman(profil);
     if (!location.hash) location.hash = PERAN[profil.peran].beranda;
     mulaiRouter();
+    gambarJejak();
     kabar(`Selamat datang, ${profil.nama}.`, "netral");
   },
   () => {
