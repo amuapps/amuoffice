@@ -692,13 +692,28 @@ select.isian {
    Struktur ERP: modul berkelompok & jejak navigasi
    ══════════════════════════════════════════════════════════ */
 
-/* Judul kelompok modul di sidebar */
+/* Kelompok modul di sidebar — melipat saat diketuk */
+.nav-grup-wadah { margin-bottom: 2px; }
 .nav-grup {
-  font-size: 11px; font-weight: 600; color: var(--abu-2);
-  text-transform: uppercase; letter-spacing: .06em;
-  margin: 14px 12px 4px; padding: 0;
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: none; border: 0; cursor: pointer;
+  padding: 9px 12px; border-radius: var(--r);
+  text-align: left;
 }
-.nav-grup:first-child { margin-top: 4px; }
+.nav-grup:hover { background: rgba(0,0,0,.037); }
+.nav-grup-nama {
+  flex: 1; font-size: 11px; font-weight: 600; color: var(--abu-2);
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.nav-grup-panah {
+  font-size: 10px; color: var(--abu-2); transition: transform .16s;
+}
+.nav-butir-isi {
+  display: flex; flex-direction: column; gap: 1px;
+  overflow: hidden;
+}
+.nav-grup--tutup .nav-butir-isi { display: none; }
+.nav-grup--tutup .nav-grup-panah { transform: rotate(-90deg); }
 
 /* Jejak navigasi: Modul › Halaman */
 .jejak {
@@ -809,4 +824,108 @@ select.isian {
   .masuk-brand::after { display: none; }
   .masuk-panel { padding: 26px 22px; align-items: flex-start; }
   .masuk-panel-isi { max-width: none; }
+}
+
+/* ══════════════════════════════════════════════════════════
+   Kerangka layar bergaya DMS dealer
+   ══════════════════════════════════════════════════════════ */
+
+.layar { display: flex; flex-direction: column; gap: 12px; }
+
+/* ── Bilah judul + toolbar ───────────────────────────────── */
+.layar-kop {
+  border: 1px solid var(--garis);
+  border-radius: var(--r-besar);
+  overflow: hidden;
+  background: var(--kartu);
+}
+.layar-baris {
+  display: flex; align-items: center; gap: 12px;
+  background: #1F5FA8; color: #fff;
+  padding: 9px 14px;
+}
+.layar-kode {
+  font-size: 11.5px; color: rgba(255,255,255,.82);
+  flex: 0 0 auto; letter-spacing: .04em;
+}
+.layar-judul {
+  flex: 1; text-align: center; margin: 0;
+  font-family: var(--papan); font-size: 14.5px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.layar-jam {
+  font-size: 11.5px; color: rgba(255,255,255,.82); flex: 0 0 auto;
+}
+.layar-toolbar {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px 12px; background: var(--lapis);
+  border-top: 1px solid var(--garis-2);
+}
+.layar-toolbar .tombol { min-height: 30px; }
+
+/* ── Seksi yang bisa dilipat ─────────────────────────────── */
+.seksi {
+  border: 1px solid var(--garis);
+  border-radius: var(--r-besar);
+  background: var(--kartu); overflow: hidden;
+}
+.seksi-kop {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: var(--lapis); border: 0; cursor: pointer;
+  padding: 9px 14px; text-align: left;
+  border-bottom: 1px solid var(--garis-2);
+}
+.seksi-panah {
+  font-size: 11px; color: var(--abu); transition: transform .15s;
+}
+.seksi-judul { font-size: 12.5px; font-weight: 600; color: var(--tinta); }
+.seksi-isi { padding: 14px; }
+.seksi--tutup .seksi-isi { display: none; }
+.seksi--tutup .seksi-kop { border-bottom: 0; }
+.seksi--tutup .seksi-panah { transform: rotate(-90deg); }
+
+/* ── Tab dalam layar ─────────────────────────────────────── */
+.tab-baris {
+  display: flex; gap: 2px; overflow-x: auto;
+  border-bottom: 1px solid var(--garis);
+  background: var(--kartu);
+}
+.tab {
+  background: none; border: 0; cursor: pointer;
+  padding: 10px 16px; font-size: 13.5px; color: var(--abu);
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+.tab:hover { color: var(--tinta); background: var(--lapis); }
+.tab.aktif {
+  color: var(--biru); border-bottom-color: var(--biru); font-weight: 600;
+}
+.panel-tab {
+  border: 1px solid var(--garis); border-top: 0;
+  border-radius: 0 0 var(--r-besar) var(--r-besar);
+  background: var(--kartu); padding: 16px;
+}
+.panel-tab > div { display: flex; flex-direction: column; gap: 2px; }
+
+/* ── Dua kolom sejajar: pembeli vs STNK ──────────────────── */
+.kolom-dua {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+  margin-top: 16px;
+}
+.kolom {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--garis-2); border-radius: var(--r-besar);
+  padding: 14px; background: var(--lapis);
+}
+.kolom-judul {
+  font-size: 12px; font-weight: 600; color: var(--tinta);
+  margin: 0 0 8px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--garis);
+  text-transform: uppercase; letter-spacing: .04em;
+}
+
+@media (max-width: 820px) {
+  .kolom-dua { grid-template-columns: 1fr; gap: 12px; }
+  .layar-judul { font-size: 13px; }
+  .layar-jam { display: none; }
+  .panel-tab { padding: 14px; }
 }
