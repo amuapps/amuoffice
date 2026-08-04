@@ -20,6 +20,7 @@ import { konfirmasi } from "./dialog.js";
 import { halamanStok } from "./stok.js";
 import { halamanTipe } from "./tipe.js";
 import { halamanPengguna } from "./pengaturan.js";
+import { halamanPelanggan } from "./pelanggan.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -151,6 +152,7 @@ function daftarkanHalaman(profil) {
     "#/katalog": (w) => halamanTipe(w, true),
     "#/kelola": (w) => halamanTipe(w, false),
     "#/pengguna": (w) => halamanPengguna(w),
+    "#/pelanggan": (w) => halamanPelanggan(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {

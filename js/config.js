@@ -85,8 +85,9 @@ export const ZONA = "Asia/Jakarta";
 
 // Selama masa uji coba, setiap dokumen ditandai `uji: true`
 // supaya bisa dibersihkan sekaligus sebelum go-live.
-// Ubah ke false saat showroom mulai jalan sungguhan.
-export const MODE_UJI = true;
+// Sekarang showroom mulai memasukkan data sungguhan (Master Data),
+// jadi ditutup di sini — dokumen baru tidak lagi ditandai data uji.
+export const MODE_UJI = false;
 
 // ── Ketentuan SPK ─────────────────────────────────────────────
 // Diambil dari formulir Surat Pesanan Kendaraan yang berlaku di
