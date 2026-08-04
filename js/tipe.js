@@ -199,9 +199,20 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
 
   async function bukaForm(t) {
     formEl.innerHTML = `<p class="hampa">Memuat…</p>`;
-    const [saranTipe, saranWarna] = await Promise.all([
-      muatSaranTipe(), muatSaranWarna(),
-    ]);
+    let saranTipe = [], saranWarna = [];
+    try {
+      [saranTipe, saranWarna] = await Promise.all([
+        muatSaranTipe(), muatSaranWarna(),
+      ]);
+    } catch (err) {
+      formEl.innerHTML = `<div class="hampa">
+        <p>Gagal memuat saran Tipe/Warna: ${aman(err.message)}</p>
+        <p>Formnya tetap bisa dipakai, cuma tanpa saran otomatis. Kalau
+           pesannya soal izin (permission-denied), kemungkinan
+           <b>firestore.rules</b> belum di-deploy ke Firebase.</p>
+      </div>`;
+      kabar("Gagal memuat saran Tipe/Warna: " + err.message, "rem");
+    }
     formEl.innerHTML = formTipe(t || {}, saranTipe, saranWarna);
     const offroad = formEl.querySelector("#t-offroad");
     const bbn = formEl.querySelector("#t-bbn");

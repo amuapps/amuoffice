@@ -135,9 +135,23 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 }
 
 export async function halamanSpk(wadah) {
-  const [daftarTipe, daftarLeasing, daftarRekening] = await Promise.all([
-    muatTipe(), muatLeasing(), muatRekening(),
-  ]);
+  wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
+  let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
+  try {
+    [daftarTipe, daftarLeasing, daftarRekening] = await Promise.all([
+      muatTipe(), muatLeasing(), muatRekening(),
+    ]);
+  } catch (err) {
+    wadah.innerHTML = `<div class="hampa">
+      <p><b>Gagal memuat data SPK.</b></p>
+      <p>${aman(err.message)}</p>
+      <p>Kalau pesannya soal izin (permission-denied), kemungkinan
+        <b>firestore.rules</b> yang terbaru belum di-deploy ke Firebase
+        — file di repo tidak otomatis aktif, harus ditempel manual ke
+        Firebase Console → Firestore Database → tab Rules → Publish.</p>
+    </div>`;
+    return;
+  }
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
 
