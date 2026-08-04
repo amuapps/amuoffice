@@ -34,6 +34,10 @@ export const PRINSIPAL = "Piaggio";
 export const MAIN_DEALER = "PT Piaggio Indonesia";
 
 // Dipakai sebagai saran isian saat menambah tipe motor.
+// SUDAH TIDAK DIPAKAI — diganti daftar dinamis di halaman
+// "Referensi Tipe & Warna" (referensi.js), yang bisa diubah sendiri
+// tanpa edit kode. Larik ini dibiarkan sebagai catatan isi awal,
+// aman dihapus kapan saja.
 export const TIPE_VESPA = [
   "LX 125 i-get", "S 125 i-get",
   "Primavera 125 i-get", "Primavera 150 i-get", "Primavera S 150",
@@ -44,6 +48,7 @@ export const TIPE_VESPA = [
 ];
 
 // Warna yang lazim ada di showroom Vespa.
+// SUDAH TIDAK DIPAKAI — lihat catatan di TIPE_VESPA di atas.
 export const WARNA_VESPA = [
   "Bianco Innocenza", "Nero Vulcano", "Rosso Passione",
   "Blu Energia", "Verde Relax", "Giallo Positano",

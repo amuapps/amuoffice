@@ -8,8 +8,8 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { pecahHarga, MEREK_UTAMA, TIPE_VESPA, WARNA_VESPA }
-  from "./config.js";
+import { pecahHarga, MEREK_UTAMA } from "./config.js";
+import { muatSaranTipe, muatSaranWarna } from "./referensi.js";
 import {
   rupiah, aman, kabar, pasangFormatUang, bacaAngka,
 } from "./ui.js";
@@ -91,7 +91,7 @@ function kartuTipe(t, bisaUbah) {
   </article>`;
 }
 
-function formTipe(t = {}) {
+function formTipe(t = {}, saranTipe = [], saranWarna = []) {
   return `<form id="form-tipe" class="form">
     <input type="hidden" id="t-id" value="${aman(t.id || "")}">
     <div class="dua">
@@ -106,7 +106,7 @@ function formTipe(t = {}) {
         <input class="isian isian--terang" id="t-tipe" list="daftar-tipe"
                value="${aman(t.tipe || "")}" placeholder="Primavera">
         <datalist id="daftar-tipe">
-          ${TIPE_VESPA.map((x) => `<option value="${aman(x)}">`).join("")}
+          ${saranTipe.map((x) => `<option value="${aman(x)}">`).join("")}
         </datalist>
       </div>
     </div>
@@ -129,12 +129,12 @@ function formTipe(t = {}) {
     <label class="label label--gelap" for="t-warna">Warna tersedia</label>
     <input class="isian isian--terang" id="t-warna" list="daftar-warna"
            value="${aman((t.warna || []).join(", "))}"
-           placeholder="${aman(WARNA_VESPA.slice(0, 3).join(", "))}">
+           placeholder="${aman(saranWarna.slice(0, 3).join(", "))}">
     <datalist id="daftar-warna">
-      ${WARNA_VESPA.map((x) => `<option value="${aman(x)}">`).join("")}
+      ${saranWarna.map((x) => `<option value="${aman(x)}">`).join("")}
     </datalist>
-    <p class="petunjuk">Pisahkan dengan koma. Nama warna resmi Vespa
-      muncul sebagai saran saat mengetik.</p>
+    <p class="petunjuk">Pisahkan dengan koma. Daftar sarannya bisa
+      ditambah/dihapus sendiri lewat menu Referensi.</p>
     <div class="dua">
       <div>
         <label class="label label--gelap" for="t-offroad">Harga Offroad</label>
@@ -197,8 +197,12 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
     }
   }
 
-  function bukaForm(t) {
-    formEl.innerHTML = formTipe(t || {});
+  async function bukaForm(t) {
+    formEl.innerHTML = `<p class="hampa">Memuat…</p>`;
+    const [saranTipe, saranWarna] = await Promise.all([
+      muatSaranTipe(), muatSaranWarna(),
+    ]);
+    formEl.innerHTML = formTipe(t || {}, saranTipe, saranWarna);
     const offroad = formEl.querySelector("#t-offroad");
     const bbn = formEl.querySelector("#t-bbn");
     const otr = formEl.querySelector("#t-harga");

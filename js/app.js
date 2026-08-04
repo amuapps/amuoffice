@@ -19,6 +19,7 @@ import { kabar, rupiah, aman, kunciHari } from "./ui.js";
 import { konfirmasi } from "./dialog.js";
 import { halamanStok } from "./stok.js";
 import { halamanTipe } from "./tipe.js";
+import { halamanReferensi } from "./referensi.js";
 import { halamanPengguna } from "./pengaturan.js";
 import { halamanPelanggan } from "./pelanggan.js";
 import { halamanSegera } from "./segera.js";
@@ -151,6 +152,7 @@ function daftarkanHalaman(profil) {
     "#/stok": (w) => halamanStok(w),
     "#/katalog": (w) => halamanTipe(w, true),
     "#/kelola": (w) => halamanTipe(w, false),
+    "#/referensi": (w) => halamanReferensi(w),
     "#/pengguna": (w) => halamanPengguna(w),
     "#/pelanggan": (w) => halamanPelanggan(w),
   };
