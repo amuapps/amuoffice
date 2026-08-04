@@ -22,20 +22,21 @@
 
 const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Tipe Motor", rute: "#/kelola", kode: "SYS-01" },
-  { label: "Unit Stock Inquiry", rute: "#/stok", kode: "INV-06" },
+  { label: "Data Unit", rute: "#/stok", kode: "INV-06" },
+  { label: "Referensi Tipe & Warna", rute: "#/referensi", kode: "SYS-05" },
 ]};
 
 const KATALOG_SAJA = { grup: "Master Data", butir: [
-  { label: "Unit Stock Inquiry", rute: "#/katalog", kode: "INV-06" },
+  { label: "Data Unit", rute: "#/katalog", kode: "INV-06" },
 ]};
 
 const SISTEM_LENGKAP = { grup: "Sistem", butir: [
-  { label: "Pelanggan", rute: "#/pelanggan", kode: "SYS-02" },
+  { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
   { label: "Pengguna", rute: "#/pengguna", kode: "SYS-03" },
 ]};
 
 const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
-  { label: "Pelanggan", rute: "#/pelanggan", kode: "SYS-02" },
+  { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
 ]};
 
 export const PERAN = {

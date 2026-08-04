@@ -2,13 +2,14 @@
 // Input dibuat sependek mungkin: pilih tipe, isi dua nomor.
 
 import {
-  dbase, collection, doc, getDocs, query, where, orderBy, limit,
-  writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
+  dbase, collection, doc, getDocs, updateDoc, query, where, orderBy,
+  limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
+import { tanya } from "./dialog.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
 } from "./ui.js";
@@ -20,7 +21,7 @@ const LABEL_STATUS = {
   terjual: "Terjual",
 };
 
-function kartuUnit(u, bisaLihatHarga) {
+function kartuUnit(u, bisaLihatHarga, bisaUbah) {
   return `<article class="kartu kartu--unit">
     <div class="kartu-atas">
       <div>
@@ -35,6 +36,16 @@ function kartuUnit(u, bisaLihatHarga) {
       <div><dt>Masuk</dt><dd>${tanggal(u.tglMasuk)}</dd></div>
       ${u.noDo ? `<div><dt>No. DO</dt><dd class="mono">${aman(u.noDo)}</dd></div>` : ""}
     </dl>
+    ${bisaUbah ? `<div class="aksi aksi--rapat">
+        <label class="label label--gelap" style="margin:0;font-size:12px"
+               for="ubah-status-${u.id}">Ubah status</label>
+        <select class="isian isian--terang isian--kecil"
+                id="ubah-status-${u.id}" data-id="${u.id}">
+          ${Object.entries(LABEL_STATUS).map(([k, v]) =>
+            `<option value="${k}" ${k === u.status ? "selected" : ""}>
+              ${v}</option>`).join("")}
+        </select>
+      </div>` : ""}
   </article>`;
 }
 
@@ -115,12 +126,17 @@ export async function halamanStok(wadah) {
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
-      <h2 class="judul">Stok</h2>
-      ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
-        id="tambah-unit">Tambah unit</button>` : ""}
+      <h2 class="judul">Data Unit</h2>
+      <div style="display:flex;gap:8px">
+        <button class="tombol tombol--kecil" id="unduh-excel">
+          Unduh Excel</button>
+        ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
+          id="tambah-unit">Tambah unit</button>` : ""}
+      </div>
     </div>
     <div class="chip-baris" id="saring">
-      <button class="chip aktif" data-status="ready">Ready</button>
+      <button class="chip aktif" data-status="semua">Semua</button>
+      <button class="chip" data-status="ready">Ready</button>
       <button class="chip" data-status="indent">Indent</button>
       <button class="chip" data-status="booked">Dipesan</button>
       <button class="chip" data-status="terjual">Terjual</button>
@@ -131,23 +147,92 @@ export async function halamanStok(wadah) {
 
   const daftarEl = wadah.querySelector("#daftar-unit");
   const formEl = wadah.querySelector("#wadah-form-unit");
-  let status = "ready";
+  let status = "semua";
+  let unitTampil = [];
 
   async function gambar() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
-    // Menyaring saja, tanpa orderBy — supaya Firestore tidak
-    // menuntut indeks gabungan. Urutannya dibereskan di sini.
-    const snap = await getDocs(query(
-      collection(dbase, "units"),
-      where("status", "==", status),
-      limit(60)
-    ));
-    const unit = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    // "Semua" tidak menyaring apa pun — supaya bisa lihat seluruh
+    // data kendaraan sekaligus, bukan cuma per status.
+    const snap = status === "semua"
+      ? await getDocs(query(collection(dbase, "units"), limit(500)))
+      : await getDocs(query(
+          collection(dbase, "units"),
+          where("status", "==", status),
+          limit(500)
+        ));
+    unitTampil = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
-    daftarEl.innerHTML = unit.length
-      ? unit.map((u) => kartuUnit(u, bisaLihatHarga)).join("")
-      : `<div class="hampa"><p>Tidak ada unit berstatus
-         ${LABEL_STATUS[status].toLowerCase()}.</p></div>`;
+    daftarEl.innerHTML = unitTampil.length
+      ? unitTampil.map((u) => kartuUnit(u, bisaLihatHarga, bisaUbah)).join("")
+      : `<div class="hampa"><p>Tidak ada unit${
+          status === "semua" ? "" : ` berstatus ${LABEL_STATUS[status].toLowerCase()}`
+        }.</p></div>`;
+
+    if (bisaUbah) {
+      daftarEl.querySelectorAll("[id^='ubah-status-']").forEach((sel) => {
+        sel.addEventListener("change", () => ubahStatus(sel.dataset.id, sel.value));
+      });
+    }
+  }
+
+  // ── Ubah status manual ──────────────────────────────────────
+  // Untuk kasus di luar alur SPK: unit indent yang barangnya baru
+  // tiba (Indent → Ready, minta nomor rangka dulu kalau belum ada),
+  // atau koreksi status lainnya.
+  async function ubahStatus(id, statusBaru) {
+    const u = unitTampil.find((x) => x.id === id);
+    if (!u || u.status === statusBaru) return;
+
+    let noRangkaBaru = u.noRangka;
+    if (statusBaru === "ready" && !u.noRangka) {
+      const nilai = await tanya({
+        judul: "Lengkapi nomor rangka",
+        pesan: "Unit ini belum punya nomor rangka. Isi dulu sebelum " +
+               "diubah jadi Ready.",
+        petunjuk: "Nomor rangka",
+      });
+      if (nilai === null) { await gambar(); return; } // batal, kembalikan pilihan
+      noRangkaBaru = nilai.trim().toUpperCase();
+      if (!noRangkaBaru) {
+        kabar("Nomor rangka wajib diisi.", "rem");
+        await gambar();
+        return;
+      }
+    }
+
+    try {
+      if (noRangkaBaru && noRangkaBaru !== u.noRangka) {
+        await pakaiNilaiUnik("indeks_rangka", noRangkaBaru, u.id);
+      }
+
+      const batch = writeBatch(dbase);
+      batch.update(doc(dbase, "units", u.id), {
+        status: statusBaru,
+        ...(noRangkaBaru !== u.noRangka ? { noRangka: noRangkaBaru } : {}),
+      });
+
+      // Jaga hitungan "jumlahReady" di tipe tetap akurat: naik kalau
+      // baru MASUK status ready, turun kalau baru KELUAR dari ready.
+      if (statusBaru === "ready" && u.status !== "ready") {
+        batch.update(doc(dbase, "tipe_motor", u.tipeId), { jumlahReady: increment(1) });
+      } else if (statusBaru !== "ready" && u.status === "ready") {
+        batch.update(doc(dbase, "tipe_motor", u.tipeId), { jumlahReady: increment(-1) });
+      }
+
+      sertakanLog(batch, "unit_status_diubah", {
+        koleksi: "units", docId: u.id,
+        ringkas: `${LABEL_STATUS[u.status]} → ${LABEL_STATUS[statusBaru]}`,
+      });
+
+      await batch.commit();
+      await sinkronKatalog();
+      kabar("Status diperbarui.", "netral");
+      await gambar();
+    } catch (err) {
+      kabar(err.message || "Gagal mengubah status.", "rem");
+      await gambar();
+    }
   }
 
   wadah.querySelector("#saring").addEventListener("click", (e) => {
@@ -157,6 +242,33 @@ export async function halamanStok(wadah) {
     wadah.querySelectorAll(".chip").forEach((c) =>
       c.classList.toggle("aktif", c === t));
     gambar();
+  });
+
+  // ── Unduh Excel ────────────────────────────────────────────
+  // Format .csv — dibaca Excel tanpa perlu library tambahan, dan
+  // isinya mengikuti data yang sedang tampil di layar (sesuai filter).
+  wadah.querySelector("#unduh-excel").addEventListener("click", () => {
+    if (!unitTampil.length) {
+      kabar("Tidak ada data untuk diunduh.", "rem");
+      return;
+    }
+    const kolom = ["Tipe", "Warna", "Tahun", "No Rangka", "No Mesin",
+      "Status", "No DO", "Tanggal Masuk"];
+    const baris = unitTampil.map((u) => [
+      u.tipeNama, u.warna, u.tahun, u.noRangka, u.noMesin,
+      LABEL_STATUS[u.status] || u.status, u.noDo, tanggal(u.tglMasuk),
+    ]);
+    const escapeCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [kolom, ...baris]
+      .map((baris) => baris.map(escapeCsv).join(","))
+      .join("\r\n");
+    // \ufeff (BOM) supaya Excel langsung kenali sebagai UTF-8.
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `data-unit-${status}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   });
 
   async function bukaForm() {

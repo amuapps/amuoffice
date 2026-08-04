@@ -129,7 +129,7 @@ export async function halamanPelanggan(wadah) {
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
-      <h2 class="judul">Pelanggan</h2>
+      <h2 class="judul">Database Konsumen</h2>
       ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
         id="tambah-pelanggan">Tambah</button>` : ""}
     </div>
