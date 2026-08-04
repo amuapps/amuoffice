@@ -16,7 +16,6 @@ import {
 
 const LABEL_STATUS = {
   ready: "Ready",
-  indent: "Indent",
   booked: "Dipesan",
   terjual: "Terjual",
 };
@@ -31,7 +30,7 @@ function kartuUnit(u, bisaLihatHarga, bisaUbah) {
       <span class="tanda tanda--${u.status}">${LABEL_STATUS[u.status] || u.status}</span>
     </div>
     <dl class="rinci">
-      <div><dt>Rangka</dt><dd class="mono">${aman(u.noRangka || "— (indent)")}</dd></div>
+      <div><dt>Rangka</dt><dd class="mono">${aman(u.noRangka || "-")}</dd></div>
       <div><dt>Mesin</dt><dd class="mono">${aman(u.noMesin || "-")}</dd></div>
       <div><dt>Masuk</dt><dd>${tanggal(u.tglMasuk)}</dd></div>
       ${u.noDo ? `<div><dt>No. DO</dt><dd class="mono">${aman(u.noDo)}</dd></div>` : ""}
@@ -74,17 +73,12 @@ function formUnit(daftarTipe, bisaLihatHarga) {
       </div>
     </div>
 
-    <label class="pilihan">
-      <input type="checkbox" id="u-indent">
-      <span>Indent — unit belum ada fisiknya (dipesan dari main dealer,
-        belum tiba). Nomor rangka &amp; mesin boleh dikosongkan dulu.</span>
-    </label>
-
     <label class="label label--gelap" for="u-rangka">Nomor rangka</label>
     <input class="isian isian--terang mono" id="u-rangka"
            autocapitalize="characters" placeholder="ZAPM…">
-    <p class="petunjuk" id="petunjuk-rangka">Wajib diisi untuk unit ready.
-      Kosongkan kalau ditandai Indent di atas.</p>
+    <p class="petunjuk">Wajib diisi — Data Unit cuma untuk unit fisik yang
+      sungguh sudah ada. Kalau belum tiba fisiknya, catat nanti saja
+      setelah barang sampai (statusnya nanti muncul otomatis dari SPK).</p>
 
     <label class="label label--gelap" for="u-mesin">Nomor mesin</label>
     <input class="isian isian--terang mono" id="u-mesin"
@@ -137,7 +131,6 @@ export async function halamanStok(wadah) {
     <div class="chip-baris" id="saring">
       <button class="chip aktif" data-status="semua">Semua</button>
       <button class="chip" data-status="ready">Ready</button>
-      <button class="chip" data-status="indent">Indent</button>
       <button class="chip" data-status="booked">Dipesan</button>
       <button class="chip" data-status="terjual">Terjual</button>
     </div>
@@ -177,9 +170,10 @@ export async function halamanStok(wadah) {
   }
 
   // ── Ubah status manual ──────────────────────────────────────
-  // Untuk kasus di luar alur SPK: unit indent yang barangnya baru
-  // tiba (Indent → Ready, minta nomor rangka dulu kalau belum ada),
-  // atau koreksi status lainnya.
+  // Untuk koreksi status di luar alur SPK — misalnya unit yang
+  // sudah terjual ternyata batal, atau unit dipesan yang gagal
+  // dibawa pulang (kembali ke Ready). Nomor rangka diminta dulu
+  // hanya kalau memang belum terisi (jaga-jaga data lama).
   async function ubahStatus(id, statusBaru) {
     const u = unitTampil.find((x) => x.id === id);
     if (!u || u.status === statusBaru) return;
@@ -291,17 +285,6 @@ export async function halamanStok(wadah) {
           `<option value="${aman(w)}">${aman(w)}</option>`).join("");
     });
 
-    // Saat ditandai Indent, nomor rangka/mesin jadi opsional —
-    // unitnya memang belum tiba secara fisik.
-    const rangkaEl = formEl.querySelector("#u-rangka");
-    const petunjukRangka = formEl.querySelector("#petunjuk-rangka");
-    formEl.querySelector("#u-indent").addEventListener("change", (e) => {
-      const indent = e.target.checked;
-      petunjukRangka.textContent = indent
-        ? "Boleh dikosongkan — isi belakangan begitu unit tiba."
-        : "Wajib diisi untuk unit ready.";
-    });
-
     formEl.querySelector("#batal-unit")
       .addEventListener("click", () => (formEl.innerHTML = ""));
     formEl.querySelector("#form-unit").addEventListener("submit", simpan);
@@ -311,26 +294,18 @@ export async function halamanStok(wadah) {
   async function simpan(e) {
     e.preventDefault();
     const tipeId = formEl.querySelector("#u-tipe").value;
-    const indent = formEl.querySelector("#u-indent").checked;
     const noRangka = formEl.querySelector("#u-rangka").value
       .trim().toUpperCase();
     if (!tipeId) { kabar("Pilih tipe motornya dulu.", "rem"); return; }
-    if (!indent && !noRangka) {
-      kabar("Nomor rangka wajib diisi untuk unit ready. " +
-            "Tandai Indent kalau unitnya belum tiba.", "rem");
-      return;
-    }
+    if (!noRangka) { kabar("Nomor rangka wajib diisi.", "rem"); return; }
 
     const t = tipeDari(tipeId);
     const ref = doc(collection(dbase, "units"));
-    const statusBaru = indent ? "indent" : "ready";
 
     try {
-      // Nomor rangka hanya ditahan (dijaga unik) kalau memang diisi.
-      // Unit indent belum punya nomor, jadi lewati langkah ini.
-      if (noRangka) {
-        await pakaiNilaiUnik("indeks_rangka", noRangka, ref.id);
-      }
+      // Menahan nomor rangka lebih dulu. Kalau nomor ini sudah
+      // terdaftar, penyimpanan dibatalkan sebelum apa pun berubah.
+      await pakaiNilaiUnik("indeks_rangka", noRangka, ref.id);
 
       const batch = writeBatch(dbase);
       batch.set(ref, {
@@ -338,11 +313,11 @@ export async function halamanStok(wadah) {
         tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
         warna: formEl.querySelector("#u-warna").value,
         tahun: Number(formEl.querySelector("#u-tahun").value || 0),
-        noRangka: noRangka || "",
+        noRangka,
         noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
         noDo: formEl.querySelector("#u-do").value.trim(),
         tglMasuk: new Date(formEl.querySelector("#u-tgl").value),
-        status: statusBaru,
+        status: "ready",
         ...tandaBaru(),
       });
 
@@ -361,26 +336,21 @@ export async function halamanStok(wadah) {
         }
       }
 
-      // Penghitung "jumlahReady" di tipe cuma naik untuk unit yang
-      // memang sudah ready — unit indent belum dihitung sebagai stok.
-      if (statusBaru === "ready") {
-        batch.update(doc(dbase, "tipe_motor", tipeId), {
-          jumlahReady: increment(1),
-        });
-      }
+      batch.update(doc(dbase, "tipe_motor", tipeId), {
+        jumlahReady: increment(1),
+      });
 
       sertakanLog(batch, "unit_ditambah", {
-        koleksi: "units", docId: ref.id,
-        ringkas: noRangka || `Indent · ${t.merek} ${t.tipe}`,
+        koleksi: "units", docId: ref.id, ringkas: noRangka,
       });
 
       await batch.commit();
       await sinkronKatalog();
       formEl.innerHTML = "";
       kabar("Unit tersimpan.", "netral");
-      status = statusBaru;
+      status = "ready";
       wadah.querySelectorAll(".chip").forEach((c) =>
-        c.classList.toggle("aktif", c.dataset.status === statusBaru));
+        c.classList.toggle("aktif", c.dataset.status === "ready"));
       await gambar();
     } catch (err) {
       kabar(err.message || "Gagal menyimpan unit.", "rem");
@@ -391,4 +361,36 @@ export async function halamanStok(wadah) {
     wadah.querySelector("#tambah-unit").addEventListener("click", bukaForm);
   }
   await gambar();
+}
+
+// ── Dipakai dari SPK ─────────────────────────────────────────────
+// Cari SATU unit berstatus ready untuk tipe+warna tertentu. Kalau
+// ada, SPK bisa langsung mengunci unit itu (jadi tidak ditawarkan
+// ke pembeli lain). Kalau tidak ada, SPK-nya sendiri yang jadi
+// Indent — bukan Data Unit yang dibikin dulu tanpa fisiknya.
+export async function cariUnitReady(tipeId, warna) {
+  const snap = await getDocs(query(
+    collection(dbase, "units"),
+    where("tipeId", "==", tipeId),
+    where("warna", "==", warna),
+    where("status", "==", "ready"),
+    limit(1)
+  ));
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return { id: d.id, ...d.data() };
+}
+
+// Mengunci satu unit ready ke sebuah SPK: status pindah ke "booked"
+// dan jumlahReady di tipe turun satu. Ditambahkan ke batch yang
+// sama dengan penyimpanan SPK, supaya dua-duanya berhasil atau
+// dua-duanya batal bersamaan.
+export function kunciUnitKeBatch(batch, unit, spkId) {
+  batch.update(doc(dbase, "units", unit.id), {
+    status: "booked",
+    spkId,
+  });
+  batch.update(doc(dbase, "tipe_motor", unit.tipeId), {
+    jumlahReady: increment(-1),
+  });
 }

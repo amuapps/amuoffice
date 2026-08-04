@@ -119,6 +119,8 @@ export const SYARAT_SPK = [
 ];
 
 // Rekening resmi yang dicetak di SPK. Isi sesuai rekening PT.
+// SUDAH TIDAK DIPAKAI — diganti Master Rekening (rekening.js),
+// yang bisa diisi/diubah sendiri lewat halaman tanpa edit kode.
 export const REKENING = [
   // { bank: "BCA", cabang: "", nomor: "", atasNama: "PT AUTO MITRA UTAMA" },
 ];

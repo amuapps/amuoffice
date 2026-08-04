@@ -24,10 +24,16 @@ const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Tipe Motor", rute: "#/kelola", kode: "SYS-01" },
   { label: "Data Unit", rute: "#/stok", kode: "INV-06" },
   { label: "Referensi Tipe & Warna", rute: "#/referensi", kode: "SYS-05" },
+  { label: "Master Leasing", rute: "#/leasing", kode: "SYS-06" },
+  { label: "Master Rekening", rute: "#/rekening", kode: "SYS-07" },
 ]};
 
 const KATALOG_SAJA = { grup: "Master Data", butir: [
   { label: "Data Unit", rute: "#/katalog", kode: "INV-06" },
+]};
+
+const SALES = { grup: "Sales", butir: [
+  { label: "SPK Baru", rute: "#/spk", kode: "SLS-01" },
 ]};
 
 const SISTEM_LENGKAP = { grup: "Sistem", butir: [
@@ -42,27 +48,27 @@ const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
 export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
-    beranda: "#/kelola", batasDiskon: null, izin: ["*"],
-    menu: [MASTER_DATA, SISTEM_LENGKAP],
+    beranda: "#/spk", batasDiskon: null, izin: ["*"],
+    menu: [SALES, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {
     label: "Admin", kode: "ADM", warna: "netral",
-    beranda: "#/kelola", batasDiskon: 500000,
+    beranda: "#/spk", batasDiskon: 500000,
     izin: [
       "stok.lihat", "stok.ubah", "spk.buat", "spk.lihat",
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.
-    menu: [MASTER_DATA, SISTEM_PELANGGAN_SAJA],
+    menu: [SALES, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
   },
 
   sales: {
     label: "Sales", kode: "SLS", warna: "sein",
-    beranda: "#/katalog", batasDiskon: 200000,
+    beranda: "#/spk", batasDiskon: 200000,
     izin: ["stok.lihat", "spk.buat", "spk.lihat"],
-    menu: [KATALOG_SAJA, SISTEM_PELANGGAN_SAJA],
+    menu: [SALES, KATALOG_SAJA, SISTEM_PELANGGAN_SAJA],
   },
 
   kasir: {

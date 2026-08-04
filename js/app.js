@@ -22,6 +22,9 @@ import { halamanTipe } from "./tipe.js";
 import { halamanReferensi } from "./referensi.js";
 import { halamanPengguna } from "./pengaturan.js";
 import { halamanPelanggan } from "./pelanggan.js";
+import { halamanLeasing } from "./leasing.js";
+import { halamanRekening } from "./rekening.js";
+import { halamanSpk } from "./spk.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -155,6 +158,9 @@ function daftarkanHalaman(profil) {
     "#/referensi": (w) => halamanReferensi(w),
     "#/pengguna": (w) => halamanPengguna(w),
     "#/pelanggan": (w) => halamanPelanggan(w),
+    "#/leasing": (w) => halamanLeasing(w),
+    "#/rekening": (w) => halamanRekening(w),
+    "#/spk": (w) => halamanSpk(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
