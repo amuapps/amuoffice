@@ -2,14 +2,13 @@
 // Input dibuat sependek mungkin: pilih tipe, isi dua nomor.
 
 import {
-  dbase, collection, doc, getDocs, updateDoc, query, where, orderBy,
+  dbase, collection, doc, getDocs, query, where, orderBy,
   limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
-import { tanya } from "./dialog.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
 } from "./ui.js";
@@ -20,32 +19,30 @@ const LABEL_STATUS = {
   terjual: "Terjual",
 };
 
-function kartuUnit(u, bisaLihatHarga, bisaUbah) {
-  return `<article class="kartu kartu--unit">
-    <div class="kartu-atas">
-      <div>
-        <h3 class="kartu-judul">${aman(u.tipeNama)}</h3>
-        <p class="kartu-sub">${aman(u.warna || "-")} · ${aman(u.tahun || "-")}</p>
-      </div>
-      <span class="tanda tanda--${u.status}">${LABEL_STATUS[u.status] || u.status}</span>
-    </div>
-    <dl class="rinci">
-      <div><dt>Rangka</dt><dd class="mono">${aman(u.noRangka || "-")}</dd></div>
-      <div><dt>Mesin</dt><dd class="mono">${aman(u.noMesin || "-")}</dd></div>
-      <div><dt>Masuk</dt><dd>${tanggal(u.tglMasuk)}</dd></div>
-      ${u.noDo ? `<div><dt>No. DO</dt><dd class="mono">${aman(u.noDo)}</dd></div>` : ""}
-    </dl>
-    ${bisaUbah ? `<div class="aksi aksi--rapat">
-        <label class="label label--gelap" style="margin:0;font-size:12px"
-               for="ubah-status-${u.id}">Ubah status</label>
-        <select class="isian isian--terang isian--kecil"
-                id="ubah-status-${u.id}" data-id="${u.id}">
-          ${Object.entries(LABEL_STATUS).map(([k, v]) =>
-            `<option value="${k}" ${k === u.status ? "selected" : ""}>
-              ${v}</option>`).join("")}
-        </select>
-      </div>` : ""}
-  </article>`;
+function tabelUnit(daftar) {
+  return `<div style="overflow-x:auto">
+    <table class="tabel">
+      <thead>
+        <tr>
+          <th>Tipe</th><th>Warna</th><th>Tahun</th><th>Rangka</th>
+          <th>Mesin</th><th>Status</th><th>Masuk</th><th>No. DO</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${daftar.map((u) => `<tr>
+          <td>${aman(u.tipeNama)}</td>
+          <td>${aman(u.warna || "-")}</td>
+          <td>${aman(u.tahun || "-")}</td>
+          <td class="mono">${aman(u.noRangka || "-")}</td>
+          <td class="mono">${aman(u.noMesin || "-")}</td>
+          <td><span class="tanda tanda--${u.status}">
+            ${LABEL_STATUS[u.status] || u.status}</span></td>
+          <td>${tanggal(u.tglMasuk)}</td>
+          <td class="mono">${aman(u.noDo || "-")}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 function formUnit(daftarTipe, bisaLihatHarga) {
@@ -157,76 +154,10 @@ export async function halamanStok(wadah) {
     unitTampil = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     daftarEl.innerHTML = unitTampil.length
-      ? unitTampil.map((u) => kartuUnit(u, bisaLihatHarga, bisaUbah)).join("")
+      ? tabelUnit(unitTampil)
       : `<div class="hampa"><p>Tidak ada unit${
           status === "semua" ? "" : ` berstatus ${LABEL_STATUS[status].toLowerCase()}`
         }.</p></div>`;
-
-    if (bisaUbah) {
-      daftarEl.querySelectorAll("[id^='ubah-status-']").forEach((sel) => {
-        sel.addEventListener("change", () => ubahStatus(sel.dataset.id, sel.value));
-      });
-    }
-  }
-
-  // ── Ubah status manual ──────────────────────────────────────
-  // Untuk koreksi status di luar alur SPK — misalnya unit yang
-  // sudah terjual ternyata batal, atau unit dipesan yang gagal
-  // dibawa pulang (kembali ke Ready). Nomor rangka diminta dulu
-  // hanya kalau memang belum terisi (jaga-jaga data lama).
-  async function ubahStatus(id, statusBaru) {
-    const u = unitTampil.find((x) => x.id === id);
-    if (!u || u.status === statusBaru) return;
-
-    let noRangkaBaru = u.noRangka;
-    if (statusBaru === "ready" && !u.noRangka) {
-      const nilai = await tanya({
-        judul: "Lengkapi nomor rangka",
-        pesan: "Unit ini belum punya nomor rangka. Isi dulu sebelum " +
-               "diubah jadi Ready.",
-        petunjuk: "Nomor rangka",
-      });
-      if (nilai === null) { await gambar(); return; } // batal, kembalikan pilihan
-      noRangkaBaru = nilai.trim().toUpperCase();
-      if (!noRangkaBaru) {
-        kabar("Nomor rangka wajib diisi.", "rem");
-        await gambar();
-        return;
-      }
-    }
-
-    try {
-      if (noRangkaBaru && noRangkaBaru !== u.noRangka) {
-        await pakaiNilaiUnik("indeks_rangka", noRangkaBaru, u.id);
-      }
-
-      const batch = writeBatch(dbase);
-      batch.update(doc(dbase, "units", u.id), {
-        status: statusBaru,
-        ...(noRangkaBaru !== u.noRangka ? { noRangka: noRangkaBaru } : {}),
-      });
-
-      // Jaga hitungan "jumlahReady" di tipe tetap akurat: naik kalau
-      // baru MASUK status ready, turun kalau baru KELUAR dari ready.
-      if (statusBaru === "ready" && u.status !== "ready") {
-        batch.update(doc(dbase, "tipe_motor", u.tipeId), { jumlahReady: increment(1) });
-      } else if (statusBaru !== "ready" && u.status === "ready") {
-        batch.update(doc(dbase, "tipe_motor", u.tipeId), { jumlahReady: increment(-1) });
-      }
-
-      sertakanLog(batch, "unit_status_diubah", {
-        koleksi: "units", docId: u.id,
-        ringkas: `${LABEL_STATUS[u.status]} → ${LABEL_STATUS[statusBaru]}`,
-      });
-
-      await batch.commit();
-      await sinkronKatalog();
-      kabar("Status diperbarui.", "netral");
-      await gambar();
-    } catch (err) {
-      kabar(err.message || "Gagal mengubah status.", "rem");
-      await gambar();
-    }
   }
 
   wadah.querySelector("#saring").addEventListener("click", (e) => {

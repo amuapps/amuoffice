@@ -89,6 +89,30 @@ export function formPelanggan(p = {}, awalan = "p") {
     <label class="label label--gelap" for="${awalan}-alamat">Alamat</label>
     <input class="isian isian--terang" id="${awalan}-alamat"
            value="${aman(p.alamat || "")}" placeholder="Sesuai KTP">
+    <div class="dua">
+      <div>
+        <label class="label label--gelap" for="${awalan}-kecamatan">Kecamatan</label>
+        <input class="isian isian--terang" id="${awalan}-kecamatan"
+               value="${aman(p.kecamatan || "")}">
+      </div>
+      <div>
+        <label class="label label--gelap" for="${awalan}-kota">Kabupaten/Kota</label>
+        <input class="isian isian--terang" id="${awalan}-kota"
+               value="${aman(p.kota || "")}">
+      </div>
+    </div>
+    <div class="dua">
+      <div>
+        <label class="label label--gelap" for="${awalan}-provinsi">Provinsi</label>
+        <input class="isian isian--terang" id="${awalan}-provinsi"
+               value="${aman(p.provinsi || "")}">
+      </div>
+      <div>
+        <label class="label label--gelap" for="${awalan}-kodepos">Kode pos</label>
+        <input class="isian isian--terang mono" id="${awalan}-kodepos"
+               inputmode="numeric" value="${aman(p.kodePos || "")}">
+      </div>
+    </div>
     <label class="label label--gelap" for="${awalan}-email">Email</label>
     <input class="isian isian--terang" id="${awalan}-email" type="email"
            value="${aman(p.email || "")}" placeholder="Opsional">
@@ -105,6 +129,10 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
     telepon: v("telepon").replace(/\s/g, ""),
     nik: v("nik").replace(/\D/g, ""),
     alamat: v("alamat"),
+    kecamatan: v("kecamatan"),
+    kota: v("kota"),
+    provinsi: v("provinsi"),
+    kodePos: v("kodepos"),
     email: v("email"),
   };
 }
@@ -118,7 +146,11 @@ function kartuPelanggan(p) {
       </div>
       <button class="tombol tombol--kecil" data-ubah="${p.id}">Ubah</button>
     </div>
-    ${p.alamat ? `<p class="kartu-rinci">${aman(p.alamat)}</p>` : ""}
+    ${p.alamat ? `<p class="kartu-rinci">${aman(p.alamat)}${
+      [p.kecamatan, p.kota, p.provinsi].filter(Boolean).length
+        ? ", " + aman([p.kecamatan, p.kota, p.provinsi].filter(Boolean).join(", "))
+        : ""
+    }</p>` : ""}
     ${!p.nik ? `<p class="kartu-rinci peringatan">NIK belum diisi</p>` : ""}
     <p class="kartu-rinci">Terdaftar ${tanggal(p.dibuatPada)}</p>
   </article>`;

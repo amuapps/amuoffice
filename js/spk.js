@@ -120,6 +120,8 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
         ${daftarLeasing.map((l) =>
           `<option value="${l.id}">${aman(l.nama)}</option>`).join("")}
       </select>
+      <p class="petunjuk">"Jumlah dibayar sekarang" di atas dipakai sebagai
+        Uang Muka (DP) ke leasing.</p>
       <div class="dua">
         <div>
           <label class="label label--gelap" for="s-cicilan">Cicilan per bulan</label>
@@ -130,6 +132,9 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
           <input class="isian isian--terang" id="s-tenor" inputmode="numeric">
         </div>
       </div>
+      <label class="label label--gelap" for="s-survey">Tanggal survey
+        <span class="kunci">opsional</span></label>
+      <input class="isian isian--terang" id="s-survey" type="date">
     </div>
   </div>`;
 }
@@ -154,9 +159,20 @@ export async function halamanSpk(wadah) {
   }
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
+  const tanggalHariIni = new Date().toLocaleDateString("id-ID", {
+    day: "numeric", month: "long", year: "numeric",
+  });
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas"><h2 class="judul">SPK Baru</h2></div>
+    <div class="kartu" style="margin-bottom:14px">
+      <dl class="rinci">
+        <div><dt>Nomor SPK</dt>
+          <dd class="mono">akan dibuat otomatis saat disimpan</dd></div>
+        <div><dt>Tanggal</dt><dd>${aman(tanggalHariIni)}</dd></div>
+        <div><dt>Status</dt><dd><span class="tanda tanda--booked">Draf</span></dd></div>
+      </dl>
+    </div>
     <div class="chip-baris" id="tab-spk">
       <button type="button" class="chip aktif" data-tab="customer">Customer Info</button>
       <button type="button" class="chip" data-tab="internal">Internal Info</button>
@@ -330,6 +346,7 @@ export async function halamanSpk(wadah) {
           leasingId: wadah.querySelector("#s-leasing").value,
           cicilan: bacaAngka(wadah.querySelector("#s-cicilan")),
           tenor: Number(wadah.querySelector("#s-tenor").value || 0),
+          tanggalSurvey: wadah.querySelector("#s-survey").value || null,
         } : null,
         status: "berjalan",
         ...tandaBaru(),
@@ -344,10 +361,28 @@ export async function halamanSpk(wadah) {
       });
       await batch.commit();
 
-      kabar(`SPK ${spkNo} tersimpan${
-        kondisiUnit === "indent" ? " (Indent — menunggu unit tiba)" : ""
-      }.`, "netral");
-      await halamanSpk(wadah); // reset form untuk SPK berikutnya
+      wadah.innerHTML = `<section class="lembar">
+        <div class="lembar-atas"><h2 class="judul">SPK Tersimpan</h2></div>
+        <div class="kartu">
+          <dl class="rinci">
+            <div><dt>Nomor SPK</dt><dd class="mono">${aman(spkNo)}</dd></div>
+            <div><dt>Pembeli</dt><dd>${aman(pembeli.nama)}</dd></div>
+            <div><dt>Unit</dt><dd>${aman(data.tipeNama)} · ${aman(warna)}</dd></div>
+            <div><dt>Status</dt><dd>
+              <span class="tanda ${kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
+                ${kondisiUnit === "ready" ? "Dipesan (unit terkunci)" : "Indent"}
+              </span>
+            </dd></div>
+          </dl>
+        </div>
+        <div class="aksi" style="margin-top:14px">
+          <button class="tombol tombol--utama" type="button" id="spk-baru">
+            Buat SPK Baru</button>
+        </div>
+      </section>`;
+      wadah.querySelector("#spk-baru")
+        .addEventListener("click", () => halamanSpk(wadah));
+      kabar(`SPK ${spkNo} tersimpan.`, "netral");
     } catch (err) {
       kabar(err.message || "Gagal menyimpan SPK.", "rem");
       tombol.disabled = false;
