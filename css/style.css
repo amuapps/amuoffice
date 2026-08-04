@@ -332,6 +332,9 @@ button, input, select { font: inherit; }
 .tanda--ada, .tanda--ready, .tanda--approve, .tanda--selesai {
   background: var(--hijau-mu); color: var(--hijau); border-color: #C9E7C9;
 }
+.tanda--indent {
+  background: var(--kuning-mu); color: var(--kuning);
+}
 .tanda--booked, .tanda--menunggu_persetujuan, .tanda--sebagian {
   background: var(--kuning-mu); color: var(--kuning); border-color: #F0E0BE;
 }
