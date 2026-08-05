@@ -24,10 +24,9 @@ const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit
 // dari SVG kecil (bukan gambar logo) supaya teksnya tetap tajam
 // dibaca-samar walau di-zoom, dan ukurannya kecil sekali (file-nya
 // cuma teks, bukan raster).
-const WM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="34">
-  <text x="4" y="22" font-family="Segoe UI, Arial, sans-serif" font-size="10"
-        font-weight="700" fill="#000"
-        transform="rotate(-20 75 17)">${aman(SHOWROOM.nama)}</text>
+const WM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="20">
+  <text x="8" y="14" font-family="Segoe UI, Arial, sans-serif" font-size="10"
+        font-weight="700" fill="#000">${aman(SHOWROOM.nama)}</text>
 </svg>`;
 const WM_DATA_URI = "data:image/svg+xml," +
   encodeURIComponent(WM_SVG.replace(/\s+/g, " ").trim());
@@ -52,7 +51,8 @@ const CSS_CETAK = `
   .lembar-cetak::before {
     content: ""; position: absolute; inset: 0;
     background-image: url("${WM_DATA_URI}");
-    background-repeat: repeat; background-size: 78px 18px;
+    background-repeat: repeat; background-size: 180px 20px;
+    background-position: center;
     opacity: .12; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
