@@ -332,9 +332,6 @@ button, input, select { font: inherit; }
 .tanda--ada, .tanda--ready, .tanda--approve, .tanda--selesai {
   background: var(--hijau-mu); color: var(--hijau); border-color: #C9E7C9;
 }
-.tanda--indent {
-  background: var(--kuning-mu); color: var(--kuning);
-}
 .tanda--booked, .tanda--menunggu_persetujuan, .tanda--sebagian {
   background: var(--kuning-mu); color: var(--kuning); border-color: #F0E0BE;
 }
@@ -696,24 +693,29 @@ select.isian {
    ══════════════════════════════════════════════════════════ */
 
 /* Kelompok modul di sidebar — melipat saat diketuk */
-.nav-grup-wadah { margin-bottom: 2px; }
+.nav-grup-wadah {
+  margin-bottom: 6px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--garis-2);
+}
+.nav-grup-wadah:last-child { border-bottom: 0; }
 .nav-grup {
   width: 100%; display: flex; align-items: center; gap: 8px;
-  background: none; border: 0; cursor: pointer;
-  padding: 9px 12px; border-radius: var(--r);
-  text-align: left;
+  background: var(--lapis); border: 0; cursor: pointer;
+  padding: 7px 12px; border-radius: var(--r);
+  text-align: left; margin-bottom: 3px;
 }
-.nav-grup:hover { background: rgba(0,0,0,.037); }
+.nav-grup:hover { background: rgba(0,0,0,.055); }
 .nav-grup-nama {
-  flex: 1; font-size: 11px; font-weight: 600; color: var(--abu-2);
-  text-transform: uppercase; letter-spacing: .06em;
+  flex: 1; font-size: 10.5px; font-weight: 700; color: var(--abu-2);
+  text-transform: uppercase; letter-spacing: .08em;
 }
 .nav-grup-panah {
   font-size: 10px; color: var(--abu-2); transition: transform .16s;
 }
 .nav-butir-isi {
   display: flex; flex-direction: column; gap: 1px;
-  overflow: hidden;
+  overflow: hidden; padding-left: 10px;
+  border-left: 2px solid var(--garis-2); margin-left: 12px;
 }
 .nav-grup--tutup .nav-butir-isi { display: none; }
 .nav-grup--tutup .nav-grup-panah { transform: rotate(-90deg); }
@@ -723,7 +725,11 @@ select.isian {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
   font-size: 13px; white-space: nowrap; overflow: hidden;
 }
-.jejak-modul { color: var(--abu); }
+.jejak-modul {
+  color: var(--abu); background: none; border: 0; padding: 0;
+  font: inherit; cursor: pointer;
+}
+.jejak-modul:hover { color: var(--biru); text-decoration: underline; }
 .jejak-pisah { color: var(--abu-2); }
 .jejak-kini  { font-weight: 600; color: var(--tinta);
                overflow: hidden; text-overflow: ellipsis; }
@@ -932,3 +938,42 @@ select.isian {
   .layar-jam { display: none; }
   .panel-tab { padding: 14px; }
 }
+
+/* ── Tabel Data Unit ─────────────────────────────────────────── */
+.tabel {
+  width: 100%; border-collapse: collapse; font-size: 13.5px;
+}
+.tabel th, .tabel td {
+  padding: 9px 12px; text-align: left; white-space: nowrap;
+  border-bottom: 1px solid var(--garis);
+}
+.tabel th {
+  font-weight: 600; color: var(--tinta); background: var(--lapis);
+  position: sticky; top: 0;
+}
+.tabel tbody tr:hover { background: var(--lapis); }
+
+/* ── Tab bar: panel yang dibuka tetap ada di sini ───────────── */
+.tab-bar {
+  display: flex; gap: 2px; overflow-x: auto; padding: 6px 10px 0;
+  background: var(--lapis); border-bottom: 1px solid var(--garis-2);
+}
+.tab {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+  padding: 8px 10px 8px 14px; background: var(--lapis); border: 0;
+  border-radius: 8px 8px 0 0; cursor: pointer; color: var(--abu);
+  font-size: 13px; max-width: 200px;
+}
+.tab-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tab:hover { background: rgba(0,0,0,.04); }
+.tab--aktif {
+  background: var(--kartu); color: var(--tinta); font-weight: 600;
+  box-shadow: inset 0 2px 0 var(--biru);
+}
+.tab-tutup {
+  font-size: 15px; line-height: 1; color: var(--abu-2); padding: 2px 4px;
+  border-radius: 4px;
+}
+.tab-tutup:hover { background: rgba(0,0,0,.08); color: var(--tinta); }
