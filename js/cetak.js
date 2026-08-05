@@ -24,8 +24,20 @@ const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit
 // dari SVG kecil (bukan gambar logo) supaya teksnya tetap tajam
 // dibaca-samar walau di-zoom, dan ukurannya kecil sekali (file-nya
 // cuma teks, bukan raster).
-const WM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="134" height="15">
-  <text x="2" y="11" font-family="Segoe UI, Arial, sans-serif" font-size="10"
+// Ukuran ubin watermark dihitung persis dari lebar teksnya sendiri
+// (bukan angka kira-kira) — supaya beneran rapat tanpa spasi, apa
+// pun panjang nama perusahaannya.
+function lebarTeks(teks, font) {
+  const kanvas = document.createElement("canvas");
+  const ctx = kanvas.getContext("2d");
+  ctx.font = font;
+  return ctx.measureText(teks).width;
+}
+const FONT_WM = "700 10px 'Segoe UI', Arial, sans-serif";
+const LEBAR_WM = Math.ceil(lebarTeks(SHOWROOM.nama, FONT_WM)) + 2;
+const TINGGI_WM = 12;
+const WM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="${LEBAR_WM}" height="${TINGGI_WM}">
+  <text x="0" y="9.5" font-family="Segoe UI, Arial, sans-serif" font-size="10"
         font-weight="700" fill="#000">${aman(SHOWROOM.nama)}</text>
 </svg>`;
 const WM_DATA_URI = "data:image/svg+xml," +
@@ -51,7 +63,7 @@ const CSS_CETAK = `
   .lembar-cetak::before {
     content: ""; position: absolute; inset: 0;
     background-image: url("${WM_DATA_URI}");
-    background-repeat: repeat; background-size: 134px 15px;
+    background-repeat: repeat; background-size: ${LEBAR_WM}px ${TINGGI_WM}px;
     background-position: center;
     opacity: .12; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
