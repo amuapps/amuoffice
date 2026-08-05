@@ -40,13 +40,15 @@ const CSS_CETAK = `
   .lembar-cetak::before {
     content: ""; position: absolute; inset: 0;
     background-image: url("${location.origin}/logo.png");
-    background-repeat: repeat; background-size: 64px 64px;
+    background-repeat: repeat; background-size: 32px 32px;
     opacity: .05; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .lembar-cetak > * { position: relative; z-index: 1; }
-  .c-kop { display: flex; justify-content: space-between; gap: 16px;
-    border-bottom: 2px solid #111; padding-bottom: 8px; }
+  .c-kop { display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; border-bottom: 2px solid #111; padding-bottom: 8px; }
+  .c-kop-kiri { display: flex; align-items: center; gap: 10px; }
+  .c-kop-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
   .c-pt { font-size: 16px; font-weight: 600; margin: 0; }
   .c-kecil { font-size: 10.5px; color: #555; margin: 2px 0 0; }
   .c-nomor table { font-size: 11px; }
@@ -124,11 +126,14 @@ export async function cetakSpk(t) {
   const isi = `<div class="lembar-cetak" id="lembar-spk">
 
     <header class="c-kop">
-      <div>
-        <p class="c-pt">${aman(SHOWROOM.nama)}</p>
-        <p class="c-kecil">${aman(SHOWROOM.alamat || "")}</p>
-        <p class="c-kecil">${aman(SHOWROOM.telepon || "")}
-          ${SHOWROOM.npwp ? " · NPWP " + aman(SHOWROOM.npwp) : ""}</p>
+      <div class="c-kop-kiri">
+        <img class="c-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div>
+          <p class="c-pt">${aman(SHOWROOM.nama)}</p>
+          <p class="c-kecil">${aman(SHOWROOM.alamat || "")}</p>
+          <p class="c-kecil">${aman(SHOWROOM.telepon || "")}
+            ${SHOWROOM.npwp ? " · NPWP " + aman(SHOWROOM.npwp) : ""}</p>
+        </div>
       </div>
       <div class="c-nomor">
         <table>

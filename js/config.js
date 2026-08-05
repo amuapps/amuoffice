@@ -111,8 +111,8 @@ export const SYARAT_SPK = [
   "dilakukan di luar rekening perusahaan dianggap tidak sah dan " +
   "bukan tanggung jawab perusahaan.",
   "Pembayaran dengan Cek atau Giro harus atas nama perusahaan.",
-  "Apabila pemesanan ini DIBATALKAN oleh pihak pembeli dengan " +
-  "alasan apa pun juga, maka 100% UANG MUKA menjadi hak perusahaan.",
+  "Apabila pemesanan ini dibatalkan oleh pihak pembeli, pengembalian " +
+  "uang muka akan diproses sesuai ketentuan yang berlaku di perusahaan.",
   "Pembayaran dapat ditransfer langsung ke rekening perusahaan.",
   "Saya menyetujui syarat & ketentuan yang ditetapkan oleh dealer.",
   "SPK ini berlaku paling lama 60 hari setelah unit siap.",
