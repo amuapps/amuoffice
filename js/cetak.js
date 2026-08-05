@@ -395,23 +395,30 @@ export async function mintaCetakKuitansi(t, muatUlang) {
 
   // Sudah pernah dicetak sebelumnya → cetak ulang saja, tidak perlu
   // password lagi (kuncinya sudah terpasang sejak pertama kali).
-  // Kalau ini SPK lama yang terkunci SEBELUM fitur QR ada (jadi
-  // belum punya kuitansiKode tersimpan), betulkan dulu di sini —
-  // supaya tidak lagi cetak ulang dengan kode kosong.
+  // Setiap cetak ulang, PASTIKAN kuitansi_publik ada & sinkron —
+  // bukan cuma kalau kuitansiKode kosong. Ini supaya kalau dulu
+  // pernah gagal menulis ke kuitansi_publik (mis. rules belum aktif
+  // waktu itu, walau kuitansiKode di transaksi sudah kepalang
+  // tersimpan), percobaan berikutnya tetap membetulkannya, bukan
+  // cuma diam karena mengira sudah beres.
   if (t.kuitansiTercetak) {
-    let kodeAman = t.kuitansiKode;
-    if (!kodeAman && t.kuitansiNo) {
-      kodeAman = t.kuitansiNo.replace(/\//g, "-");
+    let kodeAman = t.kuitansiKode || (t.kuitansiNo ? t.kuitansiNo.replace(/\//g, "-") : "");
+    if (kodeAman) {
       try {
-        await updateDoc(doc(dbase, "transaksi", t.id), { kuitansiKode: kodeAman });
+        if (!t.kuitansiKode) {
+          await updateDoc(doc(dbase, "transaksi", t.id), { kuitansiKode: kodeAman });
+        }
         await setDoc(doc(dbase, "kuitansi_publik", kodeAman), {
           kuitansiNo: t.kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama,
           warna: t.warna, jumlahBayar: t.jumlahBayar || 0,
           tanggal: tanggal(t.dibuatPada), showroomNama: SHOWROOM.nama,
         });
-      } catch { /* tetap lanjut cetak walau pembetulan ini gagal */ }
+      } catch (err) {
+        kabar("Peringatan: gagal menyinkronkan QR validasi (" +
+              err.message + "). Kuitansi tetap dicetak.", "rem");
+      }
     }
-    await cetakKuitansi({ ...t, kuitansiKode: kodeAman || "" });
+    await cetakKuitansi({ ...t, kuitansiKode: kodeAman });
     return;
   }
 
