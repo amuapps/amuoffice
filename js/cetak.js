@@ -647,7 +647,6 @@ function satuKuitansi(t, unit, entri, totalSetelah, nomorLembar, labelLembar, na
           </div>
         </div>
         <table class="k-jenis-tabel">
-          <tr><td>JENIS</td><td>PEMASUKAN</td></tr>
           <tr><td>KETERANGAN</td><td>${aman(entri.keterangan)}</td></tr>
         </table>
         <img class="k-qr" src="${qrSrc}" alt="QR validasi kuitansi">
