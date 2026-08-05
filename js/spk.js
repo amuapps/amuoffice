@@ -168,9 +168,8 @@ export async function halamanSpk(wadah) {
     <div class="kartu" style="margin-bottom:14px">
       <dl class="rinci">
         <div><dt>Nomor SPK</dt>
-          <dd class="mono">akan dibuat otomatis saat disimpan</dd></div>
+          <dd>dibuat otomatis saat disimpan</dd></div>
         <div><dt>Tanggal</dt><dd>${aman(tanggalHariIni)}</dd></div>
-        <div><dt>Status</dt><dd><span class="tanda tanda--booked">Draf</span></dd></div>
       </dl>
     </div>
     <div class="chip-baris" id="tab-spk">
