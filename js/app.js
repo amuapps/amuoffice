@@ -267,6 +267,20 @@ saatKoneksiBerubah((daring) => {
   t.hidden = daring;
 });
 
+// ── Jaring pengaman ──────────────────────────────────────────
+// Kalau ada error JS yang tidak tertangkap di mana pun (bug yang
+// belum ketahuan), setidaknya ada notifikasi jelas — bukan layar
+// putih diam-diam tanpa penjelasan apa pun.
+window.addEventListener("error", (e) => {
+  kabar("Terjadi kesalahan tak terduga: " + (e.message || "tidak diketahui") +
+        ". Coba muat ulang halaman kalau tampilan terasa aneh.", "rem");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  const pesan = e.reason?.message || String(e.reason || "tidak diketahui");
+  kabar("Terjadi kesalahan tak terduga: " + pesan +
+        ". Coba muat ulang halaman kalau tampilan terasa aneh.", "rem");
+});
+
 // ── Halaman verifikasi publik ─────────────────────────────────
 // NONAKTIF sementara: fitur QR ini milik modul Kuitansi, yang
 // belum dibangun ulang di tahap ini. Kerangkanya dibiarkan supaya
@@ -311,10 +325,22 @@ function selesaiMemuat() {
   setTimeout(() => (m.hidden = true), 320);
 }
 
+// Firebase memanggil ulang callback "sudah masuk" ini tiap kali
+// token disegarkan (bukan cuma sekali di awal) — termasuk saat
+// penyegarannya BERHASIL. Tanpa penjagaan ini, tiap kali itu
+// terjadi seluruh tampilan digambar ulang dari nol: tab yang
+// sedang dibuka hilang, menu ke-reset. uidSesiAktif dipakai supaya
+// render penuh cuma terjadi sekali per orang yang login, sisanya
+// (penyegaran token untuk orang yang sama) diabaikan saja.
+let uidSesiAktif = null;
+
 pantauSesi(
   async (profil) => {
     selesaiMemuat();
     if (cekPublik()) return;
+    if (uidSesiAktif === profil.uid) return; // cuma token disegarkan, bukan login baru
+    uidSesiAktif = profil.uid;
+
     el("layar-masuk").hidden = true;
     el("aplikasi").hidden = false;
     await muatLabelKustom(); // sekali per sesi, biar sidebar langsung benar
@@ -329,6 +355,7 @@ pantauSesi(
   () => {
     selesaiMemuat();
     if (cekPublik()) return;
+    uidSesiAktif = null;
     el("aplikasi").hidden = true;
     el("layar-masuk").hidden = false;
     el("konten").innerHTML = "";

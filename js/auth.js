@@ -6,6 +6,7 @@ import {
 
 import { auth, dbase, doc, getDoc, catat } from "./db.js";
 import { PERAN, boleh } from "./roles.js";
+import { kabar } from "./ui.js";
 
 export let sesi = null; // { uid, email, nama, peran, aktif }
 
@@ -58,20 +59,49 @@ async function muatProfil(uid) {
 }
 
 // Dipanggil sekali saat aplikasi dibuka.
+//
+// Firebase menyegarkan token login secara berkala di belakang layar
+// (bukan cuma sekali di awal). Kalau internet putus SEBENTAR tepat
+// saat itu terjadi, gampang sekali disalahartikan sebagai "keluar"
+// padahal sebenarnya masih login — dan kalau langsung dianggap
+// keluar, tampilan yang sedang diisi ikut hilang percuma. Karena
+// itu ada jeda pemeriksaan ulang di bawah sebelum benar-benar
+// dianggap logout.
 export function pantauSesi(saatMasuk, saatKeluar) {
   onAuthStateChanged(auth, async (pengguna) => {
     if (!pengguna) {
+      if (sesi) {
+        // Sudah pernah login sebelumnya di sesi ini — beri jeda,
+        // cek ulang, baru simpulkan. Kalau ternyata cuma gangguan
+        // sesaat, auth.currentUser akan kembali terisi.
+        await new Promise((r) => setTimeout(r, 1500));
+        if (auth.currentUser) return; // memang cuma gangguan sesaat
+      }
       sesi = null;
       saatKeluar();
       return;
     }
-    const profil = await muatProfil(pengguna.uid);
-    if (!profil || profil.aktif !== true || !PERAN[profil.peran]) {
-      await signOut(auth);
+    try {
+      const profil = await muatProfil(pengguna.uid);
+      if (!profil || profil.aktif !== true || !PERAN[profil.peran]) {
+        await signOut(auth);
+        saatKeluar();
+        return;
+      }
+      saatMasuk(profil);
+    } catch (err) {
+      // Gagal membaca profil dari server. Kalau sebelumnya memang
+      // sudah login (sesi masih ada), ini besar kemungkinan cuma
+      // koneksi putus sebentar — JANGAN hapus tampilan yang sedang
+      // dipakai. Cukup beri tahu, biarkan penyegaran berikutnya
+      // yang mencoba lagi secara otomatis.
+      if (sesi) {
+        kabar("Koneksi sempat terputus. Pekerjaan Anda aman, " +
+              "tersambung lagi otomatis.", "rem");
+        return;
+      }
       saatKeluar();
-      return;
     }
-    saatMasuk(profil);
   });
 }
 
