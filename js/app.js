@@ -312,6 +312,15 @@ function cekPublik() {
 }
 
 async function muatVerifikasiKuitansi(kode, publikEl) {
+  if (!kode) {
+    publikEl.innerHTML = `<div class="cek cek--gagal">
+      <h1>Kode Tidak Ada</h1>
+      <p>Tautan ini tidak menyertakan kode kuitansi. Coba scan lagi QR
+        code-nya langsung dari kuitansi fisiknya.</p>
+      <p class="cek-kaki">${aman(SHOWROOM.nama)}</p>
+    </div>`;
+    return;
+  }
   try {
     const snap = await getDoc(doc(dbase, "kuitansi_publik", kode));
     if (!snap.exists()) {

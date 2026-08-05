@@ -32,6 +32,20 @@ function namaSales(t) {
   return t.salesPeran === "owner" ? "OWNER" : (t.salesNama || "-");
 }
 
+// SPK yang dibuat SEBELUM field salesPeran ada belum tersimpan
+// perannya (cuma salesNama). Untuk yang begitu, cek ulang langsung
+// ke data pengguna lewat salesUid, supaya "OWNER" tetap terdeteksi
+// walau datanya lama.
+async function resolveNamaSales(t) {
+  if (t.salesPeran) return namaSales(t);
+  if (!t.salesUid) return t.salesNama || "-";
+  try {
+    const snap = await getDoc(doc(dbase, "users", t.salesUid));
+    if (snap.exists() && snap.data().peran === "owner") return "OWNER";
+  } catch { /* gagal cek → pakai nama tersimpan apa adanya */ }
+  return t.salesNama || "-";
+}
+
 // Watermark: nama perusahaan diulang kecil-kecil & rapat, dibuat
 // dari SVG kecil (bukan gambar logo) supaya teksnya tetap tajam
 // dibaca-samar walau di-zoom, dan ukurannya kecil sekali (file-nya
@@ -234,6 +248,7 @@ export async function cetakSpk(t) {
   }
 
   await Promise.all([muatRekening(), muatLeasing()]);
+  const namaSalesTampil = await resolveNamaSales(t);
   const rekening = t.rekeningId ? rekeningDari(t.rekeningId) : null;
   const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
   const kredit = (t.caraBayar || []).includes("kredit");
@@ -339,7 +354,7 @@ export async function cetakSpk(t) {
 
       <div class="c-kanan-kolom">
         <table class="c-tabel">
-          ${baris("Salesman", namaSales(t))}
+          ${baris("Salesman", namaSalesTampil)}
         </table>
       </div>
     </section>
@@ -380,8 +395,23 @@ export async function mintaCetakKuitansi(t, muatUlang) {
 
   // Sudah pernah dicetak sebelumnya → cetak ulang saja, tidak perlu
   // password lagi (kuncinya sudah terpasang sejak pertama kali).
+  // Kalau ini SPK lama yang terkunci SEBELUM fitur QR ada (jadi
+  // belum punya kuitansiKode tersimpan), betulkan dulu di sini —
+  // supaya tidak lagi cetak ulang dengan kode kosong.
   if (t.kuitansiTercetak) {
-    await cetakKuitansi(t);
+    let kodeAman = t.kuitansiKode;
+    if (!kodeAman && t.kuitansiNo) {
+      kodeAman = t.kuitansiNo.replace(/\//g, "-");
+      try {
+        await updateDoc(doc(dbase, "transaksi", t.id), { kuitansiKode: kodeAman });
+        await setDoc(doc(dbase, "kuitansi_publik", kodeAman), {
+          kuitansiNo: t.kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama,
+          warna: t.warna, jumlahBayar: t.jumlahBayar || 0,
+          tanggal: tanggal(t.dibuatPada), showroomNama: SHOWROOM.nama,
+        });
+      } catch { /* tetap lanjut cetak walau pembetulan ini gagal */ }
+    }
+    await cetakKuitansi({ ...t, kuitansiKode: kodeAman || "" });
     return;
   }
 
@@ -440,7 +470,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   }
 }
 
-function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar) {
+function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar, namaSalesTampil) {
   const urlValidasi = `${location.origin}${location.pathname}#/cek/${t.kuitansiKode || ""}`;
   const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
     encodeURIComponent(urlValidasi);
@@ -504,7 +534,7 @@ function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar) {
         <div>
           DITERIMA OLEH — ${aman(SHOWROOM.nama).toUpperCase()} (TTD &amp; STEMPEL)
           <span class="k-garis"></span>
-          ( ${aman(namaSales(t))} )
+          ( ${aman(namaSalesTampil)} )
         </div>
       </div>
 
@@ -538,12 +568,13 @@ export async function cetakKuitansi(t) {
   }
   await muatLeasing();
   const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
+  const namaSalesTampil = await resolveNamaSales(t);
 
   const label = ["LAMPIRAN 1 — KONSUMEN", "LAMPIRAN 2 — SHOWROOM",
     "LAMPIRAN 3 — CADANGAN"];
 
   const isi = `<div class="k-lembar-luar">
-    ${label.map((l, i) => satuKuitansi(t, unit, leasing, i + 1, l)).join("")}
+    ${label.map((l, i) => satuKuitansi(t, unit, leasing, i + 1, l, namaSalesTampil)).join("")}
   </div>
   <div class="aksi-cetak">
     <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
