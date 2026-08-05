@@ -11,7 +11,7 @@
 import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi }
   from "./auth.js";
-import { PERAN, batasDiskon, semuaMenu } from "./roles.js";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js";
 import { saatKoneksiBerubah, catat } from "./db.js";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
   from "./router.js";
@@ -25,6 +25,8 @@ import { halamanPelanggan } from "./pelanggan.js";
 import { halamanLeasing } from "./leasing.js";
 import { halamanRekening } from "./rekening.js";
 import { halamanSpk } from "./spk.js";
+import { halamanLaporan } from "./laporan.js";
+import { halamanLabel, muatLabelKustom } from "./label.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -120,14 +122,15 @@ function tutupSisi() {
 
 function gambarNavigasi(profil) {
   const p = PERAN[profil.peran];
+  const menu = menuBerlabel(profil.peran);
   // Tiap kelompok melipat. Yang berisi halaman aktif dibuka
   // sendiri; sisanya tertutup supaya sidebar tidak sesak saat
   // modulnya bertambah banyak.
   const rute = location.hash || p.beranda;
-  el("nav").innerHTML = p.menu
+  el("nav").innerHTML = menu
     .map((g, i) => {
       const isiGrup = g.butir.some((m) => m.rute === rute);
-      const buka = isiGrup || (i === 0 && !p.menu.some((x) =>
+      const buka = isiGrup || (i === 0 && !menu.some((x) =>
         x.butir.some((m) => m.rute === rute)));
       return `<div class="nav-grup-wadah ${buka ? "" : "nav-grup--tutup"}">
         <button class="nav-grup" type="button">
@@ -233,6 +236,8 @@ function daftarkanHalaman(profil) {
     "#/leasing": (w) => halamanLeasing(w),
     "#/rekening": (w) => halamanRekening(w),
     "#/spk": (w) => halamanSpk(w),
+    "#/laporan": (w) => halamanLaporan(w),
+    "#/label": (w) => halamanLabel(w, PERAN),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
@@ -307,11 +312,12 @@ function selesaiMemuat() {
 }
 
 pantauSesi(
-  (profil) => {
+  async (profil) => {
     selesaiMemuat();
     if (cekPublik()) return;
     el("layar-masuk").hidden = true;
     el("aplikasi").hidden = false;
+    await muatLabelKustom(); // sekali per sesi, biar sidebar langsung benar
     gambarPanel(profil);
     gambarNavigasi(profil);
     daftarkanHalaman(profil);

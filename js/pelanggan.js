@@ -9,6 +9,7 @@ import {
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
 import { aman, kabar, tanggal, rupiah } from "./ui.js";
+import { cetakSpk } from "./cetak.js";
 
 let cache = [];
 
@@ -175,6 +176,7 @@ function kartuPesanan(t) {
       <div><dt>Sales</dt><dd>${aman(t.salesNama)}</dd></div>
       <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
     </dl>
+    <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
   </article>`;
 }
 
@@ -264,6 +266,9 @@ export async function halamanPelanggan(wadah) {
         ? `<div class="pemisah">Pesanan (${pesanan.length})</div>` +
           pesanan.map(kartuPesanan).join("")
         : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`;
+      wadahPesanan.querySelectorAll("[data-cetak-pesanan]").forEach((b) =>
+        b.addEventListener("click", () =>
+          cetakSpk(pesanan.find((x) => x.id === b.dataset.cetakPesanan))));
     } catch (err) {
       wadahPesanan.innerHTML = `<p class="hampa">Gagal memuat pesanan: ${
         aman(err.message)}</p>`;

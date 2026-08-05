@@ -2,6 +2,8 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
+import { labelItem, labelGrup } from "./label.js";
+
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
 //   spk.buat    spk.lihat   spk.setujui
@@ -37,11 +39,13 @@ const KATALOG_SAJA = { grup: "Inventory", butir: [
 
 const SALES = { grup: "Sales", butir: [
   { label: "SPK Baru", rute: "#/spk", kode: "SLS-01" },
+  { label: "Riwayat & Laporan SPK", rute: "#/laporan", kode: "SLS-02" },
 ]};
 
 const SISTEM_LENGKAP = { grup: "Sistem", butir: [
   { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
   { label: "Pengguna", rute: "#/pengguna", kode: "SYS-03" },
+  { label: "Ubah Nama Menu", rute: "#/label", kode: "SYS-08" },
 ]};
 
 const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
@@ -83,11 +87,22 @@ export const PERAN = {
   },
 };
 
-// Semua butir menu dalam satu daftar datar, untuk pendaftaran rute.
-export function semuaMenu(peran) {
+// Menu asli tiap peran (dipakai apa adanya oleh halaman Ubah Nama
+// Menu, supaya selalu ada rujukan ke nama bawaan).
+// Semua butir menu, dikelompokkan, dengan nama tampilan yang SUDAH
+// mengikuti kustomisasi owner (kalau ada). Sidebar memakai ini.
+export function menuBerlabel(peran) {
   const p = PERAN[peran];
   if (!p) return [];
-  return p.menu.flatMap((g) =>
+  return p.menu.map((g) => ({
+    grup: labelGrup(g.grup),
+    butir: g.butir.map((b) => ({ ...b, label: labelItem(b.kode, b.label) })),
+  }));
+}
+
+// Semua butir menu dalam satu daftar datar, untuk pendaftaran rute.
+export function semuaMenu(peran) {
+  return menuBerlabel(peran).flatMap((g) =>
     g.butir.map((b) => ({ ...b, grup: g.grup })));
 }
 

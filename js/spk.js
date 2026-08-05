@@ -19,6 +19,7 @@ import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis }
   from "./pelanggan.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
+import { cetakSpk } from "./cetak.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka } from "./ui.js";
 
 function opsiTipe(daftarTipe) {
@@ -375,10 +376,14 @@ export async function halamanSpk(wadah) {
           </dl>
         </div>
         <div class="aksi" style="margin-top:14px">
-          <button class="tombol tombol--utama" type="button" id="spk-baru">
+          <button class="tombol tombol--utama" type="button" id="cetak-spk-baru">
+            Cetak SPK</button>
+          <button class="tombol tombol--sunyi tombol--gelap" type="button" id="spk-baru">
             Buat SPK Baru</button>
         </div>
       </section>`;
+      wadah.querySelector("#cetak-spk-baru").addEventListener("click", () =>
+        cetakSpk({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
       wadah.querySelector("#spk-baru")
         .addEventListener("click", () => halamanSpk(wadah));
       kabar(`SPK ${spkNo} tersimpan.`, "netral");
