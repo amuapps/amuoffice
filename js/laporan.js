@@ -4,7 +4,7 @@
 import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
 import { rupiah, aman, tanggal } from "./ui.js";
-import { cetakSpk } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
@@ -27,7 +27,9 @@ function baris(t) {
     <td><span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
       ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span></td>
     <td style="white-space:nowrap">
-      <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak</button>
+      <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
+      <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
+        ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>
       <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
     </td>
   </tr>
@@ -122,6 +124,11 @@ export async function halamanLaporan(wadah) {
       b.addEventListener("click", () => {
         const t = dataSpk.find((x) => x.id === b.dataset.cetak);
         cetakSpk(t);
+      }));
+    barisEl.querySelectorAll("[data-kuitansi]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = dataSpk.find((x) => x.id === b.dataset.kuitansi);
+        mintaCetakKuitansi(t, muat);
       }));
     barisEl.querySelectorAll("[data-ubah]").forEach((b) =>
       b.addEventListener("click", () => {

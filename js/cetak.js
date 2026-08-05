@@ -7,11 +7,15 @@
 // langsung memakainya, dan tidak tersangkut di balik tata letak
 // aplikasi utama (sidebar, tab, dsb).
 
-import { dbase, doc, getDoc } from "./db.js";
+import { dbase, doc, getDoc, updateDoc, serverTimestamp, catat,
+  nomorBerikutnya } from "./db.js";
 import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK } from "./config.js";
 import { rupiah, terbilang, aman, tanggal } from "./ui.js";
 import { rekeningDari, muatRekening } from "./rekening.js";
 import { leasingDari, muatLeasing } from "./leasing.js";
+import { konfirmasi, tanya } from "./dialog.js";
+import { konfirmasiPassword } from "./auth.js";
+import { kabar } from "./ui.js";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -19,6 +23,14 @@ function baris(label, isi) {
 }
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
+
+// Owner sering kepakai buat input SPK waktu belum ada sales yang
+// menangani (mis. saat uji coba) — tampilkan "OWNER" di cetakan,
+// bukan nama pribadinya, supaya tidak terkesan asal-asalan/kurang
+// resmi di dokumen yang dipegang konsumen.
+function namaSales(t) {
+  return t.salesPeran === "owner" ? "OWNER" : (t.salesNama || "-");
+}
 
 // Watermark: nama perusahaan diulang kecil-kecil & rapat, dibuat
 // dari SVG kecil (bukan gambar logo) supaya teksnya tetap tajam
@@ -117,6 +129,73 @@ const CSS_CETAK = `
   }
 `;
 
+// ── Kuitansi: rangkap 3 dalam satu lembar HVS landscape ─────────
+const CSS_KUITANSI = `
+  * { box-sizing: border-box; }
+  @page { size: A4 landscape; margin: 8mm; }
+  body {
+    margin: 0; padding: 16px; background: #f3f3f3;
+    font-family: "Segoe UI", Inter, system-ui, -apple-system, Roboto, sans-serif;
+    color: #111;
+  }
+  .k-lembar-luar { max-width: 1150px; margin: 0 auto 16px; }
+  .k-baris3 { display: flex; gap: 10px; }
+  .k-kuitansi {
+    flex: 1; min-width: 0; background: #fff; position: relative; overflow: hidden;
+    border: 1px dashed #999; border-radius: 6px; padding: 12px;
+    font-size: 9.5px; line-height: 1.35;
+  }
+  .k-kuitansi::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: url("${WM_DATA_URI}");
+    background-repeat: repeat; background-size: ${LEBAR_WM * 0.72}px ${TINGGI_WM * 0.72}px;
+    background-position: center;
+    opacity: .035; pointer-events: none; z-index: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .k-kuitansi > * { position: relative; z-index: 1; }
+  .k-label-lembar {
+    text-align: center; font-size: 8px; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px;
+  }
+  .k-kop { display: flex; align-items: center; gap: 8px;
+    border-bottom: 1.5px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
+  .k-kop-logo { width: 28px; height: 28px; object-fit: contain; flex: none; }
+  .k-pt { font-size: 11px; font-weight: 700; margin: 0; }
+  .k-kecil { font-size: 8px; color: #555; margin: 1px 0 0; }
+  .k-judul { text-align: center; font-size: 12px; font-weight: 700;
+    margin: 4px 0; letter-spacing: .04em; }
+  .k-nomor { display: flex; justify-content: space-between; font-size: 8.5px;
+    color: #444; margin-bottom: 6px; }
+  .k-tabel { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  .k-tabel td { padding: 1px 0; vertical-align: top; }
+  .k-label { width: 38%; color: #444; }
+  .k-titik { width: 8px; }
+  .k-isi { border-bottom: 1px dotted #aaa; font-weight: 600; }
+  .k-jumlah {
+    border: 1px solid #111; border-radius: 4px; padding: 6px; margin: 6px 0;
+    text-align: center;
+  }
+  .k-jumlah b { font-size: 13px; }
+  .k-terbilang { font-style: italic; color: #444; text-align: center;
+    font-size: 8.5px; margin: 0 0 6px; }
+  .k-ttd { display: flex; justify-content: space-between; margin-top: 18px;
+    font-size: 8px; text-align: center; color: #555; }
+  .k-ttd > div { flex: 1; padding-top: 30px; position: relative; }
+  .k-garis { position: absolute; left: 10%; right: 10%; top: 26px;
+    border-top: 1px solid #111; }
+  .aksi-cetak { max-width: 1150px; margin: 0 auto; text-align: center; }
+  .aksi-cetak button {
+    padding: 10px 22px; border-radius: 8px; border: 0; cursor: pointer;
+    background: #0067C0; color: #fff; font-size: 14px; font-weight: 600;
+  }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .k-kuitansi { border: 1px dashed #999; }
+    .aksi-cetak { display: none; }
+  }
+`;
+
 export async function cetakSpk(t) {
   if (!t) return;
 
@@ -184,7 +263,9 @@ export async function cetakSpk(t) {
           : baris("Nama Pemakai", t.pemakai?.nama) +
             baris("Alamat Pemakai", [t.pemakai?.alamat, t.pemakai?.kelurahan,
                                       t.pemakai?.kecamatan, t.pemakai?.kota]
-                                      .filter(Boolean).join(", "))}
+                                      .filter(Boolean).join(", ")) +
+            baris("Telp / HP", t.pemakai?.telepon) +
+            baris("NIK", t.pemakai?.nik)}
       </table>
     </section>
 
@@ -245,7 +326,7 @@ export async function cetakSpk(t) {
 
       <div class="c-kanan-kolom">
         <table class="c-tabel">
-          ${baris("Salesman", t.salesNama)}
+          ${baris("Salesman", namaSales(t))}
         </table>
       </div>
     </section>
@@ -256,7 +337,7 @@ export async function cetakSpk(t) {
       <div><span class="c-garis"></span>Tanda Tangan &amp; Nama Jelas
         <br><span class="c-kecil">Salesman</span></div>
       <div><span class="c-garis"></span>Tanda Tangan, Nama Jelas &amp; Cap
-        <br><span class="c-kecil">Sales Manager</span></div>
+        <br><span class="c-kecil">SPV</span></div>
     </section>
 
     <p class="c-berlaku">SPK ini berlaku paling lama
@@ -271,5 +352,148 @@ export async function cetakSpk(t) {
   </div>`;
 
   // Timpa seluruh isi <body> tab barunya dengan lembar yang sudah jadi.
+  tabBaru.document.body.innerHTML = isi;
+}
+
+// ── Cetak Kuitansi (rangkap 3) ───────────────────────────────────
+// Mencetak kuitansi PERTAMA KALI mengunci data pembeli/pemakai/unit
+// SPK ini — sesudah itu, pengajuan perubahan (spk.js) ditolak
+// otomatis. Makanya wajib konfirmasi password dulu, dengan
+// peringatan yang jelas, sebelum kuncinya benar-benar dipasang.
+export async function mintaCetakKuitansi(t, muatUlang) {
+  if (!t) return;
+
+  // Sudah pernah dicetak sebelumnya → cetak ulang saja, tidak perlu
+  // password lagi (kuncinya sudah terpasang sejak pertama kali).
+  if (t.kuitansiTercetak) {
+    await cetakKuitansi(t);
+    return;
+  }
+
+  const lanjut = await konfirmasi({
+    judul: "Tinjau ulang sebelum mencetak kuitansi",
+    pesan: "Setelah kuitansi ini dicetak, data kendaraan, identitas " +
+           "pembeli, dan nama pemakai (STNK) pada SPK ini TIDAK BISA " +
+           "diubah lagi lewat sistem. Pastikan semuanya sudah benar. " +
+           "Lanjutkan cetak kuitansi?",
+    oke: "Ya, Lanjutkan", bahaya: true,
+  });
+  if (!lanjut) return;
+
+  const password = await tanya({
+    judul: "Konfirmasi password",
+    pesan: "Masukkan password Anda untuk mengunci & mencetak kuitansi " +
+           `SPK ${t.spkNo}.`,
+    petunjuk: "Password",
+    tipeIsian: "password",
+  });
+  if (password === null) return;
+
+  try {
+    await konfirmasiPassword(password);
+  } catch {
+    kabar("Password salah. Kuitansi dibatalkan.", "rem");
+    return;
+  }
+
+  try {
+    const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
+    await updateDoc(doc(dbase, "transaksi", t.id), {
+      kuitansiTercetak: true, kuitansiNo,
+      kuitansiTercetakPada: serverTimestamp(),
+    });
+    await catat("kuitansi_dicetak", {
+      koleksi: "transaksi", docId: t.id, ringkas: `${t.spkNo} · ${kuitansiNo}`,
+    });
+    kabar(`Kuitansi ${kuitansiNo} tercetak & data SPK ini terkunci.`, "netral");
+    await cetakKuitansi({ ...t, kuitansiNo, kuitansiTercetak: true });
+    if (muatUlang) await muatUlang();
+  } catch (err) {
+    kabar("Gagal mencetak kuitansi: " + err.message, "rem");
+  }
+}
+
+function satuKuitansi(t, unit, rekening, leasing, labelLembar) {
+  const kredit = (t.caraBayar || []).includes("kredit");
+  return `<div class="k-kuitansi">
+    <p class="k-label-lembar">${aman(labelLembar)}</p>
+    <div class="k-kop">
+      <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+      <div>
+        <p class="k-pt">${aman(SHOWROOM.nama)}</p>
+        <p class="k-kecil">${aman(SHOWROOM.alamat || "")}</p>
+      </div>
+    </div>
+    <h2 class="k-judul">KUITANSI</h2>
+    <div class="k-nomor">
+      <span>No. ${aman(t.kuitansiNo || "-")}</span>
+      <span>${tanggal(t.dibuatPada)}</span>
+    </div>
+    <table class="k-tabel">
+      <tr><td class="k-label">Terima dari</td><td class="k-titik">:</td>
+        <td class="k-isi">${aman(t.pembeli?.nama)}</td></tr>
+      <tr><td class="k-label">Untuk</td><td class="k-titik">:</td>
+        <td class="k-isi">${aman(t.tipeNama)} · ${aman(t.warna)}
+          ${unit?.noRangka ? " · " + aman(unit.noRangka) : ""}</td></tr>
+      <tr><td class="k-label">No. SPK</td><td class="k-titik">:</td>
+        <td class="k-isi">${aman(t.spkNo)}</td></tr>
+      <tr><td class="k-label">Cara bayar</td><td class="k-titik">:</td>
+        <td class="k-isi">${aman((t.caraBayar || [])
+          .map((c) => LABEL_CARA_BAYAR[c] || c).join(" + "))}</td></tr>
+      ${kredit ? `<tr><td class="k-label">Leasing</td><td class="k-titik">:</td>
+        <td class="k-isi">${aman(leasing?.nama || "-")}</td></tr>` : ""}
+    </table>
+    <div class="k-jumlah">
+      <div style="font-size:8px;color:#666">Jumlah diterima</div>
+      <b>${rupiah(t.jumlahBayar)}</b>
+    </div>
+    <p class="k-terbilang">${aman(terbilang(t.jumlahBayar || 0))}</p>
+    ${rekening ? `<p class="k-kecil" style="text-align:center">
+      Transfer: ${aman(rekening.bank)} ${aman(rekening.nomor)}
+      a.n. ${aman(rekening.atasNama)}</p>` : ""}
+    <div class="k-ttd">
+      <div><span class="k-garis"></span>Pembeli</div>
+      <div><span class="k-garis"></span>Diterima oleh<br>${aman(namaSales(t))}</div>
+    </div>
+  </div>`;
+}
+
+export async function cetakKuitansi(t) {
+  if (!t) return;
+
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Kuitansi ${aman(t.spkNo || "")}</title>
+    <style>${CSS_KUITANSI}</style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan kuitansi…</p></body></html>`);
+  tabBaru.document.close();
+
+  let unit = null;
+  if (t.unitId) {
+    try {
+      const snap = await getDoc(doc(dbase, "units", t.unitId));
+      if (snap.exists()) unit = snap.data();
+    } catch { /* unit tidak wajib ada */ }
+  }
+  await Promise.all([muatRekening(), muatLeasing()]);
+  const rekening = t.rekeningId ? rekeningDari(t.rekeningId) : null;
+  const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
+
+  const label = ["LEMBAR 1 — UNTUK PEMBELI", "LEMBAR 2 — UNTUK KEUANGAN",
+    "LEMBAR 3 — UNTUK ARSIP"];
+
+  const isi = `<div class="k-lembar-luar">
+    <div class="k-baris3">
+      ${label.map((l) => satuKuitansi(t, unit, rekening, leasing, l)).join("")}
+    </div>
+  </div>
+  <div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>`;
+
   tabBaru.document.body.innerHTML = isi;
 }

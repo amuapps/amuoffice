@@ -29,6 +29,7 @@ const LABEL_AKSI = {
   perubahan_spk_diajukan: "Mengajukan perubahan pembeli/pemakai SPK",
   perubahan_spk_disetujui: "Menyetujui perubahan pembeli/pemakai SPK",
   perubahan_spk_ditolak: "Menolak perubahan pembeli/pemakai SPK",
+  kuitansi_dicetak: "Mencetak kuitansi (mengunci data SPK)",
   label_diubah: "Mengubah nama menu",
   akses_diubah: "Mengubah hak akses peran",
 };

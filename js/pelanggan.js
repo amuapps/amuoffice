@@ -9,7 +9,7 @@ import {
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar } from "./ui.js";
-import { cetakSpk } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
   from "./referensi.js";
@@ -201,6 +201,8 @@ function kartuPesanan(t) {
       <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
     </dl>
     <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
+    <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
+      ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>
     <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
     <div data-wadah-edit-pesanan="${t.id}"></div>
   </article>`;
@@ -296,6 +298,14 @@ export async function halamanPelanggan(wadah) {
       wadahPesanan.querySelectorAll("[data-cetak-pesanan]").forEach((b) =>
         b.addEventListener("click", () =>
           cetakSpk(pesanan.find((x) => x.id === b.dataset.cetakPesanan))));
+      wadahPesanan.querySelectorAll("[data-kuitansi-pesanan]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const t = pesanan.find((x) => x.id === b.dataset.kuitansiPesanan);
+          mintaCetakKuitansi(t, () => {
+            wadahPesanan.dataset.terbuka = "0";
+            return bukaPesanan(id);
+          });
+        }));
       wadahPesanan.querySelectorAll("[data-ubah-pesanan]").forEach((b) =>
         b.addEventListener("click", () => {
           const t = pesanan.find((x) => x.id === b.dataset.ubahPesanan);
