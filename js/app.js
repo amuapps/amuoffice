@@ -12,10 +12,10 @@ import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi }
   from "./auth.js";
 import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js";
-import { saatKoneksiBerubah, catat } from "./db.js";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
   from "./router.js";
-import { kabar, rupiah, aman, kunciHari } from "./ui.js";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js";
 import { konfirmasi } from "./dialog.js";
 import { halamanStok } from "./stok.js";
 import { halamanTipe } from "./tipe.js";
@@ -104,7 +104,7 @@ function gambarPanel(profil) {
   const p = PERAN[profil.peran];
   el("lampu-peran").className = `lampu lampu--${p.warna}`;
   el("label-peran").textContent = p.label;
-  el("nama-pengguna").textContent = profil.nama;
+  el("nama-pengguna").textContent = namaTampilan(profil.peran, profil.nama);
   el("penanda-uji").hidden = !MODE_UJI;
 
   // Hanya ditampilkan kalau perannya memang punya batas. Untuk
@@ -288,12 +288,62 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 // ── Halaman verifikasi publik ─────────────────────────────────
-// NONAKTIF sementara: fitur QR ini milik modul Kuitansi, yang
-// belum dibangun ulang di tahap ini. Kerangkanya dibiarkan supaya
-// gampang disambung lagi begitu kuitansi.js kembali diimpor.
+// Dibuka lewat QR di kuitansi (#/cek/{kode}), TANPA perlu login —
+// siapa saja yang scan QR-nya (termasuk konsumen) harus bisa lihat
+// ini. Datanya sengaja dibatasi ke koleksi kuitansi_publik yang
+// cuma berisi info tidak sensitif (bukan NIK/alamat/dsb), ditulis
+// sekali saat kuitansi dicetak (lihat cetak.js).
 function cekPublik() {
-  el("publik").hidden = true;
-  return false;
+  const h = location.hash || "";
+  if (!h.startsWith("#/cek/")) {
+    const p = el("publik");
+    if (p) p.hidden = true;
+    return false;
+  }
+  el("layar-masuk").hidden = true;
+  el("aplikasi").hidden = true;
+  const publikEl = el("publik");
+  publikEl.hidden = false;
+  const kode = decodeURIComponent(h.slice(6));
+  publikEl.innerHTML = `<div class="cek">
+    <p class="hampa">Memeriksa keabsahan kuitansi…</p></div>`;
+  muatVerifikasiKuitansi(kode, publikEl);
+  return true;
+}
+
+async function muatVerifikasiKuitansi(kode, publikEl) {
+  try {
+    const snap = await getDoc(doc(dbase, "kuitansi_publik", kode));
+    if (!snap.exists()) {
+      publikEl.innerHTML = `<div class="cek cek--gagal">
+        <h1>Tidak Ditemukan</h1>
+        <p class="cek-nomor">${aman(kode)}</p>
+        <p>Kuitansi dengan kode ini tidak ada di sistem kami. Kalau Anda
+          scan dari kertas fisik, kemungkinan kodenya rusak/salah ketik.</p>
+        <p class="cek-kaki">${aman(SHOWROOM.nama)}</p>
+      </div>`;
+      return;
+    }
+    const d = snap.data();
+    publikEl.innerHTML = `<div class="cek cek--sah">
+      <h1>Kuitansi Sah</h1>
+      <p class="cek-nomor">${aman(d.kuitansiNo)}</p>
+      <dl class="rinci">
+        <div><dt>Showroom</dt><dd>${aman(d.showroomNama)}</dd></div>
+        <div><dt>Tanggal</dt><dd>${aman(d.tanggal)}</dd></div>
+        <div><dt>Unit</dt><dd>${aman(d.tipeNama)} · ${aman(d.warna)}</dd></div>
+        <div><dt>Jumlah dibayar</dt><dd>${rupiah(d.jumlahBayar)}</dd></div>
+        <div><dt>No. SPK</dt><dd class="mono">${aman(d.spkNo)}</dd></div>
+      </dl>
+      <p class="cek-kaki">Dokumen ini tercatat resmi di sistem
+        ${aman(SHOWROOM.nama)} pada tanggal di atas.</p>
+    </div>`;
+  } catch (err) {
+    publikEl.innerHTML = `<div class="cek cek--gagal">
+      <h1>Gagal Memeriksa</h1>
+      <p>${aman(err.message)}</p>
+    </div>`;
+  }
 }
 window.addEventListener("hashchange", () => {
   cekPublik();
@@ -357,7 +407,7 @@ pantauSesi(
     if (!location.hash) location.hash = PERAN[profil.peran].beranda;
     mulaiRouter();
     gambarJejak();
-    kabar(`Selamat datang, ${profil.nama}.`, "netral");
+    kabar(`Selamat datang, ${namaTampilan(profil.peran, profil.nama)}.`, "netral");
   },
   () => {
     selesaiMemuat();

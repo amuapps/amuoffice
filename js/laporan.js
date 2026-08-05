@@ -6,6 +6,7 @@ import { dbase, collection, getDocs, query, where, orderBy, limit }
 import { rupiah, aman, tanggal } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
+import { bolehAkses } from "./auth.js";
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
@@ -27,9 +28,10 @@ function baris(t) {
     <td><span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
       ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span></td>
     <td style="white-space:nowrap">
-      <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
-      <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
-        ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>
+      ${bolehAkses("cetak.dokumen") ? `
+        <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
+        <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
+          ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>` : ""}
       <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
     </td>
   </tr>

@@ -11,14 +11,14 @@ import {
 import { bolehAkses, konfirmasiPassword } from "./auth.js";
 import { simpanPelangganOtomatis } from "./pelanggan.js";
 import { tanya, konfirmasi } from "./dialog.js";
-import { aman, kabar, tanggalJam } from "./ui.js";
+import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
 
 function kartuPengajuan(p) {
   return `<article class="kartu">
     <div class="kartu-atas">
       <div>
         <h3 class="kartu-judul mono">${aman(p.spkNo)}</h3>
-        <p class="kartu-sub">Diajukan oleh ${aman(p.diajukanOlehNama)}
+        <p class="kartu-sub">Diajukan oleh ${aman(namaTampilan(p.diajukanOlehPeran, p.diajukanOlehNama))}
           · ${tanggalJam(p.dibuatPada)}</p>
       </div>
       <span class="tanda tanda--uji">Menunggu</span>

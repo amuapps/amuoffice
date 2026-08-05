@@ -12,7 +12,7 @@ import {
   writeBatch, serverTimestamp, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
 } from "./db.js";
-import { sesi } from "./auth.js";
+import { sesi, bolehAkses } from "./auth.js";
 import { batasDiskon } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
 import { cariUnitReady, kunciUnitKeBatch } from "./stok.js";
@@ -22,7 +22,7 @@ import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
 import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka } from "./ui.js";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -49,7 +49,7 @@ function panelCustomer(saranKecamatan, saranKota) {
 function panelInternal() {
   return `<div class="tab-panel" data-panel="internal" hidden>
     <label class="label label--gelap">Sales</label>
-    <input class="isian isian--terang" value="${aman(sesi ? sesi.nama : "-")}" disabled>
+    <input class="isian isian--terang" value="${aman(sesi ? namaTampilan(sesi.peran, sesi.nama) : "-")}" disabled>
     <label class="label label--gelap" for="s-diskon">Diskon (Rp)</label>
     <input class="isian isian--terang" id="s-diskon" inputmode="numeric"
            value="0">
@@ -385,18 +385,23 @@ export async function halamanSpk(wadah) {
           </dl>
         </div>
         <div class="aksi" style="margin-top:14px">
-          <button class="tombol tombol--utama" type="button" id="cetak-spk-baru">
-            Cetak SPK</button>
-          <button class="tombol tombol--utama" type="button" id="cetak-kuitansi-baru">
-            Cetak Kuitansi</button>
+          ${bolehAkses("cetak.dokumen") ? `
+            <button class="tombol tombol--utama" type="button" id="cetak-spk-baru">
+              Cetak SPK</button>
+            <button class="tombol tombol--utama" type="button" id="cetak-kuitansi-baru">
+              Cetak Kuitansi</button>` : `
+            <p class="petunjuk">Pencetakan SPK/Kuitansi cuma bisa dilakukan
+              Owner/Admin.</p>`}
           <button class="tombol tombol--sunyi tombol--gelap" type="button" id="spk-baru">
             Buat SPK Baru</button>
         </div>
       </section>`;
-      wadah.querySelector("#cetak-spk-baru").addEventListener("click", () =>
-        cetakSpk({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
-      wadah.querySelector("#cetak-kuitansi-baru").addEventListener("click", () =>
-        mintaCetakKuitansi({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
+      if (bolehAkses("cetak.dokumen")) {
+        wadah.querySelector("#cetak-spk-baru").addEventListener("click", () =>
+          cetakSpk({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
+        wadah.querySelector("#cetak-kuitansi-baru").addEventListener("click", () =>
+          mintaCetakKuitansi({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
+      }
       wadah.querySelector("#spk-baru")
         .addEventListener("click", () => halamanSpk(wadah));
       kabar(`SPK ${spkNo} tersimpan.`, "netral");
@@ -527,6 +532,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         transaksiId: t.id, spkNo: t.spkNo,
         diajukanOlehUid: sesi ? sesi.uid : null,
         diajukanOlehNama: sesi ? sesi.nama : "-",
+        diajukanOlehPeran: sesi ? sesi.peran : null,
         status: "menunggu",
         dataLama, dataBaru,
         catatan: buatCatatanPerubahan(dataLama, dataBaru),

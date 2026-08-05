@@ -7,7 +7,7 @@
 // langsung memakainya, dan tidak tersangkut di balik tata letak
 // aplikasi utama (sidebar, tab, dsb).
 
-import { dbase, doc, getDoc, updateDoc, serverTimestamp, catat,
+import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
   nomorBerikutnya } from "./db.js";
 import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK } from "./config.js";
 import { rupiah, terbilang, aman, tanggal } from "./ui.js";
@@ -129,70 +129,83 @@ const CSS_CETAK = `
   }
 `;
 
-// ── Kuitansi: rangkap 3 dalam satu lembar HVS landscape ─────────
+// ── Kuitansi: rangkap 3 dalam satu lembar HVS (disusun ke bawah,
+// dipotong pakai gunting) — bukan landscape lagi, mengikuti contoh
+// yang diberikan: krem-emas, QR code di kanan atas tiap lembar.
 const CSS_KUITANSI = `
   * { box-sizing: border-box; }
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4 portrait; margin: 10mm; }
   body {
-    margin: 0; padding: 16px; background: #f3f3f3;
+    margin: 0; padding: 16px; background: #ECECEC;
     font-family: "Segoe UI", Inter, system-ui, -apple-system, Roboto, sans-serif;
-    color: #111;
+    color: #2b2210;
   }
-  .k-lembar-luar { max-width: 1150px; margin: 0 auto 16px; }
-  .k-baris3 { display: flex; gap: 10px; }
+  .k-lembar-luar { max-width: 780px; margin: 0 auto 16px; }
+  .k-potong {
+    display: flex; align-items: center; gap: 8px; margin: 4px 0;
+    color: #9a9a9a; font-size: 9px; text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .k-potong::before, .k-potong::after {
+    content: ""; flex: 1; border-top: 1px dashed #aaa;
+  }
   .k-kuitansi {
-    flex: 1; min-width: 0; background: #fff; position: relative; overflow: hidden;
-    border: 1px dashed #999; border-radius: 6px; padding: 12px;
-    font-size: 9.5px; line-height: 1.35;
+    background: #FBF7EC; position: relative; overflow: hidden;
+    border: 1.5px solid #C9A227; border-radius: 6px; padding: 14px 16px;
+    font-size: 10px; line-height: 1.4;
   }
   .k-kuitansi::before {
     content: ""; position: absolute; inset: 0;
     background-image: url("${WM_DATA_URI}");
-    background-repeat: repeat; background-size: ${LEBAR_WM * 0.72}px ${TINGGI_WM * 0.72}px;
+    background-repeat: repeat; background-size: ${LEBAR_WM * 0.85}px ${TINGGI_WM * 0.85}px;
     background-position: center;
-    opacity: .035; pointer-events: none; z-index: 0;
+    opacity: .05; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .k-kuitansi > * { position: relative; z-index: 1; }
-  .k-label-lembar {
-    text-align: center; font-size: 8px; font-weight: 700; color: #888;
-    text-transform: uppercase; letter-spacing: .06em; margin: 0 0 4px;
-  }
-  .k-kop { display: flex; align-items: center; gap: 8px;
-    border-bottom: 1.5px solid #111; padding-bottom: 6px; margin-bottom: 6px; }
-  .k-kop-logo { width: 28px; height: 28px; object-fit: contain; flex: none; }
-  .k-pt { font-size: 11px; font-weight: 700; margin: 0; }
-  .k-kecil { font-size: 8px; color: #555; margin: 1px 0 0; }
-  .k-judul { text-align: center; font-size: 12px; font-weight: 700;
-    margin: 4px 0; letter-spacing: .04em; }
-  .k-nomor { display: flex; justify-content: space-between; font-size: 8.5px;
-    color: #444; margin-bottom: 6px; }
-  .k-tabel { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  .k-atas { display: flex; justify-content: space-between; gap: 10px; }
+  .k-kop { display: flex; align-items: flex-start; gap: 8px; }
+  .k-kop-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
+  .k-pt { font-size: 14px; font-weight: 800; margin: 0; letter-spacing: .01em; }
+  .k-kecil { font-size: 8px; color: #6b5f3f; margin: 1px 0 0; max-width: 260px; }
+  .k-jenis-tabel { font-size: 9px; text-align: right; }
+  .k-jenis-tabel td:first-child { color: #6b5f3f; padding-right: 8px; }
+  .k-jenis-tabel td:last-child { font-weight: 700; }
+  .k-qr { width: 74px; height: 74px; margin-left: 10px; flex: none; }
+  .k-judul { font-size: 15px; font-weight: 800; margin: 10px 0 2px;
+    color: #2b2210; }
+  .k-nomor-tgl { font-size: 9px; color: #6b5f3f; margin: 0 0 8px; }
+  .k-jumlah-label { font-size: 9px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 8px 0 0; }
+  .k-jumlah-besar { font-size: 22px; font-weight: 800; color: #9C7A1E;
+    margin: 1px 0 6px; }
+  .k-terbilang-label { font-size: 9px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 2px; }
+  .k-terbilang-kotak { border-bottom: 1px dashed #b7a15c; padding: 3px 0 4px;
+    font-style: italic; font-size: 10px; color: #4a3d17; }
+  .k-grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px;
+    margin-top: 10px; }
+  .k-dk-judul { font-size: 9px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px; }
+  .k-tabel { width: 100%; border-collapse: collapse; font-size: 9px; }
   .k-tabel td { padding: 1px 0; vertical-align: top; }
-  .k-label { width: 38%; color: #444; }
-  .k-titik { width: 8px; }
-  .k-isi { border-bottom: 1px dotted #aaa; font-weight: 600; }
-  .k-jumlah {
-    border: 1px solid #111; border-radius: 4px; padding: 6px; margin: 6px 0;
-    text-align: center;
-  }
-  .k-jumlah b { font-size: 13px; }
-  .k-terbilang { font-style: italic; color: #444; text-align: center;
-    font-size: 8.5px; margin: 0 0 6px; }
-  .k-ttd { display: flex; justify-content: space-between; margin-top: 18px;
-    font-size: 8px; text-align: center; color: #555; }
-  .k-ttd > div { flex: 1; padding-top: 30px; position: relative; }
-  .k-garis { position: absolute; left: 10%; right: 10%; top: 26px;
-    border-top: 1px solid #111; }
-  .aksi-cetak { max-width: 1150px; margin: 0 auto; text-align: center; }
+  .k-label { width: 34%; color: #6b5f3f; }
+  .k-isi { font-weight: 600; }
+  .k-ttd { display: flex; justify-content: space-between; margin-top: 16px;
+    font-size: 8.5px; color: #6b5f3f; }
+  .k-ttd > div { width: 46%; }
+  .k-garis { display: block; border-top: 1px solid #7a6a35; margin: 26px 0 4px; }
+  .k-kaki { font-size: 8px; color: #8a7c50; margin-top: 10px;
+    display: flex; justify-content: space-between; }
+  .aksi-cetak { max-width: 780px; margin: 0 auto; text-align: center; }
   .aksi-cetak button {
     padding: 10px 22px; border-radius: 8px; border: 0; cursor: pointer;
     background: #0067C0; color: #fff; font-size: 14px; font-weight: 600;
   }
   @media print {
     body { background: #fff; padding: 0; }
-    .k-kuitansi { border: 1px dashed #999; }
     .aksi-cetak { display: none; }
+    .k-potong { color: #ccc; }
   }
 `;
 
@@ -360,6 +373,8 @@ export async function cetakSpk(t) {
 // SPK ini — sesudah itu, pengajuan perubahan (spk.js) ditolak
 // otomatis. Makanya wajib konfirmasi password dulu, dengan
 // peringatan yang jelas, sebelum kuncinya benar-benar dipasang.
+// Sekalian menulis salinan tidak-sensitif ke kuitansi_publik, buat
+// QR code validasi yang dicetak di kuitansinya.
 export async function mintaCetakKuitansi(t, muatUlang) {
   if (!t) return;
 
@@ -398,64 +413,106 @@ export async function mintaCetakKuitansi(t, muatUlang) {
 
   try {
     const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
+    const kodeAman = kuitansiNo.replace(/\//g, "-");
+    const tglCetak = tanggal(new Date());
+
     await updateDoc(doc(dbase, "transaksi", t.id), {
-      kuitansiTercetak: true, kuitansiNo,
+      kuitansiTercetak: true, kuitansiNo, kuitansiKode: kodeAman,
       kuitansiTercetakPada: serverTimestamp(),
+    });
+    // Salinan TIDAK SENSITIF saja (bukan NIK/alamat/dsb) — ini yang
+    // dibaca siapa saja lewat scan QR, tanpa perlu login.
+    await setDoc(doc(dbase, "kuitansi_publik", kodeAman), {
+      kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama, warna: t.warna,
+      jumlahBayar: t.jumlahBayar || 0, tanggal: tglCetak,
+      showroomNama: SHOWROOM.nama,
     });
     await catat("kuitansi_dicetak", {
       koleksi: "transaksi", docId: t.id, ringkas: `${t.spkNo} · ${kuitansiNo}`,
     });
     kabar(`Kuitansi ${kuitansiNo} tercetak & data SPK ini terkunci.`, "netral");
-    await cetakKuitansi({ ...t, kuitansiNo, kuitansiTercetak: true });
+    await cetakKuitansi({
+      ...t, kuitansiNo, kuitansiKode: kodeAman, kuitansiTercetak: true,
+    });
     if (muatUlang) await muatUlang();
   } catch (err) {
     kabar("Gagal mencetak kuitansi: " + err.message, "rem");
   }
 }
 
-function satuKuitansi(t, unit, rekening, leasing, labelLembar) {
-  const kredit = (t.caraBayar || []).includes("kredit");
-  return `<div class="k-kuitansi">
-    <p class="k-label-lembar">${aman(labelLembar)}</p>
-    <div class="k-kop">
-      <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
-      <div>
-        <p class="k-pt">${aman(SHOWROOM.nama)}</p>
-        <p class="k-kecil">${aman(SHOWROOM.alamat || "")}</p>
+function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar) {
+  const urlValidasi = `${location.origin}${location.pathname}#/cek/${t.kuitansiKode || ""}`;
+  const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
+    encodeURIComponent(urlValidasi);
+
+  return `
+    ${nomorLembar > 1 ? `<div class="k-potong">GUNTING DI SINI</div>` : ""}
+    <div class="k-kuitansi">
+      <div class="k-atas">
+        <div class="k-kop">
+          <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+          <div>
+            <p class="k-pt">${aman(SHOWROOM.nama)}</p>
+            <p class="k-kecil">${aman(SHOWROOM.alamat || "")}</p>
+            <p class="k-kecil">${aman(SHOWROOM.telepon || "")}</p>
+          </div>
+        </div>
+        <table class="k-jenis-tabel">
+          <tr><td>JENIS</td><td>PEMASUKAN — DP</td></tr>
+          <tr><td>KETERANGAN</td><td>${aman((t.caraBayar || [])
+            .includes("kredit") ? "DP KREDIT" : "LUNAS")}</td></tr>
+        </table>
+        <img class="k-qr" src="${qrSrc}" alt="QR validasi kuitansi">
       </div>
-    </div>
-    <h2 class="k-judul">KUITANSI</h2>
-    <div class="k-nomor">
-      <span>No. ${aman(t.kuitansiNo || "-")}</span>
-      <span>${tanggal(t.dibuatPada)}</span>
-    </div>
-    <table class="k-tabel">
-      <tr><td class="k-label">Terima dari</td><td class="k-titik">:</td>
-        <td class="k-isi">${aman(t.pembeli?.nama)}</td></tr>
-      <tr><td class="k-label">Untuk</td><td class="k-titik">:</td>
-        <td class="k-isi">${aman(t.tipeNama)} · ${aman(t.warna)}
-          ${unit?.noRangka ? " · " + aman(unit.noRangka) : ""}</td></tr>
-      <tr><td class="k-label">No. SPK</td><td class="k-titik">:</td>
-        <td class="k-isi">${aman(t.spkNo)}</td></tr>
-      <tr><td class="k-label">Cara bayar</td><td class="k-titik">:</td>
-        <td class="k-isi">${aman((t.caraBayar || [])
-          .map((c) => LABEL_CARA_BAYAR[c] || c).join(" + "))}</td></tr>
-      ${kredit ? `<tr><td class="k-label">Leasing</td><td class="k-titik">:</td>
-        <td class="k-isi">${aman(leasing?.nama || "-")}</td></tr>` : ""}
-    </table>
-    <div class="k-jumlah">
-      <div style="font-size:8px;color:#666">Jumlah diterima</div>
-      <b>${rupiah(t.jumlahBayar)}</b>
-    </div>
-    <p class="k-terbilang">${aman(terbilang(t.jumlahBayar || 0))}</p>
-    ${rekening ? `<p class="k-kecil" style="text-align:center">
-      Transfer: ${aman(rekening.bank)} ${aman(rekening.nomor)}
-      a.n. ${aman(rekening.atasNama)}</p>` : ""}
-    <div class="k-ttd">
-      <div><span class="k-garis"></span>Pembeli</div>
-      <div><span class="k-garis"></span>Diterima oleh<br>${aman(namaSales(t))}</div>
-    </div>
-  </div>`;
+
+      <h2 class="k-judul">KUITANSI PEMBAYARAN</h2>
+      <p class="k-nomor-tgl">No: ${aman(t.kuitansiNo || "-")} &nbsp;·&nbsp;
+        ${tanggal(t.dibuatPada)}</p>
+
+      <div class="k-grid2">
+        <div>
+          <p class="k-jumlah-label">Jumlah dibayar</p>
+          <p class="k-jumlah-besar">${rupiah(t.jumlahBayar)}</p>
+          <p class="k-terbilang-label">Terbilang</p>
+          <p class="k-terbilang-kotak">${aman(terbilang(t.jumlahBayar || 0))}</p>
+        </div>
+        <div>
+          <p class="k-dk-judul">Data Kendaraan</p>
+          <table class="k-tabel">
+            <tr><td class="k-label">Unit</td><td class="k-isi">${aman(t.tipeNama)}</td></tr>
+            <tr><td class="k-label">No. Rangka</td>
+              <td class="k-isi">${aman(unit?.noRangka || "-")}</td></tr>
+            <tr><td class="k-label">No. Mesin</td>
+              <td class="k-isi">${aman(unit?.noMesin || "-")}</td></tr>
+            <tr><td class="k-label">Tahun / Warna</td>
+              <td class="k-isi">${aman(unit?.tahun || "-")} / ${aman(t.warna)}</td></tr>
+            <tr><td class="k-label">Harga Unit</td>
+              <td class="k-isi">${rupiah(t.hargaOtr)}</td></tr>
+            ${(t.caraBayar || []).includes("kredit") ? `
+            <tr><td class="k-label">Leasing</td>
+              <td class="k-isi">${aman(leasing?.nama || "-")}</td></tr>` : ""}
+          </table>
+        </div>
+      </div>
+
+      <div class="k-ttd">
+        <div>
+          DIBAYAR OLEH (KONSUMEN)
+          <span class="k-garis"></span>
+          ( ${aman(t.pembeli?.nama || "").toUpperCase()} )
+        </div>
+        <div>
+          DITERIMA OLEH — ${aman(SHOWROOM.nama).toUpperCase()} (TTD &amp; STEMPEL)
+          <span class="k-garis"></span>
+          ( ${aman(namaSales(t))} )
+        </div>
+      </div>
+
+      <p class="k-kaki">
+        <span>Terima kasih atas kepercayaan Anda kepada ${aman(SHOWROOM.nama)}.</span>
+        <span>${aman(labelLembar)}</span>
+      </p>
+    </div>`;
 }
 
 export async function cetakKuitansi(t) {
@@ -479,17 +536,14 @@ export async function cetakKuitansi(t) {
       if (snap.exists()) unit = snap.data();
     } catch { /* unit tidak wajib ada */ }
   }
-  await Promise.all([muatRekening(), muatLeasing()]);
-  const rekening = t.rekeningId ? rekeningDari(t.rekeningId) : null;
+  await muatLeasing();
   const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
 
-  const label = ["LEMBAR 1 — UNTUK PEMBELI", "LEMBAR 2 — UNTUK KEUANGAN",
-    "LEMBAR 3 — UNTUK ARSIP"];
+  const label = ["LAMPIRAN 1 — KONSUMEN", "LAMPIRAN 2 — SHOWROOM",
+    "LAMPIRAN 3 — CADANGAN"];
 
   const isi = `<div class="k-lembar-luar">
-    <div class="k-baris3">
-      ${label.map((l) => satuKuitansi(t, unit, rekening, leasing, l)).join("")}
-    </div>
+    ${label.map((l, i) => satuKuitansi(t, unit, leasing, i + 1, l)).join("")}
   </div>
   <div class="aksi-cetak">
     <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>

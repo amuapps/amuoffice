@@ -67,7 +67,7 @@ export const PERAN = {
     label: "Admin", kode: "ADM", warna: "netral",
     beranda: "#/spk", batasDiskon: 500000,
     izin: [
-      "stok.lihat", "stok.ubah", "spk.buat", "spk.lihat",
+      "stok.lihat", "stok.ubah", "spk.buat", "spk.lihat", "cetak.dokumen",
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna

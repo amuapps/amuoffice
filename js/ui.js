@@ -108,6 +108,16 @@ export function kunciBulan(d = new Date()) {
 }
 
 // ── Pemberitahuan ─────────────────────────────────────────────
+// Owner sering pakai akun sendiri buat input transaksi (mis. saat
+// belum ada sales yang menangani) — di tempat-tempat yang dilihat
+// konsumen atau dicetak, tampilkan "OWNER" alih-alih nama pribadi
+// akun itu supaya lebih rapi/resmi. (Halaman kelola Pengguna
+// sengaja TIDAK memakai ini — di sana tetap nama asli yang perlu
+// dilihat apa adanya.)
+export function namaTampilan(peran, nama) {
+  return peran === "owner" ? "OWNER" : (nama || "-");
+}
+
 export function kabar(pesan, jenis = "info") {
   const wadah = document.getElementById("kabar");
   if (!wadah) return;

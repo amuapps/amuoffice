@@ -8,7 +8,7 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar } from "./ui.js";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
@@ -197,12 +197,13 @@ function kartuPesanan(t) {
     <dl class="rinci">
       <div><dt>Harga OTR</dt><dd>${rupiah(t.hargaOtr)}</dd></div>
       <div><dt>Cara bayar</dt><dd>${aman((t.caraBayar || []).join(", "))}</dd></div>
-      <div><dt>Sales</dt><dd>${aman(t.salesNama)}</dd></div>
+      <div><dt>Sales</dt><dd>${aman(namaTampilan(t.salesPeran, t.salesNama))}</dd></div>
       <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
     </dl>
-    <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
-    <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
-      ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>
+    ${bolehAkses("cetak.dokumen") ? `
+      <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
+      <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
+        ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>` : ""}
     <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
     <div data-wadah-edit-pesanan="${t.id}"></div>
   </article>`;
