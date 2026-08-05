@@ -12,6 +12,7 @@ import { pecahHarga } from "./config.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
 } from "./ui.js";
+import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 
 const LABEL_STATUS = {
   ready: "Ready",
@@ -114,6 +115,7 @@ function formUnit(daftarTipe, bisaLihatHarga) {
 export async function halamanStok(wadah) {
   const bisaUbah = bolehAkses("stok.ubah");
   const bisaLihatHarga = bolehAkses("laba.lihat");
+  const daftarTipe = await muatTipe();
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
@@ -131,19 +133,89 @@ export async function halamanStok(wadah) {
       <button class="chip" data-status="booked">Dipesan</button>
       <button class="chip" data-status="terjual">Terjual</button>
     </div>
+
+    <div class="dua" style="margin-top:10px">
+      <div>
+        <label class="label label--gelap" for="f-tipe">Tipe motor</label>
+        <select class="isian isian--terang" id="f-tipe">
+          <option value="">— semua tipe —</option>
+          ${daftarTipe.map((t) => `<option value="${t.id}">
+            ${aman(t.merek)} ${aman(t.tipe)} ${aman(t.varian || "")}</option>`).join("")}
+        </select>
+      </div>
+      <div>
+        <label class="label label--gelap" for="f-warna">Warna</label>
+        <select class="isian isian--terang" id="f-warna">
+          <option value="">— semua warna —</option>
+        </select>
+      </div>
+    </div>
+    <div class="dua">
+      <div>
+        <label class="label label--gelap" for="f-dari">Masuk dari tanggal</label>
+        <input class="isian isian--terang" id="f-dari" type="date">
+      </div>
+      <div>
+        <label class="label label--gelap" for="f-sampai">Sampai tanggal</label>
+        <input class="isian isian--terang" id="f-sampai" type="date">
+      </div>
+    </div>
+
     <div id="wadah-form-unit"></div>
     <div id="daftar-unit" class="daftar"><p class="hampa">Memuat…</p></div>
   </section>`;
 
   const daftarEl = wadah.querySelector("#daftar-unit");
   const formEl = wadah.querySelector("#wadah-form-unit");
+  const filterTipeEl = wadah.querySelector("#f-tipe");
+  const filterWarnaEl = wadah.querySelector("#f-warna");
+  const filterDariEl = wadah.querySelector("#f-dari");
+  const filterSampaiEl = wadah.querySelector("#f-sampai");
   let status = "semua";
-  let unitTampil = [];
+  let unitSemua = [];   // hasil query Firestore (cuma disaring status)
+  let unitTampil = [];  // unitSemua setelah disaring tipe/warna/tanggal
+
+  // Warna yang ditawarkan mengikuti tipe yang dipilih — kalau
+  // "semua tipe", tawarkan gabungan semua warna yang pernah dipakai.
+  function perbaruiOpsiWarna() {
+    const nilaiSebelum = filterWarnaEl.value;
+    let daftarWarna;
+    if (filterTipeEl.value) {
+      const t = tipeDari(filterTipeEl.value);
+      daftarWarna = (t && t.warna) || [];
+    } else {
+      daftarWarna = [...new Set(daftarTipe.flatMap((t) => t.warna || []))].sort();
+    }
+    filterWarnaEl.innerHTML = `<option value="">— semua warna —</option>` +
+      daftarWarna.map((w) => `<option value="${aman(w)}">${aman(w)}</option>`).join("");
+    if (daftarWarna.includes(nilaiSebelum)) filterWarnaEl.value = nilaiSebelum;
+  }
+  perbaruiOpsiWarna();
+
+  function terapkanFilterLokal() {
+    const tipeId = filterTipeEl.value;
+    const warna = filterWarnaEl.value;
+    const dari = filterDariEl.value ? new Date(filterDariEl.value + "T00:00:00") : null;
+    const sampai = filterSampaiEl.value ? new Date(filterSampaiEl.value + "T23:59:59") : null;
+
+    unitTampil = unitSemua.filter((u) => {
+      if (tipeId && u.tipeId !== tipeId) return false;
+      if (warna && u.warna !== warna) return false;
+      const masuk = u.tglMasuk?.toDate ? u.tglMasuk.toDate() : new Date(u.tglMasuk);
+      if (dari && masuk < dari) return false;
+      if (sampai && masuk > sampai) return false;
+      return true;
+    });
+
+    daftarEl.innerHTML = unitTampil.length
+      ? tabelUnit(unitTampil)
+      : `<div class="hampa"><p>Tidak ada unit yang cocok dengan filter ini.</p></div>`;
+  }
 
   async function gambar() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
-    // "Semua" tidak menyaring apa pun — supaya bisa lihat seluruh
-    // data kendaraan sekaligus, bukan cuma per status.
+    // "Semua" tidak menyaring apa pun di query — sisanya (tipe,
+    // warna, tanggal) disaring di aplikasi lewat terapkanFilterLokal().
     const snap = status === "semua"
       ? await getDocs(query(collection(dbase, "units"), limit(500)))
       : await getDocs(query(
@@ -151,13 +223,9 @@ export async function halamanStok(wadah) {
           where("status", "==", status),
           limit(500)
         ));
-    unitTampil = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    unitSemua = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
-    daftarEl.innerHTML = unitTampil.length
-      ? tabelUnit(unitTampil)
-      : `<div class="hampa"><p>Tidak ada unit${
-          status === "semua" ? "" : ` berstatus ${LABEL_STATUS[status].toLowerCase()}`
-        }.</p></div>`;
+    terapkanFilterLokal();
   }
 
   wadah.querySelector("#saring").addEventListener("click", (e) => {
@@ -169,12 +237,20 @@ export async function halamanStok(wadah) {
     gambar();
   });
 
+  filterTipeEl.addEventListener("change", () => {
+    perbaruiOpsiWarna();
+    terapkanFilterLokal();
+  });
+  [filterWarnaEl, filterDariEl, filterSampaiEl].forEach((el) =>
+    el.addEventListener("change", terapkanFilterLokal));
+
   // ── Unduh Excel ────────────────────────────────────────────
-  // Format .csv — dibaca Excel tanpa perlu library tambahan, dan
-  // isinya mengikuti data yang sedang tampil di layar (sesuai filter).
+  // File .xlsx asli (bukan .csv) — supaya kolomnya selalu rapi di
+  // Excel apa pun setting regionnya (koma vs titik koma). Isinya
+  // mengikuti data yang SEDANG tampil (sesudah semua filter).
   wadah.querySelector("#unduh-excel").addEventListener("click", () => {
     if (!unitTampil.length) {
-      kabar("Tidak ada data untuk diunduh.", "rem");
+      kabar("Tidak ada data untuk diunduh — sesuaikan dulu filternya.", "rem");
       return;
     }
     const kolom = ["Tipe", "Warna", "Tahun", "No Rangka", "No Mesin",
@@ -183,17 +259,14 @@ export async function halamanStok(wadah) {
       u.tipeNama, u.warna, u.tahun, u.noRangka, u.noMesin,
       LABEL_STATUS[u.status] || u.status, u.noDo, tanggal(u.tglMasuk),
     ]);
-    const escapeCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [kolom, ...baris]
-      .map((baris) => baris.map(escapeCsv).join(","))
-      .join("\r\n");
-    // \ufeff (BOM) supaya Excel langsung kenali sebagai UTF-8.
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `data-unit-${status}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const ws = XLSX.utils.aoa_to_sheet([kolom, ...baris]);
+    ws["!cols"] = [
+      { wch: 26 }, { wch: 16 }, { wch: 8 }, { wch: 18 }, { wch: 18 },
+      { wch: 10 }, { wch: 14 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data Unit");
+    XLSX.writeFile(wb, `data-unit-${status}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   });
 
   async function bukaForm() {
