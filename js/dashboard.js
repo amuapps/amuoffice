@@ -6,7 +6,8 @@
 import { dbase, collection, getDocs, query, where, orderBy } from "./db.js";
 import { sesi } from "./auth.js";
 import { muatTipe } from "./tipe.js";
-import { rupiah, aman } from "./ui.js";
+import { rupiah, aman, namaTampilan } from "./ui.js";
+import { resolveNamaSales } from "./cetak.js";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -141,12 +142,30 @@ export async function halamanDashboard(wadah) {
     ));
     dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
+    // Nama sales yang tampil — untuk SPK baru cukup namaTampilan()
+    // (langsung tahu dari salesPeran). SPK LAMA (sebelum salesPeran
+    // ada) perlu dicek ulang ke data pengguna dulu — dilakukan
+    // SEKALI per orang saja (bukan per SPK), baru diterapkan ke semua.
+    const perluDicek = [...new Set(
+      dataSpk.filter((t) => t.salesUid && !t.salesPeran).map((t) => t.salesUid)
+    )];
+    const hasilCek = await Promise.all(perluDicek.map(async (uid) => {
+      const contoh = dataSpk.find((t) => t.salesUid === uid);
+      return [uid, await resolveNamaSales(contoh)];
+    }));
+    const petaNama = new Map(hasilCek);
+    dataSpk.forEach((t) => {
+      t.salesNamaTampil = t.salesPeran
+        ? namaTampilan(t.salesPeran, t.salesNama)
+        : (petaNama.get(t.salesUid) || t.salesNama || "-");
+    });
+
     // Isi opsi Sales dari data yang benar-benar ada, sekali saja.
     const pilihSales = wadah.querySelector("#d-sales");
     if (pilihSales.children.length <= 1) {
       const unik = new Map();
       dataSpk.forEach((t) => {
-        if (t.salesUid) unik.set(t.salesUid, t.salesNama || "-");
+        if (t.salesUid) unik.set(t.salesUid, t.salesNamaTampil);
       });
       pilihSales.innerHTML += [...unik.entries()]
         .map(([uid, nama]) => `<option value="${uid}">${aman(nama)}</option>`).join("");
@@ -203,7 +222,8 @@ export async function halamanDashboard(wadah) {
     const perSales = {};
     terpilih.forEach((t) => {
       if (!t.salesUid) return;
-      perSales[t.salesNama || "-"] = (perSales[t.salesNama || "-"] || 0) + 1;
+      const nama = t.salesNamaTampil || t.salesNama || "-";
+      perSales[nama] = (perSales[nama] || 0) + 1;
     });
     const top3 = Object.entries(perSales).sort((a, b) => b[1] - a[1]).slice(0, 3);
     wadah.querySelector("#d-peringkat").innerHTML = top3.length

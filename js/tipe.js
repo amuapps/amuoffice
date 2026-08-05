@@ -56,34 +56,34 @@ export async function sinkronKatalog() {
 }
 
 // ── Tampilan ──────────────────────────────────────────────────
-function kartuTipe(t, bisaUbah) {
-  return `<article class="kartu">
-    <div class="kartu-atas">
-      <div>
-        <h3 class="kartu-judul">${aman(t.merek)} ${aman(t.tipe)}</h3>
-        <p class="kartu-sub">${aman(t.varian || "")}${
-          t.cc ? ` · ${aman(t.cc)} cc` : ""
-        }${t.transmisi ? ` · ${aman(t.transmisi)}` : ""}</p>
-      </div>
-      <span class="tanda ${t.jumlahReady ? "tanda--ada" : "tanda--habis"}">
-        ${t.jumlahReady || 0} ready
-      </span>
-    </div>
-    <p class="angka-besar">${rupiah(t.hargaOtr)}</p>
-    <p class="kartu-rinci">
-      Offroad ${rupiah(t.hargaOffroad || 0)} · BBN ${rupiah(t.bbn || 0)}
-    </p>
-    ${
-      (t.warna || []).length
-        ? `<p class="kartu-rinci">Warna: ${aman((t.warna || []).join(", "))}</p>`
-        : ""
-    }
-    ${
-      bisaUbah
-        ? `<button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>`
-        : ""
-    }
-  </article>`;
+function tabelTipe(daftar, bisaUbah) {
+  return `<div style="overflow-x:auto">
+    <table class="tabel">
+      <thead>
+        <tr>
+          <th>No.</th><th>Merek</th><th>Tipe</th><th>Varian</th><th>CC</th>
+          <th>Transmisi</th><th>Warna</th><th>Harga OTR</th><th>Ready</th>
+          ${bisaUbah ? "<th></th>" : ""}
+        </tr>
+      </thead>
+      <tbody>
+        ${daftar.map((t, i) => `<tr>
+          <td class="mono">${i + 1}</td>
+          <td>${aman(t.merek)}</td>
+          <td>${aman(t.tipe)}</td>
+          <td>${aman(t.varian || "-")}</td>
+          <td>${aman(t.cc || "-")}</td>
+          <td>${aman(t.transmisi || "-")}</td>
+          <td>${aman((t.warna || []).join(", ") || "-")}</td>
+          <td>${rupiah(t.hargaOtr)}</td>
+          <td><span class="tanda ${t.jumlahReady ? "tanda--ada" : "tanda--habis"}">
+            ${t.jumlahReady || 0}</span></td>
+          ${bisaUbah ? `<td><button class="tombol tombol--kecil"
+              data-ubah="${t.id}">Ubah</button></td>` : ""}
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
 }
 
 function formTipe(t = {}, saranTipe = [], saranWarna = []) {
@@ -164,28 +164,79 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
       <h2 class="judul">${hanyaLihat ? "Katalog" : "Tipe motor"}</h2>
-      ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
-        id="tambah-tipe">Tambah</button>` : ""}
+      <div style="display:flex;gap:8px">
+        <button class="tombol tombol--kecil" id="toggle-filter-tipe">Filter</button>
+        ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
+          id="tambah-tipe">Tambah</button>` : ""}
+      </div>
     </div>
+
+    <div id="panel-filter-tipe" class="lembar" style="margin-top:10px" hidden>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="f-cari-tipe">Cari (Merek/Tipe/Varian)</label>
+          <input class="isian isian--terang" id="f-cari-tipe" placeholder="mis. Primavera">
+        </div>
+        <div>
+          <label class="label label--gelap" for="f-status-tipe">Stok</label>
+          <select class="isian isian--terang" id="f-status-tipe">
+            <option value="">— semua —</option>
+            <option value="ready">Ada Ready</option>
+            <option value="habis">Habis (0 ready)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div id="wadah-form"></div>
-    <div id="daftar-tipe" class="daftar"><p class="hampa">Memuat…</p></div>
+    <div id="daftar-tipe" class="daftar" style="margin-top:10px">
+      <p class="hampa">Memuat…</p>
+    </div>
   </section>`;
 
   const daftarEl = wadah.querySelector("#daftar-tipe");
   const formEl = wadah.querySelector("#wadah-form");
+  const cariEl = wadah.querySelector("#f-cari-tipe");
+  const statusEl = wadah.querySelector("#f-status-tipe");
+  let semuaTipe = [];
 
-  async function gambar() {
-    const semua = await muatTipe(true);
-    daftarEl.innerHTML = semua.length
-      ? semua.map((t) => kartuTipe(t, bisaUbah)).join("")
-      : `<div class="hampa"><p>Belum ada tipe motor.
-         ${bisaUbah ? "Tambahkan tipe dulu sebelum memasukkan unit."
-                    : "Hubungi admin."}</p></div>`;
+  wadah.querySelector("#toggle-filter-tipe").addEventListener("click", () => {
+    const p = wadah.querySelector("#panel-filter-tipe");
+    p.hidden = !p.hidden;
+  });
+
+  function tampilkanTersaring() {
+    const kata = cariEl.value.trim().toLowerCase();
+    const status = statusEl.value;
+    const hasil = semuaTipe.filter((t) => {
+      if (kata) {
+        const gabung = `${t.merek} ${t.tipe} ${t.varian || ""}`.toLowerCase();
+        if (!gabung.includes(kata)) return false;
+      }
+      if (status === "ready" && !(t.jumlahReady > 0)) return false;
+      if (status === "habis" && t.jumlahReady > 0) return false;
+      return true;
+    });
+    daftarEl.innerHTML = hasil.length
+      ? tabelTipe(hasil, bisaUbah)
+      : `<div class="hampa"><p>Tidak ada tipe yang cocok.</p></div>`;
     if (bisaUbah) {
       daftarEl.querySelectorAll("[data-ubah]").forEach((b) => {
         b.addEventListener("click", () => bukaForm(tipeDari(b.dataset.ubah)));
       });
     }
+  }
+  [cariEl, statusEl].forEach((el) => el.addEventListener("input", tampilkanTersaring));
+
+  async function gambar() {
+    semuaTipe = await muatTipe(true);
+    if (!semuaTipe.length) {
+      daftarEl.innerHTML = `<div class="hampa"><p>Belum ada tipe motor.
+         ${bisaUbah ? "Tambahkan tipe dulu sebelum memasukkan unit."
+                    : "Hubungi admin."}</p></div>`;
+      return;
+    }
+    tampilkanTersaring();
   }
 
   async function bukaForm(t) {

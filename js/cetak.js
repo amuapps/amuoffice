@@ -89,7 +89,7 @@ function namaSales(t) {
 // perannya (cuma salesNama). Untuk yang begitu, cek ulang langsung
 // ke data pengguna lewat salesUid, supaya "OWNER" tetap terdeteksi
 // walau datanya lama.
-async function resolveNamaSales(t) {
+export async function resolveNamaSales(t) {
   if (t.salesPeran) return namaSales(t);
   if (!t.salesUid) return t.salesNama || "-";
   try {

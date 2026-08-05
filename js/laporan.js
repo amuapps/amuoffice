@@ -93,26 +93,34 @@ export async function halamanLaporan(wadah) {
     barisEl.innerHTML = `<tr><td colspan="7" class="hampa">Memuat…</td></tr>`;
     const dari = new Date(dariEl.value + "T00:00:00");
     const sampai = new Date(sampaiEl.value + "T23:59:59");
-
-    // Sales cuma boleh lihat SPK yang dia buat sendiri — bukan cuma
-    // disembunyikan di tampilan, tapi juga ditegakkan di
-    // firestore.rules (lihat blok /transaksi di sana).
-    const filter = [
-      where("dibuatPada", ">=", dari),
-      where("dibuatPada", "<=", sampai),
-    ];
-    if (sesi && sesi.peran === "sales") {
-      filter.push(where("salesUid", "==", sesi.uid));
-    }
+    const sales = sesi && sesi.peran === "sales";
 
     try {
-      const snap = await getDocs(query(
-        collection(dbase, "transaksi"),
-        ...filter,
-        orderBy("dibuatPada", "desc"),
-        limit(500)
-      ));
-      dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (sales) {
+        // Sales: cuma equality (salesUid), tanpa gabung rentang+urutan
+        // tanggal — supaya TIDAK butuh index gabungan di Firestore.
+        // Tanggalnya disaring & diurutkan di sini saja.
+        const snap = await getDocs(query(
+          collection(dbase, "transaksi"),
+          where("salesUid", "==", sesi.uid),
+          limit(500)
+        ));
+        dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          .filter((t) => {
+            const tgl = t.dibuatPada?.toDate ? t.dibuatPada.toDate() : null;
+            return tgl && tgl >= dari && tgl <= sampai;
+          })
+          .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
+      } else {
+        const snap = await getDocs(query(
+          collection(dbase, "transaksi"),
+          where("dibuatPada", ">=", dari),
+          where("dibuatPada", "<=", sampai),
+          orderBy("dibuatPada", "desc"),
+          limit(500)
+        ));
+        dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      }
     } catch (err) {
       barisEl.innerHTML = `<tr><td colspan="7" class="hampa">
         Gagal memuat: ${aman(err.message)}</td></tr>`;

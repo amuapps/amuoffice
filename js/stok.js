@@ -27,14 +27,15 @@ function tabelUnit(daftar) {
     <table class="tabel">
       <thead>
         <tr>
-          <th>Tipe</th><th>Warna</th><th>Tahun</th><th>Rangka</th>
+          <th>No.</th><th>Tipe</th><th>Warna</th><th>Tahun</th><th>Rangka</th>
           <th>Mesin</th><th>Status</th><th>Masuk</th><th>No. DO</th>
         </tr>
       </thead>
       <tbody>
-        ${daftar.map((u) => `<tr class="${u.status !== "ready" ? "baris-klik" : ""}"
+        ${daftar.map((u, i) => `<tr class="${u.status !== "ready" ? "baris-klik" : ""}"
               ${u.status !== "ready" ? `data-lihat-pembeli="${u.id}"` : ""}
               ${u.status !== "ready" ? `title="Klik untuk lihat pembelinya"` : ""}>
+          <td class="mono">${i + 1}</td>
           <td>${aman(u.tipeNama)}</td>
           <td>${aman(u.warna || "-")}</td>
           <td>${aman(u.tahun || "-")}</td>

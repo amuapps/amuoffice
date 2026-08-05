@@ -64,7 +64,7 @@ const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
 export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
-    beranda: "#/spk", batasDiskon: null, izin: ["*"],
+    beranda: "#/dashboard", batasDiskon: null, izin: ["*"],
     menu: [DASHBOARD, SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
   },
 
