@@ -1,11 +1,12 @@
-// referensi.js — daftar saran Tipe Motor & Warna, dulunya statis di
-// config.js (TIPE_VESPA, WARNA_VESPA), sekarang bisa diubah sendiri
-// lewat halaman ini tanpa perlu edit kode.
+// referensi.js — daftar saran yang bisa berkembang sendiri, dulunya
+// statis di config.js (TIPE_VESPA, WARNA_VESPA), sekarang bisa
+// diubah lewat halaman ini ATAU bertambah otomatis begitu ada nilai
+// baru diketik di form lain (misalnya Kecamatan/Kota di form
+// Pembeli — lihat tambahSaranOtomatis di bawah).
 //
-// Disimpan sebagai DUA dokumen saja (bukan satu koleksi berisi
-// banyak dokumen): /referensi/tipe dan /referensi/warna, masing-
-// masing berupa satu larik. Cukup untuk daftar pendek begini, dan
-// jadi satu kali pembacaan saja tiap form Tipe Motor dibuka.
+// Disimpan satu dokumen per daftar: /referensi/{kunci}, isinya satu
+// larik teks. Cukup untuk daftar model begini, dan jadi satu kali
+// baca saja tiap form yang butuh dibuka.
 
 import {
   dbase, doc, getDoc, setDoc, serverTimestamp, catat,
@@ -17,39 +18,37 @@ import { aman, kabar } from "./ui.js";
 // Firestore sama sekali — begitu ada perubahan pertama (tambah/
 // hapus), dokumennya langsung dibuat dan daftar ini tidak dipakai
 // lagi. Jadi ini cuma titik mula supaya tidak mulai dari kosong.
-const AWAL_TIPE = [
-  "LX 125 i-get", "S 125 i-get",
-  "Primavera 125 i-get", "Primavera 150 i-get", "Primavera S 150",
-  "Sprint 150 i-get", "Sprint S 150",
-  "GTS 150", "GTS Super 150", "GTS Super Sport 150",
-  "GTS 300 HPE", "GTS Super Tech 300 HPE",
-  "Sei Giorni II", "946",
-];
-const AWAL_WARNA = [
-  "Bianco Innocenza", "Nero Vulcano", "Rosso Passione",
-  "Blu Energia", "Verde Relax", "Giallo Positano",
-  "Grigio Materia", "Beige Avvolgente",
-];
+const AWAL = {
+  tipe: [
+    "LX 125 i-get", "S 125 i-get",
+    "Primavera 125 i-get", "Primavera 150 i-get", "Primavera S 150",
+    "Sprint 150 i-get", "Sprint S 150",
+    "GTS 150", "GTS Super 150", "GTS Super Sport 150",
+    "GTS 300 HPE", "GTS Super Tech 300 HPE",
+    "Sei Giorni II", "946",
+  ],
+  warna: [
+    "Bianco Innocenza", "Nero Vulcano", "Rosso Passione",
+    "Blu Energia", "Verde Relax", "Giallo Positano",
+    "Grigio Materia", "Beige Avvolgente",
+  ],
+  kecamatan: [],
+  kota: [],
+};
 
-let cacheTipe = null;
-let cacheWarna = null;
+// Label ramah untuk tiap kunci — dipakai di halaman kelola & pesan.
+const JUDUL = {
+  tipe: "Tipe Motor", warna: "Warna",
+  kecamatan: "Kecamatan", kota: "Kabupaten/Kota",
+};
 
-async function muatDaftar(kunci, awal) {
+const cache = {}; // { [kunci]: string[] }
+
+async function muatDaftar(kunci) {
+  if (cache[kunci]) return cache[kunci];
   const snap = await getDoc(doc(dbase, "referensi", kunci));
-  return snap.exists() ? (snap.data().item || []) : awal;
-}
-
-// Dipanggil dari tipe.js untuk mengisi datalist saran.
-export async function muatSaranTipe(paksa = false) {
-  if (cacheTipe && !paksa) return cacheTipe;
-  cacheTipe = await muatDaftar("tipe", AWAL_TIPE);
-  return cacheTipe;
-}
-
-export async function muatSaranWarna(paksa = false) {
-  if (cacheWarna && !paksa) return cacheWarna;
-  cacheWarna = await muatDaftar("warna", AWAL_WARNA);
-  return cacheWarna;
+  cache[kunci] = snap.exists() ? (snap.data().item || []) : (AWAL[kunci] || []);
+  return cache[kunci];
 }
 
 async function simpanDaftar(kunci, item) {
@@ -57,11 +56,41 @@ async function simpanDaftar(kunci, item) {
     item, diubahPada: serverTimestamp(),
   });
   await catat("referensi_diubah", { koleksi: "referensi", docId: kunci });
-  if (kunci === "tipe") cacheTipe = item; else cacheWarna = item;
+  cache[kunci] = item;
 }
 
-// ── Tampilan satu daftar (dipakai dua kali: tipe & warna) ───────
-function seksiDaftar(judul, kunci, item, bisaUbah) {
+// ── Dipanggil dari form Tipe Motor ──────────────────────────────
+export async function muatSaranTipe(paksa = false) {
+  if (paksa) delete cache.tipe;
+  return muatDaftar("tipe");
+}
+export async function muatSaranWarna(paksa = false) {
+  if (paksa) delete cache.warna;
+  return muatDaftar("warna");
+}
+
+// ── Dipanggil dari form Pembeli/Pemakai (Database Konsumen & SPK) ──
+export async function muatSaranKecamatan() { return muatDaftar("kecamatan"); }
+export async function muatSaranKota() { return muatDaftar("kota"); }
+
+// Dipanggil setelah form disimpan: kalau isian Kecamatan/Kota-nya
+// belum ada di daftar, langsung ditambahkan sendiri — tidak perlu
+// owner buka halaman Referensi cuma untuk menambah satu nama daerah.
+// Gagal diam-diam kalau ada masalah (koneksi dsb) — ini cuma
+// pemanis, tidak boleh sampai bikin gagal simpan data utamanya.
+export async function tambahSaranOtomatis(kunci, nilai) {
+  const v = (nilai || "").trim();
+  if (!v || !JUDUL[kunci]) return;
+  try {
+    const daftar = await muatDaftar(kunci);
+    if (daftar.some((x) => x.toLowerCase() === v.toLowerCase())) return;
+    await simpanDaftar(kunci, [...daftar, v]);
+  } catch { /* diam-diam saja, ini bukan bagian penting alur simpan */ }
+}
+
+// ── Tampilan satu daftar (dipakai berulang di halaman Referensi) ──
+function seksiDaftar(kunci, item, bisaUbah) {
+  const judul = JUDUL[kunci];
   return `<div class="lembar" style="margin-top:16px">
     <h3 class="judul" style="font-size:16px">${aman(judul)}</h3>
     <div class="chip-baris" id="daftar-${kunci}" style="flex-wrap:wrap">
@@ -91,35 +120,35 @@ function seksiDaftar(judul, kunci, item, bisaUbah) {
 
 export async function halamanReferensi(wadah) {
   const bisaUbah = bolehAkses("stok.ubah");
+  const semuaKunci = Object.keys(JUDUL);
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
-      <h2 class="judul">Referensi Tipe &amp; Warna</h2>
+      <h2 class="judul">Referensi &amp; Saran Isian</h2>
     </div>
-    <p class="petunjuk">Daftar di bawah ini yang muncul sebagai saran
-      otomatis saat mengisi form Tipe Motor. Menambah atau menghapus di
-      sini tidak mengubah tipe motor yang sudah tersimpan — cuma
-      mengubah daftar sarannya.</p>
+    <p class="petunjuk">Daftar ini yang muncul sebagai saran otomatis di
+      berbagai form (Tipe Motor, dan Kecamatan/Kota di data pembeli).
+      Kecamatan &amp; Kabupaten/Kota juga bertambah SENDIRI setiap ada
+      nama baru yang diketik di form manapun — tidak wajib ditambah dari
+      sini. Menghapus di sini tidak mengubah data yang sudah tersimpan.</p>
     <div id="wadah-referensi"><p class="hampa">Memuat…</p></div>
   </section>`;
 
   const w = wadah.querySelector("#wadah-referensi");
 
   async function gambar() {
-    const [tipe, warna] = await Promise.all([
-      muatSaranTipe(true), muatSaranWarna(true),
-    ]);
-    w.innerHTML =
-      seksiDaftar("Tipe Motor", "tipe", tipe, bisaUbah) +
-      seksiDaftar("Warna", "warna", warna, bisaUbah);
+    for (const k of semuaKunci) delete cache[k];
+    const semua = {};
+    for (const k of semuaKunci) semua[k] = await muatDaftar(k);
 
+    w.innerHTML = semuaKunci.map((k) => seksiDaftar(k, semua[k], bisaUbah)).join("");
     if (!bisaUbah) return;
 
     w.querySelectorAll(".chip-hapus").forEach((b) => {
       b.addEventListener("click", async () => {
         const kunci = b.dataset.kunci;
         const idx = Number(b.dataset.index);
-        const daftar = kunci === "tipe" ? [...tipe] : [...warna];
+        const daftar = [...semua[kunci]];
         daftar.splice(idx, 1);
         try {
           await simpanDaftar(kunci, daftar);
@@ -130,7 +159,7 @@ export async function halamanReferensi(wadah) {
       });
     });
 
-    ["tipe", "warna"].forEach((kunci) => {
+    semuaKunci.forEach((kunci) => {
       const form = w.querySelector(`#tambah-${kunci}`);
       if (!form) return;
       form.addEventListener("submit", async (e) => {
@@ -138,8 +167,8 @@ export async function halamanReferensi(wadah) {
         const input = w.querySelector(`#input-${kunci}`);
         const nilai = input.value.trim();
         if (!nilai) return;
-        const daftar = kunci === "tipe" ? [...tipe] : [...warna];
-        if (daftar.includes(nilai)) {
+        const daftar = [...semua[kunci]];
+        if (daftar.some((x) => x.toLowerCase() === nilai.toLowerCase())) {
           kabar("Sudah ada di daftar.", "rem");
           return;
         }

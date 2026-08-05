@@ -15,8 +15,9 @@ import { sesi } from "./auth.js";
 import { batasDiskon } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
 import { cariUnitReady, kunciUnitKeBatch } from "./stok.js";
-import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis }
-  from "./pelanggan.js";
+import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
+         pasangHurufBesarPelanggan } from "./pelanggan.js";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
 import { cetakSpk } from "./cetak.js";
@@ -28,10 +29,10 @@ function opsiTipe(daftarTipe) {
       aman(t.varian || "")}</option>`).join("");
 }
 
-function panelCustomer() {
+function panelCustomer(saranKecamatan, saranKota) {
   return `<div class="tab-panel" data-panel="customer">
     <h3 class="judul" style="font-size:16px">Pembeli</h3>
-    ${formPelanggan({}, "pembeli")}
+    ${formPelanggan({}, "pembeli", saranKecamatan, saranKota)}
     <label class="pilihan" style="margin-top:8px">
       <input type="checkbox" id="s-sama" checked>
       <span>Pemakai kendaraan sama dengan pembeli di atas</span>
@@ -39,7 +40,7 @@ function panelCustomer() {
     <div id="wadah-pemakai" hidden>
       <h3 class="judul" style="font-size:16px;margin-top:10px">
         Pemakai <span class="kunci">sesuai STNK/BPKB nanti</span></h3>
-      ${formPelanggan({}, "pemakai")}
+      ${formPelanggan({}, "pemakai", saranKecamatan, saranKota)}
     </div>
   </div>`;
 }
@@ -143,10 +144,13 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 export async function halamanSpk(wadah) {
   wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
   let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
+  let saranKecamatan = [], saranKota = [];
   try {
-    [daftarTipe, daftarLeasing, daftarRekening] = await Promise.all([
-      muatTipe(), muatLeasing(), muatRekening(),
-    ]);
+    [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota] =
+      await Promise.all([
+        muatTipe(), muatLeasing(), muatRekening(),
+        muatSaranKecamatan(), muatSaranKota(),
+      ]);
   } catch (err) {
     wadah.innerHTML = `<div class="hampa">
       <p><b>Gagal memuat data SPK.</b></p>
@@ -179,7 +183,7 @@ export async function halamanSpk(wadah) {
       <button type="button" class="chip" data-tab="payment">Payment Info</button>
     </div>
     <form id="form-spk" class="form">
-      ${panelCustomer()}
+      ${panelCustomer(saranKecamatan, saranKota)}
       ${panelInternal()}
       ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
@@ -187,6 +191,9 @@ export async function halamanSpk(wadah) {
       </div>
     </form>
   </section>`;
+
+  pasangHurufBesarPelanggan(wadah, "pembeli");
+  pasangHurufBesarPelanggan(wadah, "pemakai");
 
   // ── Tab ──────────────────────────────────────────────────────
   wadah.querySelector("#tab-spk").addEventListener("click", (e) => {

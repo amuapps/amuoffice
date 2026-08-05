@@ -17,6 +17,19 @@ export function pasangFormatUang(input) {
   });
 }
 
+// Mengetik jadi HURUF BESAR otomatis, kursor tidak meloncat.
+// Dipakai untuk nama/alamat/dll — sengaja TIDAK dipakai untuk email
+// (email itu case-sensitive secara teknis, dan kebiasaan orang
+// mengetiknya huruf kecil).
+export function pasangHurufBesar(input) {
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const posisi = input.selectionStart;
+    input.value = input.value.toUpperCase();
+    input.setSelectionRange(posisi, posisi);
+  });
+}
+
 export function bacaAngka(input) {
   return Number(String(input.value).replace(/\D/g, "") || 0);
 }

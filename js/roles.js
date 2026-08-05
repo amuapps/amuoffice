@@ -24,7 +24,7 @@ import { labelItem, labelGrup } from "./label.js";
 
 const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Tipe Motor", rute: "#/kelola", kode: "SYS-01" },
-  { label: "Referensi Tipe & Warna", rute: "#/referensi", kode: "SYS-05" },
+  { label: "Referensi & Saran Isian", rute: "#/referensi", kode: "SYS-05" },
   { label: "Master Leasing", rute: "#/leasing", kode: "SYS-06" },
   { label: "Master Rekening", rute: "#/rekening", kode: "SYS-07" },
 ]};

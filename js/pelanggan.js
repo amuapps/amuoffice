@@ -8,8 +8,10 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { aman, kabar, tanggal, rupiah } from "./ui.js";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar } from "./ui.js";
 import { cetakSpk } from "./cetak.js";
+import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
+  from "./referensi.js";
 
 let cache = [];
 
@@ -36,6 +38,10 @@ export async function simpanPelanggan(data, id) {
   await catat(id ? "pelanggan_diubah" : "pelanggan_ditambah", {
     koleksi: "pelanggan", docId: ref.id, ringkas: data.nama,
   });
+  // Kecamatan/Kota yang baru diketik otomatis nambah ke Referensi,
+  // supaya makin lama makin jarang perlu ketik manual dari nol.
+  tambahSaranOtomatis("kecamatan", data.kecamatan);
+  tambahSaranOtomatis("kota", data.kota);
   await muatPelanggan(true);
   return ref.id;
 }
@@ -66,7 +72,7 @@ export async function simpanPelangganOtomatis(data) {
   return await simpanPelanggan(data, null);
 }
 
-export function formPelanggan(p = {}, awalan = "p") {
+export function formPelanggan(p = {}, awalan = "p", saranKecamatan = [], saranKota = []) {
   return `
     <label class="label label--gelap" for="${awalan}-nama">Nama lengkap</label>
     <input class="isian isian--terang" id="${awalan}-nama"
@@ -90,16 +96,25 @@ export function formPelanggan(p = {}, awalan = "p") {
     <label class="label label--gelap" for="${awalan}-alamat">Alamat</label>
     <input class="isian isian--terang" id="${awalan}-alamat"
            value="${aman(p.alamat || "")}" placeholder="Sesuai KTP">
+    <label class="label label--gelap" for="${awalan}-kelurahan">Kelurahan</label>
+    <input class="isian isian--terang" id="${awalan}-kelurahan"
+           value="${aman(p.kelurahan || "")}">
     <div class="dua">
       <div>
         <label class="label label--gelap" for="${awalan}-kecamatan">Kecamatan</label>
         <input class="isian isian--terang" id="${awalan}-kecamatan"
-               value="${aman(p.kecamatan || "")}">
+               list="daftar-kecamatan-${awalan}" value="${aman(p.kecamatan || "")}">
+        <datalist id="daftar-kecamatan-${awalan}">
+          ${saranKecamatan.map((x) => `<option value="${aman(x)}">`).join("")}
+        </datalist>
       </div>
       <div>
         <label class="label label--gelap" for="${awalan}-kota">Kabupaten/Kota</label>
         <input class="isian isian--terang" id="${awalan}-kota"
-               value="${aman(p.kota || "")}">
+               list="daftar-kota-${awalan}" value="${aman(p.kota || "")}">
+        <datalist id="daftar-kota-${awalan}">
+          ${saranKota.map((x) => `<option value="${aman(x)}">`).join("")}
+        </datalist>
       </div>
     </div>
     <div class="dua">
@@ -130,12 +145,20 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
     telepon: v("telepon").replace(/\s/g, ""),
     nik: v("nik").replace(/\D/g, ""),
     alamat: v("alamat"),
+    kelurahan: v("kelurahan"),
     kecamatan: v("kecamatan"),
     kota: v("kota"),
     provinsi: v("provinsi"),
     kodePos: v("kodepos"),
     email: v("email"),
   };
+}
+
+// Kapital otomatis untuk field bertulisan bebas — TIDAK untuk
+// telepon/NIK (angka) atau email (biasa diketik huruf kecil).
+export function pasangHurufBesarPelanggan(wadah, awalan = "p") {
+  ["nama", "alamat", "kelurahan", "kecamatan", "kota", "provinsi"].forEach((id) =>
+    pasangHurufBesar(wadah.querySelector(`#${awalan}-${id}`)));
 }
 
 // ── Riwayat pesanan seorang konsumen ─────────────────────────────
@@ -193,8 +216,9 @@ function kartuPelanggan(p) {
       </div>
     </div>
     ${p.alamat ? `<p class="kartu-rinci">${aman(p.alamat)}${
-      [p.kecamatan, p.kota, p.provinsi].filter(Boolean).length
-        ? ", " + aman([p.kecamatan, p.kota, p.provinsi].filter(Boolean).join(", "))
+      [p.kelurahan, p.kecamatan, p.kota, p.provinsi].filter(Boolean).length
+        ? ", " + aman([p.kelurahan, p.kecamatan, p.kota, p.provinsi]
+            .filter(Boolean).join(", "))
         : ""
     }</p>` : ""}
     ${!p.nik ? `<p class="kartu-rinci peringatan">NIK belum diisi</p>` : ""}
@@ -277,15 +301,20 @@ export async function halamanPelanggan(wadah) {
 
   cariEl.addEventListener("input", () => tapis(cache));
 
-  function buka(p) {
+  async function buka(p) {
+    formEl.innerHTML = `<p class="hampa">Memuat…</p>`;
+    const [saranKecamatan, saranKota] = await Promise.all([
+      muatSaranKecamatan(), muatSaranKota(),
+    ]).catch(() => [[], []]);
     formEl.innerHTML = `<form class="form" id="form-pelanggan">
-      ${formPelanggan(p || {})}
+      ${formPelanggan(p || {}, "p", saranKecamatan, saranKota)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan</button>
         <button class="tombol tombol--sunyi tombol--gelap" type="button"
                 id="batal-pelanggan">Batal</button>
       </div>
     </form>`;
+    pasangHurufBesarPelanggan(formEl, "p");
     formEl.querySelector("#batal-pelanggan")
       .addEventListener("click", () => (formEl.innerHTML = ""));
     formEl.querySelector("#form-pelanggan")
