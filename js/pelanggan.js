@@ -8,7 +8,7 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { aman, kabar, tanggal } from "./ui.js";
+import { aman, kabar, tanggal, rupiah } from "./ui.js";
 
 let cache = [];
 
@@ -137,6 +137,47 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
   };
 }
 
+// ── Riwayat pesanan seorang konsumen ─────────────────────────────
+// Dicek dari DUA sisi: sebagai pembeli, dan sebagai pemakai (siapa
+// tahu orang yang sama pernah jadi pemakai di SPK punya orang lain).
+// Firestore tidak bisa OR dua field beda dalam satu query, jadi
+// dijalankan dua query terpisah lalu digabung, dobelnya dibuang.
+export async function muatPesananPelanggan(pelangganId) {
+  const [snapPembeli, snapPemakai] = await Promise.all([
+    getDocs(query(collection(dbase, "transaksi"),
+      where("pembeliId", "==", pelangganId))),
+    getDocs(query(collection(dbase, "transaksi"),
+      where("pemakaiId", "==", pelangganId))),
+  ]);
+  const semua = new Map();
+  [...snapPembeli.docs, ...snapPemakai.docs].forEach((d) =>
+    semua.set(d.id, { id: d.id, ...d.data() }));
+  return [...semua.values()]
+    .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
+}
+
+const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
+
+function kartuPesanan(t) {
+  return `<article class="kartu">
+    <div class="kartu-atas">
+      <div>
+        <h3 class="kartu-judul mono">${aman(t.spkNo)}</h3>
+        <p class="kartu-sub">${aman(t.tipeNama)} · ${aman(t.warna)}</p>
+      </div>
+      <span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
+        ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}
+      </span>
+    </div>
+    <dl class="rinci">
+      <div><dt>Harga OTR</dt><dd>${rupiah(t.hargaOtr)}</dd></div>
+      <div><dt>Cara bayar</dt><dd>${aman((t.caraBayar || []).join(", "))}</dd></div>
+      <div><dt>Sales</dt><dd>${aman(t.salesNama)}</dd></div>
+      <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
+    </dl>
+  </article>`;
+}
+
 function kartuPelanggan(p) {
   return `<article class="kartu">
     <div class="kartu-atas">
@@ -144,7 +185,10 @@ function kartuPelanggan(p) {
         <h3 class="kartu-judul">${aman(p.nama)}</h3>
         <p class="kartu-sub mono">${aman(p.telepon || "tanpa nomor")}</p>
       </div>
-      <button class="tombol tombol--kecil" data-ubah="${p.id}">Ubah</button>
+      <div class="aksi aksi--rapat">
+        <button class="tombol tombol--kecil" data-pesanan="${p.id}">Lihat Pesanan</button>
+        <button class="tombol tombol--kecil" data-ubah="${p.id}">Ubah</button>
+      </div>
     </div>
     ${p.alamat ? `<p class="kartu-rinci">${aman(p.alamat)}${
       [p.kecamatan, p.kota, p.provinsi].filter(Boolean).length
@@ -153,6 +197,7 @@ function kartuPelanggan(p) {
     }</p>` : ""}
     ${!p.nik ? `<p class="kartu-rinci peringatan">NIK belum diisi</p>` : ""}
     <p class="kartu-rinci">Terdaftar ${tanggal(p.dibuatPada)}</p>
+    <div class="wadah-pesanan" data-wadah-pesanan="${p.id}"></div>
   </article>`;
 }
 
@@ -197,6 +242,31 @@ export async function halamanPelanggan(wadah) {
     if (bisaUbah) {
       daftarEl.querySelectorAll("[data-ubah]").forEach((b) =>
         b.addEventListener("click", () => buka(pelangganDari(b.dataset.ubah))));
+    }
+    daftarEl.querySelectorAll("[data-pesanan]").forEach((b) =>
+      b.addEventListener("click", () => bukaPesanan(b.dataset.pesanan)));
+  }
+
+  async function bukaPesanan(id) {
+    const wadahPesanan = daftarEl.querySelector(`[data-wadah-pesanan="${id}"]`);
+    if (!wadahPesanan) return;
+    // Toggle: klik lagi untuk menutup.
+    if (wadahPesanan.dataset.terbuka === "1") {
+      wadahPesanan.innerHTML = "";
+      wadahPesanan.dataset.terbuka = "0";
+      return;
+    }
+    wadahPesanan.innerHTML = `<p class="hampa">Memuat pesanan…</p>`;
+    wadahPesanan.dataset.terbuka = "1";
+    try {
+      const pesanan = await muatPesananPelanggan(id);
+      wadahPesanan.innerHTML = pesanan.length
+        ? `<div class="pemisah">Pesanan (${pesanan.length})</div>` +
+          pesanan.map(kartuPesanan).join("")
+        : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`;
+    } catch (err) {
+      wadahPesanan.innerHTML = `<p class="hampa">Gagal memuat pesanan: ${
+        aman(err.message)}</p>`;
     }
   }
 

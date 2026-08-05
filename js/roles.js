@@ -22,13 +22,16 @@
 
 const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Tipe Motor", rute: "#/kelola", kode: "SYS-01" },
-  { label: "Data Unit", rute: "#/stok", kode: "INV-06" },
   { label: "Referensi Tipe & Warna", rute: "#/referensi", kode: "SYS-05" },
   { label: "Master Leasing", rute: "#/leasing", kode: "SYS-06" },
   { label: "Master Rekening", rute: "#/rekening", kode: "SYS-07" },
 ]};
 
-const KATALOG_SAJA = { grup: "Master Data", butir: [
+const INVENTORY = { grup: "Inventory", butir: [
+  { label: "Data Unit", rute: "#/stok", kode: "INV-06" },
+]};
+
+const KATALOG_SAJA = { grup: "Inventory", butir: [
   { label: "Data Unit", rute: "#/katalog", kode: "INV-06" },
 ]};
 
@@ -49,7 +52,7 @@ export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
     beranda: "#/spk", batasDiskon: null, izin: ["*"],
-    menu: [SALES, MASTER_DATA, SISTEM_LENGKAP],
+    menu: [SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {
@@ -61,7 +64,7 @@ export const PERAN = {
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.
-    menu: [SALES, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
+    menu: [SALES, INVENTORY, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
   },
 
   sales: {

@@ -8,7 +8,7 @@ import {
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
-import { pecahHarga, MEREK_UTAMA } from "./config.js";
+import { MEREK_UTAMA } from "./config.js";
 import { muatSaranTipe, muatSaranWarna } from "./referensi.js";
 import {
   rupiah, aman, kabar, pasangFormatUang, bacaAngka,
@@ -57,7 +57,6 @@ export async function sinkronKatalog() {
 
 // ── Tampilan ──────────────────────────────────────────────────
 function kartuTipe(t, bisaUbah) {
-  const pecah = pecahHarga(t.hargaOtr, t.mewah);
   return `<article class="kartu">
     <div class="kartu-atas">
       <div>
@@ -73,10 +72,6 @@ function kartuTipe(t, bisaUbah) {
     <p class="angka-besar">${rupiah(t.hargaOtr)}</p>
     <p class="kartu-rinci">
       Offroad ${rupiah(t.hargaOffroad || 0)} · BBN ${rupiah(t.bbn || 0)}
-    </p>
-    <p class="kartu-rinci">
-      DPP ${rupiah(pecah.dpp)} · PPN ${rupiah(pecah.ppn)}
-      ${t.mewah ? " · kena PPnBM" : ""}
     </p>
     ${
       (t.warna || []).length
@@ -153,10 +148,6 @@ function formTipe(t = {}, saranTipe = [], saranWarna = []) {
       <span class="kunci">otomatis: offroad + BBN</span></label>
     <input class="isian isian--terang" id="t-harga" inputmode="numeric" readonly
            value="${t.hargaOtr ? Number(t.hargaOtr).toLocaleString("id-ID") : "0"}">
-    <label class="pilihan">
-      <input type="checkbox" id="t-mewah" ${t.mewah ? "checked" : ""}>
-      <span>Di atas 250 cc — misalnya GTS 300 (kena PPnBM, PPN 12% penuh)</span>
-    </label>
     <label class="label label--gelap" for="t-foto">Tautan foto</label>
     <input class="isian isian--terang" id="t-foto"
            value="${aman(t.foto || "")}" placeholder="https://…">
@@ -256,7 +247,7 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
       hargaOffroad,
       bbn,
       hargaOtr: hargaOffroad + bbn, // dihitung dari offroad + BBN
-      mewah: formEl.querySelector("#t-mewah").checked,
+      mewah: false,
       foto: formEl.querySelector("#t-foto").value.trim(),
       aktif: true,
       diubahPada: serverTimestamp(),
