@@ -6,7 +6,7 @@ import {
   limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru,
 } from "./db.js";
-import { bolehAkses } from "./auth.js";
+import { bolehAkses, sesi } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
 import { beritahu } from "./dialog.js";
@@ -221,8 +221,13 @@ export async function halamanStok(wadah) {
 
   async function lihatPembeli(unitId) {
     try {
+      // Sales cuma boleh lihat kalau itu SPK yang dia buat sendiri —
+      // kalau unitnya kepakai SPK sales lain, dianggap "tidak ada".
+      const filterSales = sesi && sesi.peran === "sales"
+        ? [where("salesUid", "==", sesi.uid)] : [];
       const snap = await getDocs(query(
-        collection(dbase, "transaksi"), where("unitId", "==", unitId), limit(1)
+        collection(dbase, "transaksi"), where("unitId", "==", unitId),
+        ...filterSales, limit(1)
       ));
       if (snap.empty) {
         await beritahu({

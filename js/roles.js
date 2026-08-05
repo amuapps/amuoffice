@@ -38,6 +38,10 @@ const KATALOG_SAJA = { grup: "Inventory", butir: [
   { label: "Data Unit", rute: "#/katalog", kode: "INV-06" },
 ]};
 
+const DASHBOARD = { grup: "Dashboard", butir: [
+  { label: "Dashboard Penjualan", rute: "#/dashboard", kode: "DSH-01" },
+]};
+
 const SALES = { grup: "Sales", butir: [
   { label: "SPK Baru", rute: "#/spk", kode: "SLS-01" },
   { label: "Riwayat & Laporan SPK", rute: "#/laporan", kode: "SLS-02" },
@@ -61,7 +65,7 @@ export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
     beranda: "#/spk", batasDiskon: null, izin: ["*"],
-    menu: [SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
+    menu: [DASHBOARD, SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {

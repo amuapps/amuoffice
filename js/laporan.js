@@ -6,7 +6,7 @@ import { dbase, collection, getDocs, query, where, orderBy, limit }
 import { rupiah, aman, tanggal } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
-import { bolehAkses } from "./auth.js";
+import { bolehAkses, sesi } from "./auth.js";
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
@@ -94,11 +94,21 @@ export async function halamanLaporan(wadah) {
     const dari = new Date(dariEl.value + "T00:00:00");
     const sampai = new Date(sampaiEl.value + "T23:59:59");
 
+    // Sales cuma boleh lihat SPK yang dia buat sendiri — bukan cuma
+    // disembunyikan di tampilan, tapi juga ditegakkan di
+    // firestore.rules (lihat blok /transaksi di sana).
+    const filter = [
+      where("dibuatPada", ">=", dari),
+      where("dibuatPada", "<=", sampai),
+    ];
+    if (sesi && sesi.peran === "sales") {
+      filter.push(where("salesUid", "==", sesi.uid));
+    }
+
     try {
       const snap = await getDocs(query(
         collection(dbase, "transaksi"),
-        where("dibuatPada", ">=", dari),
-        where("dibuatPada", "<=", sampai),
+        ...filter,
         orderBy("dibuatPada", "desc"),
         limit(500)
       ));

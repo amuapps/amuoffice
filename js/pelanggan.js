@@ -7,7 +7,7 @@ import {
   dbase, collection, doc, getDocs, setDoc, query, where, orderBy, limit,
   serverTimestamp, catat, tandaBaru,
 } from "./db.js";
-import { bolehAkses } from "./auth.js";
+import { bolehAkses, sesi } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
@@ -168,11 +168,16 @@ export function pasangHurufBesarPelanggan(wadah, awalan = "p") {
 // Firestore tidak bisa OR dua field beda dalam satu query, jadi
 // dijalankan dua query terpisah lalu digabung, dobelnya dibuang.
 export async function muatPesananPelanggan(pelangganId) {
+  // Sales cuma boleh lihat pesanan yang dia buat sendiri — walau
+  // konsumennya sama, order dari sales lain tidak boleh kelihatan.
+  const filterSales = sesi && sesi.peran === "sales"
+    ? [where("salesUid", "==", sesi.uid)] : [];
+
   const [snapPembeli, snapPemakai] = await Promise.all([
     getDocs(query(collection(dbase, "transaksi"),
-      where("pembeliId", "==", pelangganId))),
+      where("pembeliId", "==", pelangganId), ...filterSales)),
     getDocs(query(collection(dbase, "transaksi"),
-      where("pemakaiId", "==", pelangganId))),
+      where("pemakaiId", "==", pelangganId), ...filterSales)),
   ]);
   const semua = new Map();
   [...snapPembeli.docs, ...snapPemakai.docs].forEach((d) =>

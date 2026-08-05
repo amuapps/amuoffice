@@ -31,6 +31,7 @@ import { halamanAkses, muatAksesKustom } from "./akses.js";
 import { halamanLog } from "./log.js";
 import { halamanPersetujuan } from "./persetujuan.js";
 import { halamanAgen } from "./agen.js";
+import { halamanDashboard } from "./dashboard.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -246,6 +247,7 @@ function daftarkanHalaman(profil) {
     "#/log": (w) => halamanLog(w),
     "#/persetujuan": (w) => halamanPersetujuan(w),
     "#/agen": (w) => halamanAgen(w),
+    "#/dashboard": (w) => halamanDashboard(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
