@@ -27,6 +27,8 @@ import { halamanRekening } from "./rekening.js";
 import { halamanSpk } from "./spk.js";
 import { halamanLaporan } from "./laporan.js";
 import { halamanLabel, muatLabelKustom } from "./label.js";
+import { halamanAkses, muatAksesKustom } from "./akses.js";
+import { halamanLog } from "./log.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -238,6 +240,8 @@ function daftarkanHalaman(profil) {
     "#/spk": (w) => halamanSpk(w),
     "#/laporan": (w) => halamanLaporan(w),
     "#/label": (w) => halamanLabel(w, PERAN),
+    "#/akses": (w) => halamanAkses(w, PERAN),
+    "#/log": (w) => halamanLog(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
@@ -344,6 +348,7 @@ pantauSesi(
     el("layar-masuk").hidden = true;
     el("aplikasi").hidden = false;
     await muatLabelKustom(); // sekali per sesi, biar sidebar langsung benar
+    await muatAksesKustom(); // sekali per sesi, biar sidebar ikuti Panel Akses
     gambarPanel(profil);
     gambarNavigasi(profil);
     daftarkanHalaman(profil);

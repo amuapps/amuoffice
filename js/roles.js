@@ -3,6 +3,7 @@
 // tanpa menyentuh kode fitur yang sudah jalan.
 
 import { labelItem, labelGrup } from "./label.js";
+import { daftarKodeUntuk } from "./akses.js";
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
@@ -46,6 +47,8 @@ const SISTEM_LENGKAP = { grup: "Sistem", butir: [
   { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
   { label: "Pengguna", rute: "#/pengguna", kode: "SYS-03" },
   { label: "Ubah Nama Menu", rute: "#/label", kode: "SYS-08" },
+  { label: "Log Aktivitas", rute: "#/log", kode: "SYS-09" },
+  { label: "Panel Akses", rute: "#/akses", kode: "SYS-10" },
 ]};
 
 const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
@@ -90,14 +93,21 @@ export const PERAN = {
 // Menu asli tiap peran (dipakai apa adanya oleh halaman Ubah Nama
 // Menu, supaya selalu ada rujukan ke nama bawaan).
 // Semua butir menu, dikelompokkan, dengan nama tampilan yang SUDAH
-// mengikuti kustomisasi owner (kalau ada). Sidebar memakai ini.
+// mengikuti kustomisasi owner (kalau ada), DAN sudah disaring
+// mengikuti Panel Akses (kalau owner pernah mengatur ulang menu
+// peran ini). Sidebar memakai ini.
 export function menuBerlabel(peran) {
   const p = PERAN[peran];
   if (!p) return [];
-  return p.menu.map((g) => ({
-    grup: labelGrup(g.grup),
-    butir: g.butir.map((b) => ({ ...b, label: labelItem(b.kode, b.label) })),
-  }));
+  const kodeDiizinkan = peran === "owner" ? null : daftarKodeUntuk(peran);
+  return p.menu
+    .map((g) => ({
+      grup: labelGrup(g.grup),
+      butir: g.butir
+        .filter((b) => !kodeDiizinkan || !b.kode || kodeDiizinkan.includes(b.kode))
+        .map((b) => ({ ...b, label: labelItem(b.kode, b.label) })),
+    }))
+    .filter((g) => g.butir.length); // grup yang kosong (semua disembunyikan) tidak usah tampil
 }
 
 // Semua butir menu dalam satu daftar datar, untuk pendaftaran rute.
