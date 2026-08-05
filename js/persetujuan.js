@@ -5,7 +5,7 @@
 // tidak berubah sama sekali.
 
 import {
-  dbase, doc, collection, getDocs, updateDoc, query, where, orderBy,
+  dbase, doc, collection, getDocs, updateDoc, query, where,
   writeBatch, catat, sertakanLog,
 } from "./db.js";
 import { bolehAkses, konfirmasiPassword } from "./auth.js";
@@ -57,12 +57,15 @@ export async function halamanPersetujuan(wadah) {
   async function muat() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     try {
+      // Tanpa orderBy di query — supaya tidak butuh index gabungan
+      // di Firestore. Diurutkan di sini saja, di sisi aplikasi;
+      // jumlah pengajuan yang menunggu biasanya kecil, jadi ringan.
       const snap = await getDocs(query(
         collection(dbase, "pengajuan"),
-        where("status", "==", "menunggu"),
-        orderBy("dibuatPada", "desc")
+        where("status", "==", "menunggu")
       ));
-      data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     } catch (err) {
       daftarEl.innerHTML = `<div class="hampa"><p>Gagal memuat: ${
         aman(err.message)}</p></div>`;
