@@ -73,10 +73,26 @@ function gambarJejak() {
   const j = el("jejak");
   if (!j) return;
   if (!aktif) { j.innerHTML = ""; return; }
+  const grup = aktif.dataset.grup || "";
   j.innerHTML =
-    `<span class="jejak-modul">${aman(aktif.dataset.grup || "")}</span>` +
+    `<button type="button" class="jejak-modul" id="jejak-balik">${aman(grup)}</button>` +
     `<span class="jejak-pisah">›</span>` +
     `<span class="jejak-kini">${aman(aktif.dataset.nama || "")}</span>`;
+  // Belum ada halaman ringkasan per grup, jadi "kembali" di sini
+  // berarti membuka & menyorot kelompoknya di sidebar — cara
+  // tercepat untuk pindah ke menu lain di grup yang sama.
+  const tombolBalik = el("jejak-balik");
+  if (tombolBalik) {
+    tombolBalik.addEventListener("click", () => {
+      const wadahGrup = [...document.querySelectorAll(".nav-grup-nama")]
+        .find((x) => x.textContent === grup)?.closest(".nav-grup-wadah");
+      if (!wadahGrup) return;
+      wadahGrup.classList.remove("nav-grup--tutup");
+      wadahGrup.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      el("sisi").classList.add("sisi--buka");
+      el("tirai").hidden = false;
+    });
+  }
 }
 
 function gambarPanel(profil) {
@@ -144,8 +160,64 @@ function gambarNavigasi(profil) {
 // Tahap 1 baru menyediakan kerangkanya. Tiap tahap berikutnya
 // menambah file sendiri dan mendaftarkan halamannya di sini,
 // tanpa mengubah apa pun yang sudah jalan.
+
+// ── Tab (panel yang dibuka tetap ada, bisa pindah-pindah) ──────
+// Setiap kali sebuah menu dibuka, ditambahkan sebagai tab kalau
+// belum ada. Menutup tab tidak menghapus datanya di server, cuma
+// menyembunyikan panelnya — buka lagi dari sidebar kalau perlu.
+let tabTerbuka = [];
+
+function gambarTabBar() {
+  const bar = el("tab-bar");
+  if (!bar) return;
+  const rute = location.hash;
+  if (tabTerbuka.length <= 1) { bar.innerHTML = ""; bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.innerHTML = tabTerbuka.map((t) => `
+    <button type="button" class="tab ${t.rute === rute ? "tab--aktif" : ""}"
+            data-rute="${aman(t.rute)}">
+      <span class="tab-label">${aman(t.nama)}</span>
+      <span class="tab-tutup" data-tutup="${aman(t.rute)}" title="Tutup">×</span>
+    </button>`).join("");
+  bar.querySelectorAll(".tab").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      if (e.target.closest("[data-tutup]")) return;
+      pergiKe(b.dataset.rute);
+    });
+  });
+  bar.querySelectorAll("[data-tutup]").forEach((x) => {
+    x.addEventListener("click", (e) => {
+      e.stopPropagation();
+      tutupTab(x.dataset.tutup);
+    });
+  });
+}
+
+function bukaTab(m) {
+  if (!tabTerbuka.some((t) => t.rute === m.rute)) {
+    tabTerbuka.push({ rute: m.rute, nama: m.label });
+  }
+  gambarTabBar();
+}
+
+function tutupTab(rute) {
+  const idx = tabTerbuka.findIndex((t) => t.rute === rute);
+  if (idx === -1) return;
+  const sedangAktif = location.hash === rute;
+  tabTerbuka.splice(idx, 1);
+  if (sedangAktif && tabTerbuka.length) {
+    // Pindah ke tab tetangga, bukan langsung ke beranda — supaya
+    // urutan kerja yang lagi dibuka tidak tiba-tiba lompat jauh.
+    const tujuan = tabTerbuka[Math.max(0, idx - 1)];
+    pergiKe(tujuan.rute);
+  } else {
+    gambarTabBar();
+  }
+}
+
 function daftarkanHalaman(profil) {
   bersihkanRute();
+  tabTerbuka = [];
   const p = PERAN[profil.peran];
 
   // Layar yang sudah dibangun. Sisanya otomatis memakai layar
@@ -165,6 +237,7 @@ function daftarkanHalaman(profil) {
 
   semuaMenu(profil.peran).forEach((m) => {
     daftar(m.rute, () => true, () => {
+      bukaTab(m);
       const w = el("konten");
       if (khusus[m.rute]) {
         w.innerHTML = `<p class="hampa">Memuat…</p>`;
