@@ -577,6 +577,11 @@ select.isian {
 .cek h1 { font-family: var(--papan); font-size: 20px; font-weight: 600;
           margin: 12px 0 4px; }
 .cek--sah   { border-top: 3px solid var(--hijau); }
+.cek-centang {
+  width: 52px; height: 52px; margin: 0 auto 4px; border-radius: 50%;
+  background: var(--hijau); color: #fff; font-size: 28px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
 .cek--gagal { border-top: 3px solid var(--merah); }
 .cek-nomor { font-family: var(--angka); font-size: 13px; color: var(--abu);
              margin: 0 0 16px; }
@@ -900,3 +905,7 @@ select.isian {
   border-radius: 4px;
 }
 .tab-tutup:hover { background: rgba(0,0,0,.08); color: var(--tinta); }
+
+/* Baris tabel yang bisa diklik (mis. Data Unit — lihat pembeli) */
+.baris-klik { cursor: pointer; }
+.baris-klik:hover { background: var(--lapis); }
