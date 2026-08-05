@@ -20,6 +20,18 @@ function baris(label, isi) {
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 
+// Watermark: nama perusahaan diulang kecil-kecil & rapat, dibuat
+// dari SVG kecil (bukan gambar logo) supaya teksnya tetap tajam
+// dibaca-samar walau di-zoom, dan ukurannya kecil sekali (file-nya
+// cuma teks, bukan raster).
+const WM_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="34">
+  <text x="4" y="22" font-family="Segoe UI, Arial, sans-serif" font-size="10"
+        font-weight="700" fill="#000"
+        transform="rotate(-20 75 17)">${aman(SHOWROOM.nama)}</text>
+</svg>`;
+const WM_DATA_URI = "data:image/svg+xml," +
+  encodeURIComponent(WM_SVG.replace(/\s+/g, " ").trim());
+
 // CSS lembar cetak — salinan dari style.css (blok "Lembar cetak
 // SPK") supaya tab baru ini berdiri sendiri, tidak bergantung pada
 // file CSS aplikasi (yang lokasinya bisa beda-beda tergantung
@@ -39,16 +51,16 @@ const CSS_CETAK = `
   }
   .lembar-cetak::before {
     content: ""; position: absolute; inset: 0;
-    background-image: url("${location.origin}/logo.png");
-    background-repeat: repeat; background-size: 32px 32px;
-    opacity: .05; pointer-events: none; z-index: 0;
+    background-image: url("${WM_DATA_URI}");
+    background-repeat: repeat; background-size: 78px 18px;
+    opacity: .12; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .lembar-cetak > * { position: relative; z-index: 1; }
   .c-kop { display: flex; align-items: center; justify-content: space-between;
     gap: 16px; border-bottom: 2px solid #111; padding-bottom: 8px; }
-  .c-kop-kiri { display: flex; align-items: center; gap: 10px; }
-  .c-kop-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
+  .c-kop-kiri { display: flex; align-items: center; gap: 12px; }
+  .c-kop-logo { width: 52px; height: 52px; object-fit: contain; flex: none; }
   .c-pt { font-size: 16px; font-weight: 600; margin: 0; }
   .c-kecil { font-size: 10.5px; color: #555; margin: 2px 0 0; }
   .c-nomor table { font-size: 11px; }
