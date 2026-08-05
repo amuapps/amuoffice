@@ -8,10 +8,11 @@
 let terbuka = null;
 
 function bangun({
-  judul, pesan, jenis, nilai, petunjuk, oke, batal, bahaya,
+  judul, pesan, jenis, nilai, petunjuk, oke, batal, bahaya, tipeIsian,
 }) {
   const isian = jenis === "tanya"
     ? `<input class="isian isian--terang dialog-isian" id="dialog-nilai"
+              type="${tipeIsian || "text"}"
               value="${String(nilai || "").replace(/"/g, "&quot;")}"
               placeholder="${String(petunjuk || "").replace(/"/g, "&quot;")}">`
     : "";

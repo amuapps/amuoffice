@@ -49,6 +49,7 @@ const SISTEM_LENGKAP = { grup: "Sistem", butir: [
   { label: "Ubah Nama Menu", rute: "#/label", kode: "SYS-08" },
   { label: "Log Aktivitas", rute: "#/log", kode: "SYS-09" },
   { label: "Panel Akses", rute: "#/akses", kode: "SYS-10" },
+  { label: "Persetujuan Perubahan", rute: "#/persetujuan", kode: "SYS-11" },
 ]};
 
 const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [

@@ -26,6 +26,9 @@ const LABEL_AKSI = {
   rekening_diubah: "Mengubah rekening",
   rekening_status_diubah: "Mengubah status rekening",
   spk_dibuat: "Membuat SPK",
+  perubahan_spk_diajukan: "Mengajukan perubahan pembeli/pemakai SPK",
+  perubahan_spk_disetujui: "Menyetujui perubahan pembeli/pemakai SPK",
+  perubahan_spk_ditolak: "Menolak perubahan pembeli/pemakai SPK",
   label_diubah: "Mengubah nama menu",
   akses_diubah: "Mengubah hak akses peran",
 };

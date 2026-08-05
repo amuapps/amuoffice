@@ -4,7 +4,8 @@ import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { auth, dbase, doc, getDoc, catat } from "./db.js";
+import { auth, dbase, doc, getDoc, catat,
+  EmailAuthProvider, reauthenticateWithCredential } from "./db.js";
 import { PERAN, boleh } from "./roles.js";
 import { kabar } from "./ui.js";
 
@@ -110,6 +111,17 @@ export function pantauSesi(saatMasuk, saatKeluar) {
 export function bolehAkses(izin) {
   if (!sesi) return false;
   return boleh(sesi.peran, izin);
+}
+
+// Minta password diketik ulang sebelum aksi sensitif (mis. mengubah
+// data pembeli/pemakai di SPK yang sudah tersimpan). Melempar error
+// kalau salah — pemanggil cukup try/catch, tidak perlu urus detail
+// kode error Firebase-nya.
+export async function konfirmasiPassword(password) {
+  const u = auth.currentUser;
+  if (!u || !u.email) throw new Error("Sesi tidak valid, coba masuk ulang.");
+  const kredensial = EmailAuthProvider.credential(u.email, password);
+  await reauthenticateWithCredential(u, kredensial); // melempar kalau salah
 }
 
 export function pesanTolak(e) {

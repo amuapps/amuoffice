@@ -10,7 +10,7 @@ import {
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth }
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { FIREBASE, MODE_UJI } from "./config.js";
@@ -29,7 +29,7 @@ export const dbase = initializeFirestore(app, {
 export {
   collection, doc, getDoc, setDoc, addDoc, updateDoc, runTransaction,
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
-  getDocs, increment,
+  getDocs, increment, EmailAuthProvider, reauthenticateWithCredential,
 };
 
 // ── Status koneksi ────────────────────────────────────────────

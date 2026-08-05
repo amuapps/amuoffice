@@ -5,6 +5,7 @@ import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
 import { rupiah, aman, tanggal } from "./ui.js";
 import { cetakSpk } from "./cetak.js";
+import { pasangEditPelangganSpk } from "./spk.js";
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
@@ -25,7 +26,13 @@ function baris(t) {
     <td>${rupiah(t.hargaOtr)}</td>
     <td><span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
       ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span></td>
-    <td><button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak</button></td>
+    <td style="white-space:nowrap">
+      <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak</button>
+      <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
+    </td>
+  </tr>
+  <tr data-baris-edit="${t.id}" hidden>
+    <td colspan="7"><div data-wadah-edit="${t.id}"></div></td>
   </tr>`;
 }
 
@@ -115,6 +122,20 @@ export async function halamanLaporan(wadah) {
       b.addEventListener("click", () => {
         const t = dataSpk.find((x) => x.id === b.dataset.cetak);
         cetakSpk(t);
+      }));
+    barisEl.querySelectorAll("[data-ubah]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = dataSpk.find((x) => x.id === b.dataset.ubah);
+        const barisSembunyi = barisEl.querySelector(`[data-baris-edit="${t.id}"]`);
+        const target = barisEl.querySelector(`[data-wadah-edit="${t.id}"]`);
+        const sedangTerbuka = !barisSembunyi.hidden;
+        if (sedangTerbuka) {
+          barisSembunyi.hidden = true;
+          target.innerHTML = "";
+          return;
+        }
+        barisSembunyi.hidden = false;
+        pasangEditPelangganSpk(target, t, muat);
       }));
   }
 

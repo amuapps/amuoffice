@@ -8,7 +8,8 @@
 // yang berstatus Indent, tanpa membuat unit palsu di Data Unit.
 
 import {
-  dbase, doc, collection, writeBatch, serverTimestamp, catat,
+  dbase, doc, collection, setDoc, getDocs, query, where, limit,
+  writeBatch, serverTimestamp, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
 } from "./db.js";
 import { sesi } from "./auth.js";
@@ -400,4 +401,166 @@ export async function halamanSpk(wadah) {
       tombol.textContent = "Simpan SPK";
     }
   });
+}
+
+// ── Ajukan Perubahan Data Pembeli/Pemakai ───────────────────────
+// SENGAJA dibatasi cuma bagian ini (Customer Info) — tidak
+// termasuk unit/harga/cara bayar, karena itu menyangkut status
+// stok & pembayaran yang butuh alur lebih hati-hati.
+//
+// Sales/Admin cuma bisa MENGAJUKAN — perubahan baru benar-benar
+// tersimpan ke SPK setelah disetujui Owner lewat halaman
+// Persetujuan Perubahan (persetujuan.js). Dipanggil dari halaman
+// lain (Riwayat SPK, Lihat Pesanan) dengan kontainer kosong untuk
+// diisi form-nya.
+export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
+  kontainer.innerHTML = `<p class="hampa">Memeriksa status pengajuan…</p>`;
+
+  // Jangan sampai dobel pengajuan untuk SPK yang sama.
+  try {
+    const sedangMenunggu = await getDocs(query(
+      collection(dbase, "pengajuan"),
+      where("transaksiId", "==", t.id),
+      where("status", "==", "menunggu"),
+      limit(1)
+    ));
+    if (!sedangMenunggu.empty) {
+      kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
+        <p class="hampa">Sudah ada pengajuan perubahan untuk SPK ini yang
+          masih menunggu persetujuan Owner. Tunggu diproses dulu sebelum
+          mengajukan lagi.</p>
+        <button class="tombol tombol--kecil" id="tutup-edit-${t.id}">Tutup</button>
+      </div>`;
+      kontainer.querySelector(`#tutup-edit-${t.id}`)
+        .addEventListener("click", () => (kontainer.innerHTML = ""));
+      return;
+    }
+  } catch { /* kalau gagal cek, tetap lanjut tampilkan form — jangan macet */ }
+
+  const [saranKecamatan, saranKota] = await Promise.all([
+    muatSaranKecamatan(), muatSaranKota(),
+  ]).catch(() => [[], []]);
+
+  const pemakaiSama = t.pemakaiSamaDenganPembeli !== false;
+
+  kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
+    <h3 class="judul" style="font-size:15px">
+      Ajukan Perubahan Pembeli/Pemakai — <span class="mono">${aman(t.spkNo)}</span>
+    </h3>
+    <p class="petunjuk">Cuma data pembeli &amp; pemakai yang bisa diajukan di
+      sini. Unit, harga, dan cara bayar tidak bisa diubah lewat form ini.
+      Perubahan baru berlaku setelah <b>disetujui Owner</b>.</p>
+    <form id="form-edit-${t.id}" class="form">
+      <h4 class="judul" style="font-size:14px">Pembeli</h4>
+      ${formPelanggan(t.pembeli || {}, "epembeli", saranKecamatan, saranKota)}
+
+      <label class="pilihan" style="margin-top:8px">
+        <input type="checkbox" id="e-sama-${t.id}" ${pemakaiSama ? "checked" : ""}>
+        <span>Pemakai kendaraan sama dengan pembeli di atas</span>
+      </label>
+      <div id="e-wadah-pemakai-${t.id}" ${pemakaiSama ? "hidden" : ""}>
+        <h4 class="judul" style="font-size:14px;margin-top:8px">Pemakai</h4>
+        ${formPelanggan(t.pemakai || {}, "epemakai", saranKecamatan, saranKota)}
+      </div>
+
+      <div class="aksi">
+        <button class="tombol tombol--utama" type="submit">Kirim Pengajuan</button>
+        <button class="tombol tombol--sunyi tombol--gelap" type="button"
+                id="batal-edit-${t.id}">Batal</button>
+      </div>
+    </form>
+  </div>`;
+
+  pasangHurufBesarPelanggan(kontainer, "epembeli");
+  pasangHurufBesarPelanggan(kontainer, "epemakai");
+
+  const samaEl = kontainer.querySelector(`#e-sama-${t.id}`);
+  const wadahPemakai = kontainer.querySelector(`#e-wadah-pemakai-${t.id}`);
+  samaEl.addEventListener("change", () => { wadahPemakai.hidden = samaEl.checked; });
+
+  kontainer.querySelector(`#batal-edit-${t.id}`)
+    .addEventListener("click", () => { kontainer.innerHTML = ""; });
+
+  kontainer.querySelector(`#form-edit-${t.id}`).addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pembeli = bacaFormPelanggan(kontainer, "epembeli");
+    if (!pembeli.nama) {
+      kabar("Nama pembeli wajib diisi.", "rem");
+      return;
+    }
+    const sama = samaEl.checked;
+    const pemakai = sama ? null : bacaFormPelanggan(kontainer, "epemakai");
+    if (!sama && !pemakai.nama) {
+      kabar("Nama pemakai wajib diisi, atau centang \"sama dengan pembeli\".", "rem");
+      return;
+    }
+
+    const tombol = e.target.querySelector('button[type="submit"]');
+    tombol.disabled = true;
+    tombol.textContent = "Mengirim…";
+
+    try {
+      const dataLama = {
+        pembeli: t.pembeli || null, pemakai: t.pemakai || null,
+        pemakaiSamaDenganPembeli: pemakaiSama,
+      };
+      const dataBaru = {
+        pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
+      };
+      const ref = doc(collection(dbase, "pengajuan"));
+      await setDoc(ref, {
+        jenis: "pelanggan_spk",
+        transaksiId: t.id, spkNo: t.spkNo,
+        diajukanOlehUid: sesi ? sesi.uid : null,
+        diajukanOlehNama: sesi ? sesi.nama : "-",
+        status: "menunggu",
+        dataLama, dataBaru,
+        catatan: buatCatatanPerubahan(dataLama, dataBaru),
+        ...tandaBaru(),
+      });
+      await catat("perubahan_spk_diajukan", {
+        koleksi: "transaksi", docId: t.id, ringkas: t.spkNo,
+      });
+
+      kabar("Pengajuan terkirim, menunggu persetujuan Owner.", "netral");
+      kontainer.innerHTML = "";
+      if (muatUlang) await muatUlang();
+    } catch (err) {
+      kabar("Gagal mengirim pengajuan: " + err.message, "rem");
+      tombol.disabled = false;
+      tombol.textContent = "Kirim Pengajuan";
+    }
+  });
+}
+
+// Bandingkan data lama vs baru jadi kalimat yang gampang dibaca
+// Owner — supaya jelas apa yang sebenarnya berubah tanpa perlu
+// bongkar dua obyek JSON sendiri.
+const LABEL_FIELD = {
+  nama: "Nama", telepon: "Telepon", nik: "NIK", alamat: "Alamat",
+  kelurahan: "Kelurahan", kecamatan: "Kecamatan", kota: "Kabupaten/Kota",
+  provinsi: "Provinsi", kodePos: "Kode Pos", email: "Email",
+};
+
+export function buatCatatanPerubahan(dataLama, dataBaru) {
+  const baris = [];
+  if ((dataLama.pemakaiSamaDenganPembeli !== false) !==
+      (dataBaru.pemakaiSamaDenganPembeli !== false)) {
+    baris.push(`"Pemakai sama dengan pembeli": ${
+      dataLama.pemakaiSamaDenganPembeli !== false ? "Ya" : "Tidak"} → ${
+      dataBaru.pemakaiSamaDenganPembeli !== false ? "Ya" : "Tidak"}`);
+  }
+  ["pembeli", "pemakai"].forEach((sisi) => {
+    const lama = dataLama[sisi] || {};
+    const baruObj = dataBaru[sisi] || {};
+    Object.keys(LABEL_FIELD).forEach((f) => {
+      const v1 = (lama[f] || "").toString().trim();
+      const v2 = (baruObj[f] || "").toString().trim();
+      if (v1 !== v2) {
+        baris.push(`${sisi === "pembeli" ? "Pembeli" : "Pemakai"} — ` +
+          `${LABEL_FIELD[f]}: "${v1 || "-"}" → "${v2 || "-"}"`);
+      }
+    });
+  });
+  return baris.length ? baris.join("\n") : "Tidak ada perubahan data yang terdeteksi.";
 }

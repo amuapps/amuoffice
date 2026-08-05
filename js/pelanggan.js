@@ -10,6 +10,7 @@ import {
 import { bolehAkses } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar } from "./ui.js";
 import { cetakSpk } from "./cetak.js";
+import { pasangEditPelangganSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
   from "./referensi.js";
 
@@ -200,6 +201,8 @@ function kartuPesanan(t) {
       <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
     </dl>
     <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
+    <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
+    <div data-wadah-edit-pesanan="${t.id}"></div>
   </article>`;
 }
 
@@ -293,6 +296,18 @@ export async function halamanPelanggan(wadah) {
       wadahPesanan.querySelectorAll("[data-cetak-pesanan]").forEach((b) =>
         b.addEventListener("click", () =>
           cetakSpk(pesanan.find((x) => x.id === b.dataset.cetakPesanan))));
+      wadahPesanan.querySelectorAll("[data-ubah-pesanan]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const t = pesanan.find((x) => x.id === b.dataset.ubahPesanan);
+          const target = wadahPesanan.querySelector(
+            `[data-wadah-edit-pesanan="${t.id}"]`);
+          pasangEditPelangganSpk(target, t, () => {
+            // Reset flag toggle dulu, supaya panggilan ulang bukaPesanan
+            // memuat ulang datanya (bukan malah menutup panelnya).
+            wadahPesanan.dataset.terbuka = "0";
+            return bukaPesanan(id);
+          });
+        }));
     } catch (err) {
       wadahPesanan.innerHTML = `<p class="hampa">Gagal memuat pesanan: ${
         aman(err.message)}</p>`;

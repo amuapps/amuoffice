@@ -29,6 +29,7 @@ import { halamanLaporan } from "./laporan.js";
 import { halamanLabel, muatLabelKustom } from "./label.js";
 import { halamanAkses, muatAksesKustom } from "./akses.js";
 import { halamanLog } from "./log.js";
+import { halamanPersetujuan } from "./persetujuan.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -242,6 +243,7 @@ function daftarkanHalaman(profil) {
     "#/label": (w) => halamanLabel(w, PERAN),
     "#/akses": (w) => halamanAkses(w, PERAN),
     "#/log": (w) => halamanLog(w),
+    "#/persetujuan": (w) => halamanPersetujuan(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
