@@ -24,6 +24,59 @@ function baris(label, isi) {
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 
+// ── Riwayat pembayaran bertahap (DP → cicilan → pelunasan) ──────
+// Total dihitung dari riwayatBayar kalau sudah ada (SPK baru).
+// SPK lama yang belum punya riwayatBayar (dicetak sebelum fitur ini
+// ada) jatuh balik ke jumlahBayar tunggal — tetap bisa dipakai,
+// nanti dibetulkan otomatis begitu dibuka (lihat mintaCetakKuitansi).
+export function hitungTotalDibayar(t) {
+  if (Array.isArray(t.riwayatBayar) && t.riwayatBayar.length) {
+    return t.riwayatBayar.reduce((s, r) => s + (r.jumlah || 0), 0);
+  }
+  return t.jumlahBayar || 0;
+}
+function sudahLunas(t) {
+  const total = hitungTotalDibayar(t);
+  return (t.hargaOtr || 0) > 0 && total >= (t.hargaOtr || 0);
+}
+
+// Label tombol yang konsisten di semua halaman (Riwayat SPK, Lihat
+// Pesanan, layar konfirmasi SPK baru) — supaya jelas tahap mana
+// yang sedang berlangsung tanpa perlu buka detailnya dulu.
+export function labelTombolKuitansi(t) {
+  if (!t.kuitansiTercetak) return "Catat Pembayaran & Cetak Kuitansi";
+  return sudahLunas(t) ? "Cetak Ulang Kuitansi" : "Catat Pembayaran";
+}
+// Sumber pelunasan/cicilan SETELAH pembayaran pertama otomatis
+// mengikuti data yang SUDAH ada di SPK sejak awal — tidak perlu
+// tanya manual. Kredit → leasing yang sudah dipilih di SPK.
+// Tunai/transfer → tetap dari pembeli sendiri.
+async function tentukanSumber(t) {
+  if ((t.caraBayar || []).includes("kredit") && t.kredit?.leasingId) {
+    await muatLeasing();
+    const l = leasingDari(t.kredit.leasingId);
+    return { sumber: "leasing", sumberNama: l ? l.nama : "Leasing" };
+  }
+  return { sumber: "konsumen", sumberNama: t.pembeli?.nama || "-" };
+}
+
+// Data yang ditulis ke kuitansi_publik — SENGAJA cuma info yang aman
+// dilihat publik (nama pembeli & ringkasan transaksi), BUKAN NIK,
+// alamat, atau nomor telepon. Satu dokumen per LEMBAR PEMBAYARAN
+// (bukan per SPK) — DP dan pelunasan punya kode QR masing-masing.
+function dataKuitansiPublik(t, entri, totalSetelah) {
+  const sisa = Math.max((t.hargaOtr || 0) - totalSetelah, 0);
+  return {
+    kuitansiNo: entri.kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama,
+    warna: t.warna, jumlahBayar: entri.jumlah, sisaTagihan: sisa,
+    tanggal: tanggal(entri.tanggal), showroomNama: SHOWROOM.nama,
+    namaPembeli: t.pembeli?.nama || "",
+    diterimaDari: entri.sumberNama,
+    caraBayar: (t.caraBayar || []).map((c) => LABEL_CARA_BAYAR[c] || c),
+    keterangan: entri.keterangan,
+  };
+}
+
 // Owner sering kepakai buat input SPK waktu belum ada sales yang
 // menangani (mis. saat uji coba) — tampilkan "OWNER" di cetakan,
 // bukan nama pribadinya, supaya tidak terkesan asal-asalan/kurang
@@ -383,104 +436,203 @@ export async function cetakSpk(t) {
   tabBaru.document.body.innerHTML = isi;
 }
 
-// ── Cetak Kuitansi (rangkap 3) ───────────────────────────────────
-// Mencetak kuitansi PERTAMA KALI mengunci data pembeli/pemakai/unit
-// SPK ini — sesudah itu, pengajuan perubahan (spk.js) ditolak
-// otomatis. Makanya wajib konfirmasi password dulu, dengan
-// peringatan yang jelas, sebelum kuncinya benar-benar dipasang.
-// Sekalian menulis salinan tidak-sensitif ke kuitansi_publik, buat
-// QR code validasi yang dicetak di kuitansinya.
+// ── Catat Pembayaran & Cetak Kuitansi ───────────────────────────
+// Satu SPK bisa dibayar bertahap: DP dulu, lalu cicilan/pelunasan
+// menyusul — tiap pembayaran dapat kuitansi & nomor sendiri, bukan
+// cetak ulang yang sama. Cuma PEMBAYARAN PERTAMA yang mengunci data
+// pembeli/pemakai/unit (wajib password) — sesudah itu, tambah
+// pembayaran tidak perlu password lagi, tinggal catat & cetak.
 export async function mintaCetakKuitansi(t, muatUlang) {
   if (!t) return;
 
-  // Sudah pernah dicetak sebelumnya → cetak ulang saja, tidak perlu
-  // password lagi (kuncinya sudah terpasang sejak pertama kali).
-  // Setiap cetak ulang, PASTIKAN kuitansi_publik ada & sinkron —
-  // bukan cuma kalau kuitansiKode kosong. Ini supaya kalau dulu
-  // pernah gagal menulis ke kuitansi_publik (mis. rules belum aktif
-  // waktu itu, walau kuitansiKode di transaksi sudah kepalang
-  // tersimpan), percobaan berikutnya tetap membetulkannya, bukan
-  // cuma diam karena mengira sudah beres.
-  if (t.kuitansiTercetak) {
-    let kodeAman = t.kuitansiKode || (t.kuitansiNo ? t.kuitansiNo.replace(/\//g, "-") : "");
-    if (kodeAman) {
+  // ── Sudah lunas: tidak ada lagi yang bisa dicatat, cuma cetak
+  // ulang kuitansi TERAKHIR. Sekalian pastikan unitnya (kalau ada)
+  // sudah Terjual — untuk SPK yang lunas sebelum langkah otomatis
+  // ini dibuatkan, unitnya bisa saja masih nyangkut di Dipesan.
+  if (t.kuitansiTercetak && sudahLunas(t)) {
+    if (t.unitId) {
       try {
-        if (!t.kuitansiKode) {
-          await updateDoc(doc(dbase, "transaksi", t.id), { kuitansiKode: kodeAman });
-        }
-        await setDoc(doc(dbase, "kuitansi_publik", kodeAman), {
-          kuitansiNo: t.kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama,
-          warna: t.warna, jumlahBayar: t.jumlahBayar || 0,
-          tanggal: tanggal(t.dibuatPada), showroomNama: SHOWROOM.nama,
-        });
-      } catch (err) {
-        kabar("Peringatan: gagal menyinkronkan QR validasi (" +
-              err.message + "). Kuitansi tetap dicetak.", "rem");
-      }
+        await updateDoc(doc(dbase, "units", t.unitId), { status: "terjual" });
+      } catch { /* tidak fatal, lanjut cetak walau ini gagal */ }
     }
-    await cetakKuitansi({ ...t, kuitansiKode: kodeAman });
+    const riwayat = Array.isArray(t.riwayatBayar) ? t.riwayatBayar : [];
+    const terakhir = riwayat.length ? riwayat[riwayat.length - 1] : {
+      kuitansiNo: t.kuitansiNo, kodeAman: t.kuitansiKode,
+      jumlah: t.jumlahBayar || 0, sumber: "konsumen",
+      sumberNama: t.pembeli?.nama || "-", keterangan: "Lunas",
+      tanggal: t.dibuatPada,
+    };
+    try {
+      await setDoc(doc(dbase, "kuitansi_publik", terakhir.kodeAman),
+        dataKuitansiPublik(t, terakhir, hitungTotalDibayar(t)));
+    } catch (err) {
+      kabar("Peringatan: gagal menyinkronkan QR validasi (" +
+            err.message + ").", "rem");
+    }
+    await cetakKuitansi(t, terakhir, hitungTotalDibayar(t));
     return;
   }
 
-  const lanjut = await konfirmasi({
-    judul: "Tinjau ulang sebelum mencetak kuitansi",
-    pesan: "Setelah kuitansi ini dicetak, data kendaraan, identitas " +
-           "pembeli, dan nama pemakai (STNK) pada SPK ini TIDAK BISA " +
-           "diubah lagi lewat sistem. Pastikan semuanya sudah benar. " +
-           "Lanjutkan cetak kuitansi?",
-    oke: "Ya, Lanjutkan", bahaya: true,
-  });
-  if (!lanjut) return;
+  // ── SPK lama yang sudah terkunci TAPI belum punya riwayatBayar
+  // (dicetak sebelum fitur cicilan ini ada) — jadikan data lama
+  // sebagai pembayaran pertama, baru lanjut ke alur normal.
+  let tKerja = t;
+  if (t.kuitansiTercetak && !Array.isArray(t.riwayatBayar)) {
+    const kodeAman = t.kuitansiKode || (t.kuitansiNo ? t.kuitansiNo.replace(/\//g, "-") : "");
+    const entriPertama = {
+      kuitansiNo: t.kuitansiNo, kodeAman,
+      jumlah: t.jumlahBayar || 0, sumber: "konsumen",
+      sumberNama: t.pembeli?.nama || "-",
+      keterangan: sudahLunas(t) ? "Lunas" : "DP",
+      tanggal: t.dibuatPada || new Date(),
+    };
+    try {
+      await updateDoc(doc(dbase, "transaksi", t.id), {
+        riwayatBayar: [entriPertama],
+        totalDibayar: entriPertama.jumlah,
+        statusBayar: sudahLunas(t) ? "lunas" : "dp",
+        kuitansiKode: kodeAman,
+      });
+    } catch { /* tetap lanjut walau pembetulan gagal ditulis */ }
+    tKerja = {
+      ...t, riwayatBayar: [entriPertama], totalDibayar: entriPertama.jumlah,
+      statusBayar: sudahLunas(t) ? "lunas" : "dp", kuitansiKode: kodeAman,
+    };
+  }
 
-  const password = await tanya({
-    judul: "Konfirmasi password",
-    pesan: "Masukkan password Anda untuk mengunci & mencetak kuitansi " +
-           `SPK ${t.spkNo}.`,
-    petunjuk: "Password",
-    tipeIsian: "password",
-  });
-  if (password === null) return;
+  // ── Belum pernah dicetak SAMA SEKALI: ini pembayaran PERTAMA,
+  // wajib tinjau ulang + password (mengunci identitas & unit).
+  if (!tKerja.kuitansiTercetak) {
+    const lanjut = await konfirmasi({
+      judul: "Tinjau ulang sebelum mencetak kuitansi",
+      pesan: "Setelah kuitansi ini dicetak, data kendaraan, identitas " +
+             "pembeli, dan nama pemakai (STNK) pada SPK ini TIDAK BISA " +
+             "diubah lagi lewat sistem. Pastikan semuanya sudah benar. " +
+             "Lanjutkan cetak kuitansi?",
+      oke: "Ya, Lanjutkan", bahaya: true,
+    });
+    if (!lanjut) return;
 
-  try {
-    await konfirmasiPassword(password);
-  } catch {
-    kabar("Password salah. Kuitansi dibatalkan.", "rem");
+    const password = await tanya({
+      judul: "Konfirmasi password",
+      pesan: "Masukkan password Anda untuk mengunci & mencetak kuitansi " +
+             `SPK ${tKerja.spkNo}.`,
+      petunjuk: "Password",
+      tipeIsian: "password",
+    });
+    if (password === null) return;
+
+    try {
+      await konfirmasiPassword(password);
+    } catch {
+      kabar("Password salah. Kuitansi dibatalkan.", "rem");
+      return;
+    }
+
+    try {
+      const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
+      const kodeAman = kuitansiNo.replace(/\//g, "-");
+      const jumlah = tKerja.jumlahBayar || 0;
+      const lunasSekarang = (tKerja.hargaOtr || 0) > 0 && jumlah >= (tKerja.hargaOtr || 0);
+      const entri = {
+        kuitansiNo, kodeAman, jumlah, sumber: "konsumen",
+        sumberNama: tKerja.pembeli?.nama || "-",
+        keterangan: lunasSekarang ? "Lunas" : "DP",
+        tanggal: new Date(),
+      };
+
+      await updateDoc(doc(dbase, "transaksi", t.id), {
+        kuitansiTercetak: true, kuitansiNo, kuitansiKode: kodeAman,
+        kuitansiTercetakPada: serverTimestamp(),
+        riwayatBayar: [entri], totalDibayar: jumlah,
+        statusBayar: lunasSekarang ? "lunas" : "dp",
+      });
+      // Begitu lunas & unitnya nyata (bukan Indent), pindahkan status
+      // Data Unit dari Dipesan → Terjual. Kalau masih DP, unit tetap
+      // Dipesan (belum terjual sungguhan).
+      if (lunasSekarang && tKerja.unitId) {
+        try {
+          await updateDoc(doc(dbase, "units", tKerja.unitId), { status: "terjual" });
+        } catch { /* jangan sampai gagal di sini menghentikan kuitansi */ }
+      }
+      await setDoc(doc(dbase, "kuitansi_publik", kodeAman),
+        dataKuitansiPublik(tKerja, entri, jumlah));
+      await catat("kuitansi_dicetak", {
+        koleksi: "transaksi", docId: t.id, ringkas: `${tKerja.spkNo} · ${kuitansiNo}`,
+      });
+      kabar(`Kuitansi ${kuitansiNo} tercetak & data SPK ini terkunci.`, "netral");
+      await cetakKuitansi(
+        { ...tKerja, riwayatBayar: [entri], totalDibayar: jumlah }, entri, jumlah);
+      if (muatUlang) await muatUlang();
+    } catch (err) {
+      kabar("Gagal mencetak kuitansi: " + err.message, "rem");
+    }
+    return;
+  }
+
+  // ── Sudah terkunci, BELUM lunas: catat pembayaran BERIKUTNYA
+  // (cicilan/pelunasan) — tidak perlu password lagi.
+  const totalSaatIni = hitungTotalDibayar(tKerja);
+  const sisaSebelum = (tKerja.hargaOtr || 0) - totalSaatIni;
+  const isian = await tanya({
+    judul: "Catat Pembayaran",
+    pesan: `Sisa tagihan SPK ${tKerja.spkNo}: ${rupiah(sisaSebelum)}. ` +
+           `Masukkan jumlah yang diterima sekarang (Rp).`,
+    petunjuk: "Contoh: 20000000",
+  });
+  if (isian === null) return;
+  const jumlahBaru = Number(String(isian).replace(/\D/g, "")) || 0;
+  if (jumlahBaru <= 0) {
+    kabar("Jumlah harus lebih dari 0.", "rem");
     return;
   }
 
   try {
     const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
     const kodeAman = kuitansiNo.replace(/\//g, "-");
-    const tglCetak = tanggal(new Date());
+    const { sumber, sumberNama } = await tentukanSumber(tKerja);
+    const totalBaru = totalSaatIni + jumlahBaru;
+    const lunasBaru = (tKerja.hargaOtr || 0) > 0 && totalBaru >= (tKerja.hargaOtr || 0);
+    const entri = {
+      kuitansiNo, kodeAman, jumlah: jumlahBaru, sumber, sumberNama,
+      keterangan: lunasBaru ? "Pelunasan" : "Cicilan",
+      tanggal: new Date(),
+    };
+    const riwayatBaru = [...(tKerja.riwayatBayar || []), entri];
 
     await updateDoc(doc(dbase, "transaksi", t.id), {
-      kuitansiTercetak: true, kuitansiNo, kuitansiKode: kodeAman,
-      kuitansiTercetakPada: serverTimestamp(),
+      riwayatBayar: riwayatBaru, totalDibayar: totalBaru,
+      statusBayar: lunasBaru ? "lunas" : "dp",
     });
-    // Salinan TIDAK SENSITIF saja (bukan NIK/alamat/dsb) — ini yang
-    // dibaca siapa saja lewat scan QR, tanpa perlu login.
-    await setDoc(doc(dbase, "kuitansi_publik", kodeAman), {
-      kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama, warna: t.warna,
-      jumlahBayar: t.jumlahBayar || 0, tanggal: tglCetak,
-      showroomNama: SHOWROOM.nama,
+    if (lunasBaru && tKerja.unitId) {
+      try {
+        await updateDoc(doc(dbase, "units", tKerja.unitId), { status: "terjual" });
+      } catch { /* jangan sampai gagal di sini menghentikan kuitansi */ }
+    }
+    await setDoc(doc(dbase, "kuitansi_publik", kodeAman),
+      dataKuitansiPublik(tKerja, entri, totalBaru));
+    await catat("pembayaran_dicatat", {
+      koleksi: "transaksi", docId: t.id,
+      ringkas: `${tKerja.spkNo} · ${kuitansiNo} · ${rupiah(jumlahBaru)}`,
     });
-    await catat("kuitansi_dicetak", {
-      koleksi: "transaksi", docId: t.id, ringkas: `${t.spkNo} · ${kuitansiNo}`,
-    });
-    kabar(`Kuitansi ${kuitansiNo} tercetak & data SPK ini terkunci.`, "netral");
-    await cetakKuitansi({
-      ...t, kuitansiNo, kuitansiKode: kodeAman, kuitansiTercetak: true,
-    });
+    kabar(`Pembayaran ${rupiah(jumlahBaru)} tercatat (${kuitansiNo}).`, "netral");
+    await cetakKuitansi(
+      { ...tKerja, riwayatBayar: riwayatBaru, totalDibayar: totalBaru },
+      entri, totalBaru);
     if (muatUlang) await muatUlang();
   } catch (err) {
-    kabar("Gagal mencetak kuitansi: " + err.message, "rem");
+    kabar("Gagal mencatat pembayaran: " + err.message, "rem");
   }
 }
 
-function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar, namaSalesTampil) {
-  const urlValidasi = `${location.origin}${location.pathname}#/cek/${t.kuitansiKode || ""}`;
+function satuKuitansi(t, unit, entri, totalSetelah, nomorLembar, labelLembar, namaSalesTampil) {
+  const urlValidasi = `${location.origin}${location.pathname}#/cek/${entri.kodeAman || ""}`;
   const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
     encodeURIComponent(urlValidasi);
+  const sisa = Math.max((t.hargaOtr || 0) - totalSetelah, 0);
+  const labelDiterima = entri.sumber === "leasing"
+    ? `DIBAYAR OLEH (${aman(entri.sumberNama).toUpperCase()})`
+    : "DIBAYAR OLEH (KONSUMEN)";
 
   return `
     ${nomorLembar > 1 ? `<div class="k-potong">GUNTING DI SINI</div>` : ""}
@@ -495,23 +647,25 @@ function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar, namaSalesTampi
           </div>
         </div>
         <table class="k-jenis-tabel">
-          <tr><td>JENIS</td><td>PEMASUKAN — DP</td></tr>
-          <tr><td>KETERANGAN</td><td>${aman((t.caraBayar || [])
-            .includes("kredit") ? "DP KREDIT" : "LUNAS")}</td></tr>
+          <tr><td>JENIS</td><td>PEMASUKAN</td></tr>
+          <tr><td>KETERANGAN</td><td>${aman(entri.keterangan)}</td></tr>
         </table>
         <img class="k-qr" src="${qrSrc}" alt="QR validasi kuitansi">
       </div>
 
       <h2 class="k-judul">KUITANSI PEMBAYARAN</h2>
-      <p class="k-nomor-tgl">No: ${aman(t.kuitansiNo || "-")} &nbsp;·&nbsp;
-        ${tanggal(t.dibuatPada)}</p>
+      <p class="k-nomor-tgl">No: ${aman(entri.kuitansiNo || "-")} &nbsp;·&nbsp;
+        ${tanggal(entri.tanggal)}</p>
 
       <div class="k-grid2">
         <div>
-          <p class="k-jumlah-label">Jumlah dibayar</p>
-          <p class="k-jumlah-besar">${rupiah(t.jumlahBayar)}</p>
+          <p class="k-jumlah-label">Jumlah diterima</p>
+          <p class="k-jumlah-besar">${rupiah(entri.jumlah)}</p>
           <p class="k-terbilang-label">Terbilang</p>
-          <p class="k-terbilang-kotak">${aman(terbilang(t.jumlahBayar || 0))}</p>
+          <p class="k-terbilang-kotak">${aman(terbilang(entri.jumlah || 0))}</p>
+          ${sisa > 0 ? `<p class="k-kecil" style="margin-top:6px">
+            Sisa tagihan: <b>${rupiah(sisa)}</b></p>` : `<p class="k-kecil"
+            style="margin-top:6px"><b>LUNAS</b></p>`}
         </div>
         <div>
           <p class="k-dk-judul">Data Kendaraan</p>
@@ -525,18 +679,15 @@ function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar, namaSalesTampi
               <td class="k-isi">${aman(unit?.tahun || "-")} / ${aman(t.warna)}</td></tr>
             <tr><td class="k-label">Harga Unit</td>
               <td class="k-isi">${rupiah(t.hargaOtr)}</td></tr>
-            ${(t.caraBayar || []).includes("kredit") ? `
-            <tr><td class="k-label">Leasing</td>
-              <td class="k-isi">${aman(leasing?.nama || "-")}</td></tr>` : ""}
           </table>
         </div>
       </div>
 
       <div class="k-ttd">
         <div>
-          DIBAYAR OLEH (KONSUMEN)
+          ${labelDiterima}
           <span class="k-garis"></span>
-          ( ${aman(t.pembeli?.nama || "").toUpperCase()} )
+          ( ${aman(entri.sumberNama || "").toUpperCase()} )
         </div>
         <div>
           DITERIMA OLEH — ${aman(SHOWROOM.nama).toUpperCase()} (TTD &amp; STEMPEL)
@@ -552,8 +703,8 @@ function satuKuitansi(t, unit, leasing, nomorLembar, labelLembar, namaSalesTampi
     </div>`;
 }
 
-export async function cetakKuitansi(t) {
-  if (!t) return;
+export async function cetakKuitansi(t, entri, totalSetelah) {
+  if (!t || !entri) return;
 
   const tabBaru = window.open("", "_blank");
   if (!tabBaru) {
@@ -561,7 +712,7 @@ export async function cetakKuitansi(t) {
     return;
   }
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
-    <meta charset="utf-8"><title>Kuitansi ${aman(t.spkNo || "")}</title>
+    <meta charset="utf-8"><title>Kuitansi ${aman(entri.kuitansiNo || "")}</title>
     <style>${CSS_KUITANSI}</style></head>
     <body><p style="text-align:center;color:#777">Menyiapkan kuitansi…</p></body></html>`);
   tabBaru.document.close();
@@ -573,15 +724,14 @@ export async function cetakKuitansi(t) {
       if (snap.exists()) unit = snap.data();
     } catch { /* unit tidak wajib ada */ }
   }
-  await muatLeasing();
-  const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
   const namaSalesTampil = await resolveNamaSales(t);
 
   const label = ["LAMPIRAN 1 — KONSUMEN", "LAMPIRAN 2 — SHOWROOM",
     "LAMPIRAN 3 — CADANGAN"];
 
   const isi = `<div class="k-lembar-luar">
-    ${label.map((l, i) => satuKuitansi(t, unit, leasing, i + 1, l, namaSalesTampil)).join("")}
+    ${label.map((l, i) =>
+      satuKuitansi(t, unit, entri, totalSetelah, i + 1, l, namaSalesTampil)).join("")}
   </div>
   <div class="aksi-cetak">
     <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>

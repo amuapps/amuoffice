@@ -30,6 +30,7 @@ import { halamanLabel, muatLabelKustom } from "./label.js";
 import { halamanAkses, muatAksesKustom } from "./akses.js";
 import { halamanLog } from "./log.js";
 import { halamanPersetujuan } from "./persetujuan.js";
+import { halamanAgen } from "./agen.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -244,6 +245,7 @@ function daftarkanHalaman(profil) {
     "#/akses": (w) => halamanAkses(w, PERAN),
     "#/log": (w) => halamanLog(w),
     "#/persetujuan": (w) => halamanPersetujuan(w),
+    "#/agen": (w) => halamanAgen(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
@@ -335,13 +337,17 @@ async function muatVerifikasiKuitansi(kode, publikEl) {
     }
     const d = snap.data();
     publikEl.innerHTML = `<div class="cek cek--sah">
+      <div class="cek-centang" aria-hidden="true">✓</div>
       <h1>Kuitansi Sah</h1>
       <p class="cek-nomor">${aman(d.kuitansiNo)}</p>
       <dl class="rinci">
         <div><dt>Showroom</dt><dd>${aman(d.showroomNama)}</dd></div>
         <div><dt>Tanggal</dt><dd>${aman(d.tanggal)}</dd></div>
+        <div><dt>Nama Pembeli</dt><dd>${aman(d.namaPembeli || "-")}</dd></div>
         <div><dt>Unit</dt><dd>${aman(d.tipeNama)} · ${aman(d.warna)}</dd></div>
         <div><dt>Jumlah dibayar</dt><dd>${rupiah(d.jumlahBayar)}</dd></div>
+        <div><dt>Cara bayar</dt><dd>${aman((d.caraBayar || []).join(" + ") || "-")}</dd></div>
+        <div><dt>Keterangan</dt><dd>${aman(d.keterangan || "-")}</dd></div>
         <div><dt>No. SPK</dt><dd class="mono">${aman(d.spkNo)}</dd></div>
       </dl>
       <p class="cek-kaki">Dokumen ini tercatat resmi di sistem

@@ -9,7 +9,7 @@ import {
 } from "./db.js";
 import { bolehAkses } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js";
-import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
   from "./referensi.js";
@@ -203,7 +203,7 @@ function kartuPesanan(t) {
     ${bolehAkses("cetak.dokumen") ? `
       <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
       <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
-        ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>` : ""}
+        ${labelTombolKuitansi(t)}</button>` : ""}
     <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
     <div data-wadah-edit-pesanan="${t.id}"></div>
   </article>`;

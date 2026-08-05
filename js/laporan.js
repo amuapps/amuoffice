@@ -4,7 +4,7 @@
 import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
 import { rupiah, aman, tanggal } from "./ui.js";
-import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk } from "./spk.js";
 import { bolehAkses } from "./auth.js";
 
@@ -31,7 +31,7 @@ function baris(t) {
       ${bolehAkses("cetak.dokumen") ? `
         <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
         <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
-          ${t.kuitansiTercetak ? "Cetak Ulang Kuitansi" : "Cetak Kuitansi"}</button>` : ""}
+          ${labelTombolKuitansi(t)}</button>` : ""}
       <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
     </td>
   </tr>

@@ -5,20 +5,26 @@
 // tidak berubah sama sekali.
 
 import {
-  dbase, doc, collection, getDocs, updateDoc, query, where,
-  writeBatch, catat, sertakanLog,
+  dbase, doc, collection, getDocs, query, where,
+  writeBatch, sertakanLog,
 } from "./db.js";
 import { bolehAkses, konfirmasiPassword } from "./auth.js";
 import { simpanPelangganOtomatis } from "./pelanggan.js";
 import { tanya, konfirmasi } from "./dialog.js";
 import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
 
+const LABEL_JENIS = {
+  pelanggan_spk: "Perubahan Data Pembeli/Pemakai",
+  cashback_spk: "Pengajuan Cashback",
+};
+
 function kartuPengajuan(p) {
   return `<article class="kartu">
     <div class="kartu-atas">
       <div>
         <h3 class="kartu-judul mono">${aman(p.spkNo)}</h3>
-        <p class="kartu-sub">Diajukan oleh ${aman(namaTampilan(p.diajukanOlehPeran, p.diajukanOlehNama))}
+        <p class="kartu-sub">${aman(LABEL_JENIS[p.jenis] || p.jenis)} ·
+          diajukan oleh ${aman(namaTampilan(p.diajukanOlehPeran, p.diajukanOlehNama))}
           · ${tanggalJam(p.dibuatPada)}</p>
       </div>
       <span class="tanda tanda--uji">Menunggu</span>
@@ -103,26 +109,38 @@ export async function halamanPersetujuan(wadah) {
     }
 
     try {
-      const { pembeli, pemakai, pemakaiSamaDenganPembeli } = p.dataBaru;
-      const pembeliId = await simpanPelangganOtomatis(pembeli);
-      const pemakaiId = pemakaiSamaDenganPembeli
-        ? pembeliId
-        : await simpanPelangganOtomatis(pemakai);
-
       const batch = writeBatch(dbase);
-      batch.update(doc(dbase, "transaksi", p.transaksiId), {
-        pembeli, pembeliId,
-        pemakaiSamaDenganPembeli,
-        pemakai: pemakaiSamaDenganPembeli ? null : pemakai,
-        pemakaiId,
-      });
+
+      if (p.jenis === "cashback_spk") {
+        batch.update(doc(dbase, "transaksi", p.transaksiId), {
+          cashbackDisetujui: p.dataBaru.cashback,
+          cashbackStatus: "disetujui",
+        });
+        sertakanLog(batch, "cashback_disetujui", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      } else {
+        // pelanggan_spk (bawaan): ubah data pembeli/pemakai
+        const { pembeli, pemakai, pemakaiSamaDenganPembeli } = p.dataBaru;
+        const pembeliId = await simpanPelangganOtomatis(pembeli);
+        const pemakaiId = pemakaiSamaDenganPembeli
+          ? pembeliId
+          : await simpanPelangganOtomatis(pemakai);
+        batch.update(doc(dbase, "transaksi", p.transaksiId), {
+          pembeli, pembeliId,
+          pemakaiSamaDenganPembeli,
+          pemakai: pemakaiSamaDenganPembeli ? null : pemakai,
+          pemakaiId,
+        });
+        sertakanLog(batch, "perubahan_spk_disetujui", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      }
+
       batch.update(doc(dbase, "pengajuan", p.id), { status: "disetujui" });
-      sertakanLog(batch, "perubahan_spk_disetujui", {
-        koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
-      });
       await batch.commit();
 
-      kabar(`Perubahan untuk SPK ${p.spkNo} disetujui & tersimpan.`, "netral");
+      kabar(`Pengajuan untuk SPK ${p.spkNo} disetujui & tersimpan.`, "netral");
       await muat();
     } catch (err) {
       kabar("Gagal menyetujui: " + err.message, "rem");
@@ -134,17 +152,28 @@ export async function halamanPersetujuan(wadah) {
     if (!p) return;
     const yakin = await konfirmasi({
       judul: "Tolak pengajuan?",
-      pesan: `Pengajuan perubahan untuk SPK ${p.spkNo} akan ditolak. ` +
+      pesan: `Pengajuan untuk SPK ${p.spkNo} akan ditolak. ` +
              `SPK-nya tidak berubah sama sekali.`,
       oke: "Tolak", bahaya: true,
     });
     if (!yakin) return;
 
     try {
-      await updateDoc(doc(dbase, "pengajuan", id), { status: "ditolak" });
-      await catat("perubahan_spk_ditolak", {
-        koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
-      });
+      const batch = writeBatch(dbase);
+      batch.update(doc(dbase, "pengajuan", id), { status: "ditolak" });
+      if (p.jenis === "cashback_spk") {
+        batch.update(doc(dbase, "transaksi", p.transaksiId), {
+          cashbackStatus: "ditolak",
+        });
+        sertakanLog(batch, "cashback_ditolak", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      } else {
+        sertakanLog(batch, "perubahan_spk_ditolak", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      }
+      await batch.commit();
       kabar("Pengajuan ditolak.", "netral");
       await muat();
     } catch (err) {

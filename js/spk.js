@@ -21,7 +21,9 @@ import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
 import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
-import { cetakSpk, mintaCetakKuitansi } from "./cetak.js";
+import { muatAgen, agenAktif } from "./agen.js";
+import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi }
+  from "./cetak.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
 
 function opsiTipe(daftarTipe) {
@@ -46,7 +48,8 @@ function panelCustomer(saranKecamatan, saranKota) {
   </div>`;
 }
 
-function panelInternal() {
+function panelInternal(daftarAgen) {
+  const bisaLihatAgen = bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna");
   return `<div class="tab-panel" data-panel="internal" hidden>
     <label class="label label--gelap">Sales</label>
     <input class="isian isian--terang" value="${aman(sesi ? namaTampilan(sesi.peran, sesi.nama) : "-")}" disabled>
@@ -54,6 +57,26 @@ function panelInternal() {
     <input class="isian isian--terang" id="s-diskon" inputmode="numeric"
            value="0">
     <p class="petunjuk" id="petunjuk-diskon"></p>
+
+    <label class="label label--gelap" for="s-cashback">Cashback (Rp)
+      <span class="kunci">opsional, perlu persetujuan Owner</span></label>
+    <input class="isian isian--terang" id="s-cashback" inputmode="numeric" value="0">
+    <p class="petunjuk">Harga OTR tidak berubah — ini uang terpisah yang
+      diberikan ke konsumen. Baru berlaku setelah Owner menyetujui di
+      halaman Persetujuan Perubahan.</p>
+
+    ${bisaLihatAgen ? `
+    <label class="label label--gelap" for="s-agen">Agen
+      <span class="kunci">cuma terlihat Owner</span></label>
+    <select class="isian isian--terang" id="s-agen">
+      <option value="">— tidak ada agen —</option>
+      ${daftarAgen.map((a) =>
+        `<option value="${a.id}">${aman(a.idAgen)} · ${aman(a.nama)}</option>`).join("")}
+    </select>
+    <label class="label label--gelap" for="s-fee-agen">Fee Agen (Rp)</label>
+    <input class="isian isian--terang" id="s-fee-agen" inputmode="numeric" value="0">
+    ` : ""}
+
     <label class="label label--gelap" for="s-catatan">Catatan internal</label>
     <input class="isian isian--terang" id="s-catatan"
            placeholder="Opsional — tidak dicetak di SPK">
@@ -144,7 +167,7 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 
 export async function halamanSpk(wadah) {
   wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
-  let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
+  let daftarTipe = [], daftarLeasing = [], daftarRekening = [], daftarAgen = [];
   let saranKecamatan = [], saranKota = [];
   try {
     [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota] =
@@ -152,6 +175,9 @@ export async function halamanSpk(wadah) {
         muatTipe(), muatLeasing(), muatRekening(),
         muatSaranKecamatan(), muatSaranKota(),
       ]);
+    if (bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna")) {
+      daftarAgen = await muatAgen();
+    }
   } catch (err) {
     wadah.innerHTML = `<div class="hampa">
       <p><b>Gagal memuat data SPK.</b></p>
@@ -165,6 +191,7 @@ export async function halamanSpk(wadah) {
   }
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
+  const agenPilihan = agenAktif().length ? agenAktif() : daftarAgen;
   const tanggalHariIni = new Date().toLocaleDateString("id-ID", {
     day: "numeric", month: "long", year: "numeric",
   });
@@ -185,7 +212,7 @@ export async function halamanSpk(wadah) {
     </div>
     <form id="form-spk" class="form">
       ${panelCustomer(saranKecamatan, saranKota)}
-      ${panelInternal()}
+      ${panelInternal(agenPilihan)}
       ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan SPK</button>
@@ -333,6 +360,12 @@ export async function halamanSpk(wadah) {
       const spkNo = await nomorBerikutnya("spk", "SPK");
       const ref = doc(collection(dbase, "transaksi"));
 
+      const cashbackDiajukan = bacaAngka(wadah.querySelector("#s-cashback"));
+      const elAgen = wadah.querySelector("#s-agen");
+      const agenId = elAgen ? elAgen.value : "";
+      const agenTerpilih = agenId ? agenAktif().find((a) => a.id === agenId) : null;
+      const feeAgen = elAgen ? bacaAngka(wadah.querySelector("#s-fee-agen")) : 0;
+
       const data = {
         spkNo,
         pembeliId, pembeli,
@@ -357,6 +390,16 @@ export async function halamanSpk(wadah) {
           tenor: Number(wadah.querySelector("#s-tenor").value || 0),
           tanggalSurvey: wadah.querySelector("#s-survey").value || null,
         } : null,
+        // Fee Agen — cuma terisi kalau Owner yang mengisi (Admin/Sales
+        // tidak pernah lihat field ini sama sekali, lihat panelInternal).
+        agenId: agenTerpilih ? agenTerpilih.id : null,
+        agenNama: agenTerpilih ? agenTerpilih.nama : null,
+        feeAgen: agenTerpilih ? feeAgen : 0,
+        // Cashback BELUM berlaku sampai Owner menyetujui — lihat
+        // pengajuan yang dibuat setelah batch ini kalau nilainya > 0.
+        cashbackDiajukan,
+        cashbackDisetujui: 0,
+        cashbackStatus: cashbackDiajukan > 0 ? "menunggu" : null,
         status: "berjalan",
         ...tandaBaru(),
       };
@@ -368,6 +411,24 @@ export async function halamanSpk(wadah) {
         koleksi: "transaksi", docId: ref.id,
         ringkas: `${spkNo} · ${pembeli.nama} · ${kondisiUnit}`,
       });
+      if (cashbackDiajukan > 0) {
+        sertakanLog(batch, "cashback_diajukan", {
+          koleksi: "transaksi", docId: ref.id,
+          ringkas: `${spkNo} · ${rupiah(cashbackDiajukan)}`,
+        });
+        batch.set(doc(collection(dbase, "pengajuan")), {
+          jenis: "cashback_spk",
+          transaksiId: ref.id, spkNo,
+          diajukanOlehUid: sesi ? sesi.uid : null,
+          diajukanOlehNama: sesi ? sesi.nama : "-",
+          diajukanOlehPeran: sesi ? sesi.peran : null,
+          status: "menunggu",
+          dataBaru: { cashback: cashbackDiajukan },
+          catatan: `Pengajuan cashback sebesar ${rupiah(cashbackDiajukan)} ` +
+                   `untuk SPK ${spkNo} (${pembeli.nama}).`,
+          ...tandaBaru(),
+        });
+      }
       await batch.commit();
 
       wadah.innerHTML = `<section class="lembar">
@@ -389,7 +450,7 @@ export async function halamanSpk(wadah) {
             <button class="tombol tombol--utama" type="button" id="cetak-spk-baru">
               Cetak SPK</button>
             <button class="tombol tombol--utama" type="button" id="cetak-kuitansi-baru">
-              Cetak Kuitansi</button>` : `
+              ${labelTombolKuitansi(data)}</button>` : `
             <p class="petunjuk">Pencetakan SPK/Kuitansi cuma bisa dilakukan
               Owner/Admin.</p>`}
           <button class="tombol tombol--sunyi tombol--gelap" type="button" id="spk-baru">
@@ -400,7 +461,7 @@ export async function halamanSpk(wadah) {
         wadah.querySelector("#cetak-spk-baru").addEventListener("click", () =>
           cetakSpk({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
         wadah.querySelector("#cetak-kuitansi-baru").addEventListener("click", () =>
-          mintaCetakKuitansi({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
+          catatPembayaran({ id: ref.id, ...data, spkNo, dibuatPada: new Date() }));
       }
       wadah.querySelector("#spk-baru")
         .addEventListener("click", () => halamanSpk(wadah));

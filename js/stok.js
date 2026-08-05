@@ -9,6 +9,8 @@ import {
 import { bolehAkses } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
+import { beritahu } from "./dialog.js";
+import { hitungTotalDibayar } from "./cetak.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
 } from "./ui.js";
@@ -30,7 +32,9 @@ function tabelUnit(daftar) {
         </tr>
       </thead>
       <tbody>
-        ${daftar.map((u) => `<tr>
+        ${daftar.map((u) => `<tr class="${u.status !== "ready" ? "baris-klik" : ""}"
+              ${u.status !== "ready" ? `data-lihat-pembeli="${u.id}"` : ""}
+              ${u.status !== "ready" ? `title="Klik untuk lihat pembelinya"` : ""}>
           <td>${aman(u.tipeNama)}</td>
           <td>${aman(u.warna || "-")}</td>
           <td>${aman(u.tahun || "-")}</td>
@@ -210,6 +214,39 @@ export async function halamanStok(wadah) {
     daftarEl.innerHTML = unitTampil.length
       ? tabelUnit(unitTampil)
       : `<div class="hampa"><p>Tidak ada unit yang cocok dengan filter ini.</p></div>`;
+
+    daftarEl.querySelectorAll("[data-lihat-pembeli]").forEach((tr) =>
+      tr.addEventListener("click", () => lihatPembeli(tr.dataset.lihatPembeli)));
+  }
+
+  async function lihatPembeli(unitId) {
+    try {
+      const snap = await getDocs(query(
+        collection(dbase, "transaksi"), where("unitId", "==", unitId), limit(1)
+      ));
+      if (snap.empty) {
+        await beritahu({
+          judul: "Belum Ada Data Pembeli",
+          pesan: "Unit ini terkunci tapi belum ditemukan SPK yang " +
+                 "menyertainya (kemungkinan data lama).",
+        });
+        return;
+      }
+      const t = snap.docs[0].data();
+      const total = hitungTotalDibayar(t);
+      const sisa = Math.max((t.hargaOtr || 0) - total, 0);
+      await beritahu({
+        judul: `Unit ini untuk: ${t.pembeli?.nama || "-"}`,
+        pesan: `No. SPK: ${aman(t.spkNo)}<br>` +
+               `Sales: ${aman(t.salesNama)}<br>` +
+               `Harga OTR: ${rupiah(t.hargaOtr)}<br>` +
+               `Total dibayar: ${rupiah(total)}<br>` +
+               (sisa > 0 ? `Sisa tagihan: ${rupiah(sisa)}<br>` : `<b>LUNAS</b><br>`) +
+               `Tanggal SPK: ${tanggal(t.dibuatPada)}`,
+      });
+    } catch (err) {
+      kabar("Gagal memuat data pembeli: " + err.message, "rem");
+    }
   }
 
   async function gambar() {
