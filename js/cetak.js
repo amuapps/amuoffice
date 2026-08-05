@@ -65,7 +65,7 @@ const CSS_CETAK = `
     background-image: url("${WM_DATA_URI}");
     background-repeat: repeat; background-size: ${LEBAR_WM}px ${TINGGI_WM}px;
     background-position: center;
-    opacity: .12; pointer-events: none; z-index: 0;
+    opacity: .06; pointer-events: none; z-index: 0;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .lembar-cetak > * { position: relative; z-index: 1; }
