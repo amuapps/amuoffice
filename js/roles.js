@@ -114,7 +114,13 @@ export function menuBerlabel(peran) {
     .map((g) => ({
       grup: labelGrup(g.grup),
       butir: g.butir
-        .filter((b) => !kodeDiizinkan || !b.kode || kodeDiizinkan.includes(b.kode))
+        // Inbox SENGAJA dikecualikan dari Panel Akses — itu fitur
+        // pribadi (kayak tombol Keluar), bukan fitur bisnis yang
+        // perlu dibatasi per peran. Ini juga menjaga menu baru
+        // semacam ini tidak ikut ketutup kalau perannya sudah
+        // pernah dikustomisasi SEBELUM menu itu ada.
+        .filter((b) => g.grup === "Inbox" ||
+          !kodeDiizinkan || !b.kode || kodeDiizinkan.includes(b.kode))
         .map((b) => ({ ...b, label: labelItem(b.kode, b.label) })),
     }))
     .filter((g) => g.butir.length); // grup yang kosong (semua disembunyikan) tidak usah tampil
