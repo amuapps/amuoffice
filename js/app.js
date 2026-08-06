@@ -266,6 +266,17 @@ function daftarkanHalaman(profil) {
     });
   });
 
+  // Inbox didaftarkan TERPISAH, tanpa syarat menu/Panel Akses apa
+  // pun — supaya tombol lonceng selalu berfungsi buat siapa saja
+  // yang login, tidak peduli menunya dikustomisasi seperti apa.
+  daftar("#/inbox", () => true, () => {
+    bukaTab({ label: "Inbox", rute: "#/inbox", kode: "IBX-01" });
+    const w = el("konten");
+    w.innerHTML = `<p class="hampa">Memuat…</p>`;
+    halamanInbox(w).catch((e) =>
+      kabar("Gagal memuat layar: " + e.message, "rem"));
+  });
+
   saatDitolak(() => {
     kabar("Halaman itu bukan bagian dari akses Anda.", "rem");
     pergiKe(p.beranda);
