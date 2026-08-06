@@ -10,7 +10,7 @@
 
 import {
   dbase, doc, collection, addDoc, getDocs, updateDoc, query, where,
-  orderBy, limit, serverTimestamp, onSnapshot,
+  limit, serverTimestamp, onSnapshot,
 } from "./db.js";
 import { sesi } from "./auth.js";
 import { aman, tanggalJam } from "./ui.js";
@@ -76,13 +76,16 @@ export async function halamanInbox(wadah) {
   async function muat() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     try {
+      // Tanpa orderBy di query — supaya tidak butuh index gabungan
+      // (equality + orderBy field beda = butuh index khusus di
+      // Firestore). Diurutkan di sini saja, di sisi aplikasi.
       const snap = await getDocs(query(
         collection(dbase, "notifikasi"),
         where("untukUid", "==", sesi.uid),
-        orderBy("dibuatPada", "desc"),
         limit(100)
       ));
-      data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      data = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     } catch (err) {
       daftarEl.innerHTML = `<div class="hampa"><p>Gagal memuat: ${aman(err.message)}</p></div>`;
       return;
