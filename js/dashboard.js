@@ -12,10 +12,19 @@ import { resolveNamaSales } from "./cetak.js";
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-function kartuKpi(judul, nilai, sub) {
-  return `<article class="kartu">
-    <p class="kartu-sub">${aman(judul)}</p>
-    <p class="angka-besar">${nilai}</p>
+const IKON_KPI = ["📄", "💰", "✅", "📈"];
+const WARNA_KPI = ["#5B8DEF", "#7C5CFC", "#22B07D", "#F5A623"];
+
+function kartuKpi(judul, nilai, sub, idx) {
+  return `<article class="kartu" style="border-top:3px solid ${WARNA_KPI[idx]}">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:34px;height:34px;border-radius:9px;
+                  background:${WARNA_KPI[idx]}22;color:${WARNA_KPI[idx]};
+                  display:flex;align-items:center;justify-content:center;
+                  font-size:17px">${IKON_KPI[idx]}</div>
+      <p class="kartu-sub" style="margin:0">${aman(judul)}</p>
+    </div>
+    <p class="angka-besar" style="color:${WARNA_KPI[idx]}">${nilai}</p>
     ${sub ? `<p class="kartu-rinci">${aman(sub)}</p>` : ""}
   </article>`;
 }
@@ -36,14 +45,56 @@ function barisBar(label, nilai, maks, warna) {
   </div>`;
 }
 
+// Grafik tren garis halus pakai SVG polos — tanpa library grafik.
+// Areanya diberi gradasi supaya kesannya lebih "hidup", mirip
+// grafik tren di dashboard Excel.
+function grafikTren(perBulan) {
+  const lebar = 600, tinggi = 160, pad = 8;
+  const maks = Math.max(...perBulan, 1);
+  const langkah = (lebar - pad * 2) / (perBulan.length - 1);
+  const titik = perBulan.map((n, i) => {
+    const x = pad + i * langkah;
+    const y = tinggi - pad - (n / maks) * (tinggi - pad * 2);
+    return [x, y];
+  });
+  const garis = titik.map(([x, y]) => `${x},${y}`).join(" ");
+  const area = `${pad},${tinggi - pad} ${garis} ${lebar - pad},${tinggi - pad}`;
+  return `<svg viewBox="0 0 ${lebar} ${tinggi}" style="width:100%;height:auto;display:block">
+    <defs>
+      <linearGradient id="gTren" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#7C5CFC" stop-opacity=".35"/>
+        <stop offset="100%" stop-color="#7C5CFC" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${area}" fill="url(#gTren)"/>
+    <polyline points="${garis}" fill="none" stroke="#7C5CFC" stroke-width="2.5"
+      stroke-linecap="round" stroke-linejoin="round"/>
+    ${titik.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#7C5CFC">
+      <title>${NAMA_BULAN[i]}: ${perBulan[i]}</title></circle>`).join("")}
+  </svg>
+  <div style="display:flex;justify-content:space-between;font-size:10px;
+              color:var(--abu-2);margin-top:2px">
+    ${NAMA_BULAN.map((b) => `<span>${b}</span>`).join("")}
+  </div>`;
+}
+
+const WARNA_PERINGKAT = ["#22B07D", "#5B8DEF", "#C0392B"];
+
 function kartuPeringkat(nama, jumlah, posisi) {
-  const warna = ["#D4AF37", "#9AA0A6", "#B08D57"][posisi - 1] || "var(--abu-2)";
-  return `<article class="kartu" style="text-align:center;flex:1">
-    <div style="width:40px;height:40px;border-radius:50%;background:${warna};
-                color:#fff;display:flex;align-items:center;justify-content:center;
-                font-weight:700;margin:0 auto 8px">${posisi}</div>
-    <p class="kartu-judul" style="font-size:14px">${aman(nama)}</p>
-    <p class="kartu-rinci">${jumlah} SPK</p>
+  const warna = WARNA_PERINGKAT[posisi - 1] || "var(--abu-2)";
+  const inisial = (nama || "-").trim().charAt(0).toUpperCase() || "-";
+  return `<article class="kartu" style="text-align:center;flex:1;
+              background:${warna}; color:#fff; position:relative; overflow:hidden">
+    <span style="position:absolute;top:8px;right:10px;font-size:18px">★</span>
+    <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);
+                display:flex;align-items:center;justify-content:center;
+                font-weight:700;font-size:20px;margin:4px auto 10px">${aman(inisial)}</div>
+    <p class="kartu-judul" style="font-size:14px;color:#fff">${aman(nama)}</p>
+    <p class="kartu-rinci" style="color:rgba(255,255,255,.85)">${jumlah} SPK</p>
+    <span style="display:inline-block;margin-top:6px;padding:2px 12px;
+                border-radius:99px;background:rgba(255,255,255,.22);
+                font-size:11px;font-weight:700">${posisi === 1 ? "1st"
+                  : posisi === 2 ? "2nd" : "3rd"}</span>
   </article>`;
 }
 
@@ -60,9 +111,17 @@ export async function halamanDashboard(wadah) {
   const daftarTahun = [tahunSekarang, tahunSekarang - 1, tahunSekarang - 2];
 
   wadah.innerHTML = `<section class="lembar">
-    <div class="lembar-atas">
-      <h2 class="judul">Dashboard Penjualan</h2>
-      <button class="tombol tombol--kecil" id="toggle-filter">Filter</button>
+    <div style="background:linear-gradient(120deg,#4A2FBD,#5B8DEF);
+                border-radius:14px;padding:18px 20px;color:#fff;
+                display:flex;justify-content:space-between;align-items:center;
+                margin-bottom:16px">
+      <div>
+        <h2 class="judul" style="color:#fff;margin:0">📊 Dashboard Penjualan</h2>
+        <p style="margin:4px 0 0;opacity:.85;font-size:12.5px">
+          ${aman(daftarTahun[0])} · Ringkasan performa showroom</p>
+      </div>
+      <button class="tombol tombol--kecil" id="toggle-filter"
+              style="background:rgba(255,255,255,.18);color:#fff;border:0">Filter</button>
     </div>
 
     <div id="panel-filter" class="lembar" style="margin-top:10px" hidden>
@@ -193,10 +252,10 @@ export async function halamanDashboard(wadah) {
     const lunas = terpilih.filter((t) => t.statusBayar === "lunas").length;
     const rata = terpilih.length ? Math.round(totalNilai / terpilih.length) : 0;
     wadah.querySelector("#d-kpi").innerHTML =
-      kartuKpi("Total SPK", terpilih.length) +
-      kartuKpi("Total Nilai", rupiah(totalNilai)) +
-      kartuKpi("Unit Lunas", lunas, `dari ${terpilih.length} SPK`) +
-      kartuKpi("Rata-rata / SPK", rupiah(rata));
+      kartuKpi("Total SPK", terpilih.length, null, 0) +
+      kartuKpi("Total Nilai", rupiah(totalNilai), null, 1) +
+      kartuKpi("Unit Lunas", lunas, `dari ${terpilih.length} SPK`, 2) +
+      kartuKpi("Rata-rata / SPK", rupiah(rata), null, 3);
 
     // Per tipe
     const perTipe = {};
@@ -206,7 +265,7 @@ export async function halamanDashboard(wadah) {
     const listTipe = Object.entries(perTipe).sort((a, b) => b[1] - a[1]).slice(0, 8);
     const maksTipe = listTipe.length ? listTipe[0][1] : 0;
     wadah.querySelector("#d-bar-tipe").innerHTML = listTipe.length
-      ? listTipe.map(([nama, n]) => barisBar(nama, n, maksTipe, "var(--biru)")).join("")
+      ? listTipe.map(([nama, n]) => barisBar(nama, n, maksTipe, "#5B8DEF")).join("")
       : `<p class="hampa">Belum ada data.</p>`;
 
     // Per bulan
@@ -214,9 +273,7 @@ export async function halamanDashboard(wadah) {
     terpilih.forEach((t) => {
       if (t.dibuatPada?.toDate) perBulan[t.dibuatPada.toDate().getMonth()]++;
     });
-    const maksBulan = Math.max(...perBulan, 1);
-    wadah.querySelector("#d-bar-bulan").innerHTML = NAMA_BULAN
-      .map((b, i) => barisBar(b, perBulan[i], maksBulan, "var(--hijau)")).join("");
+    wadah.querySelector("#d-bar-bulan").innerHTML = grafikTren(perBulan);
 
     // Peringkat sales
     const perSales = {};
