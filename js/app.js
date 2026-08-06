@@ -32,6 +32,7 @@ import { halamanLog } from "./log.js";
 import { halamanPersetujuan } from "./persetujuan.js";
 import { halamanAgen } from "./agen.js";
 import { halamanDashboard } from "./dashboard.js";
+import { halamanInbox, pasangLencana } from "./notifikasi.js";
 import { halamanSegera } from "./segera.js";
 
 const el = (id) => document.getElementById(id);
@@ -248,6 +249,7 @@ function daftarkanHalaman(profil) {
     "#/persetujuan": (w) => halamanPersetujuan(w),
     "#/agen": (w) => halamanAgen(w),
     "#/dashboard": (w) => halamanDashboard(w),
+    "#/inbox": (w) => halamanInbox(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {
@@ -391,6 +393,8 @@ el("tombol-keluar").addEventListener("click", async () => {
   kabar("Anda sudah keluar.", "info");
 });
 
+el("tombol-inbox").addEventListener("click", () => pergiKe("#/inbox"));
+
 function selesaiMemuat() {
   const m = el("muat");
   if (!m || m.classList.contains("muat--pergi")) return;
@@ -418,6 +422,7 @@ pantauSesi(
     el("aplikasi").hidden = false;
     await muatLabelKustom(); // sekali per sesi, biar sidebar langsung benar
     await muatAksesKustom(); // sekali per sesi, biar sidebar ikuti Panel Akses
+    pasangLencana(el("lencana-notif"));
     gambarPanel(profil);
     gambarNavigasi(profil);
     daftarkanHalaman(profil);

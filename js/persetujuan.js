@@ -11,6 +11,7 @@ import {
 import { bolehAkses, konfirmasiPassword } from "./auth.js";
 import { simpanPelangganOtomatis } from "./pelanggan.js";
 import { terapkanPerubahanUnit } from "./stok.js";
+import { buatNotifikasi } from "./notifikasi.js";
 import { tanya, konfirmasi } from "./dialog.js";
 import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
 
@@ -159,6 +160,10 @@ export async function halamanPersetujuan(wadah) {
       }
 
       kabar(`Pengajuan untuk ${label} disetujui & tersimpan.`, "netral");
+      const linkNotif = p.jenis === "unit_diubah" ? "#/stok"
+        : (p.jenis === "cashback_spk" ? "#/laporan" : "#/laporan");
+      await buatNotifikasi(p.diajukanOlehUid, "Pengajuan Disetujui",
+        `Pengajuan Anda untuk ${label} sudah disetujui Owner.`, linkNotif);
       await muat();
     } catch (err) {
       kabar("Gagal menyetujui: " + err.message, "rem");
@@ -198,6 +203,9 @@ export async function halamanPersetujuan(wadah) {
       }
       await batch.commit();
       kabar("Pengajuan ditolak.", "netral");
+      await buatNotifikasi(p.diajukanOlehUid, "Pengajuan Ditolak",
+        `Pengajuan Anda untuk ${label} ditolak Owner.`,
+        p.jenis === "unit_diubah" ? "#/stok" : "#/laporan");
       await muat();
     } catch (err) {
       kabar("Gagal menolak: " + err.message, "rem");

@@ -15,6 +15,7 @@ import { rekeningDari, muatRekening } from "./rekening.js";
 import { leasingDari, muatLeasing } from "./leasing.js";
 import { konfirmasi, tanya } from "./dialog.js";
 import { konfirmasiPassword } from "./auth.js";
+import { buatNotifikasi } from "./notifikasi.js";
 import { kabar } from "./ui.js";
 
 function baris(label, isi) {
@@ -561,6 +562,11 @@ export async function mintaCetakKuitansi(t, muatUlang) {
         koleksi: "transaksi", docId: t.id, ringkas: `${tKerja.spkNo} · ${kuitansiNo}`,
       });
       kabar(`Kuitansi ${kuitansiNo} tercetak & data SPK ini terkunci.`, "netral");
+      await buatNotifikasi(tKerja.salesUid, "Pembayaran Tercatat",
+        `${entri.keterangan} ${rupiah(jumlah)} untuk ${tKerja.pembeli?.nama || "-"} ` +
+        `(SPK ${tKerja.spkNo}) sudah dicatat.` +
+        (lunasSekarang ? " Unit sekarang berstatus LUNAS/Terjual." : ""),
+        "#/laporan");
       await cetakKuitansi(
         { ...tKerja, riwayatBayar: [entri], totalDibayar: jumlah }, entri, jumlah);
       if (muatUlang) await muatUlang();
@@ -616,6 +622,11 @@ export async function mintaCetakKuitansi(t, muatUlang) {
       ringkas: `${tKerja.spkNo} · ${kuitansiNo} · ${rupiah(jumlahBaru)}`,
     });
     kabar(`Pembayaran ${rupiah(jumlahBaru)} tercatat (${kuitansiNo}).`, "netral");
+    await buatNotifikasi(tKerja.salesUid, "Pembayaran Tercatat",
+      `${entri.keterangan} ${rupiah(jumlahBaru)} untuk ${tKerja.pembeli?.nama || "-"} ` +
+      `(SPK ${tKerja.spkNo}) sudah dicatat, diterima dari ${entri.sumberNama}.` +
+      (lunasBaru ? " Unit sekarang berstatus LUNAS/Terjual." : ""),
+      "#/laporan");
     await cetakKuitansi(
       { ...tKerja, riwayatBayar: riwayatBaru, totalDibayar: totalBaru },
       entri, totalBaru);

@@ -44,6 +44,10 @@ const DASHBOARD = { grup: "Dashboard", butir: [
   { label: "Dashboard Penjualan", rute: "#/dashboard", kode: "DSH-01" },
 ]};
 
+const INBOX = { grup: "Inbox", butir: [
+  { label: "Inbox", rute: "#/inbox", kode: "IBX-01" },
+]};
+
 const SALES = { grup: "Sales", butir: [
   { label: "SPK Baru", rute: "#/spk", kode: "SLS-01" },
   { label: "Riwayat & Laporan SPK", rute: "#/laporan", kode: "SLS-02" },
@@ -65,7 +69,7 @@ export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
     beranda: "#/dashboard", batasDiskon: null, izin: ["*"],
-    menu: [DASHBOARD, SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
+    menu: [DASHBOARD, INBOX, SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {
@@ -77,22 +81,22 @@ export const PERAN = {
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.
-    menu: [SALES, INVENTORY, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
+    menu: [INBOX, SALES, INVENTORY, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
   },
 
   sales: {
     label: "Sales", kode: "SLS", warna: "sein",
     beranda: "#/spk", batasDiskon: 200000,
     izin: ["stok.lihat", "spk.buat", "spk.lihat"],
-    menu: [SALES, KATALOG_SAJA, SISTEM_PELANGGAN_SAJA],
+    menu: [INBOX, SALES, KATALOG_SAJA, SISTEM_PELANGGAN_SAJA],
   },
 
   kasir: {
     label: "Kasir", kode: "KAS", warna: "netral",
-    beranda: "#/pelanggan", batasDiskon: 0,
+    beranda: "#/inbox", batasDiskon: 0,
     izin: ["spk.lihat", "kas.input", "kas.lihat", "agen.lihat"],
     // Belum ada modul kasir yang aktif di tahap ini.
-    menu: [],
+    menu: [INBOX],
   },
 };
 
