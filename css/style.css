@@ -909,3 +909,13 @@ select.isian {
 /* Baris tabel yang bisa diklik (mis. Data Unit — lihat pembeli) */
 .baris-klik { cursor: pointer; }
 .baris-klik:hover { background: var(--lapis); }
+
+/* Lencana jumlah notifikasi belum dibaca, di ikon lonceng */
+.lencana-notif {
+  position: absolute; top: -2px; right: -2px;
+  background: var(--merah); color: #fff; font-size: 10px; font-weight: 700;
+  min-width: 16px; height: 16px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 3px; line-height: 1;
+}
+.kartu--tandai { border-left: 3px solid var(--biru); }
