@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Dalam Perbaikan</title>
+    <style>
+        /* Mengambil font bergaya digital dari Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #050505;
+            font-family: 'Share Tech Mono', monospace;
+            color: #0ff; /* Warna Cyan Neon */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Latar Belakang Grid Digital */
+        .cyber-grid {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+            animation: scan-grid 10s linear infinite;
+        }
+
+        @keyframes scan-grid {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 40px; }
+        }
+
+        /* Kotak Konten Utama */
+        .container {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            background: rgba(0, 10, 10, 0.85);
+            padding: 50px 70px;
+            border: 1px solid #0ff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 30px rgba(0, 255, 255, 0.1);
+            border-radius: 3px;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Efek Teks Glitch */
+        .glitch-wrapper {
+            font-size: 3.5rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            position: relative;
+            text-shadow: 0 0 10px #0ff;
+            margin-bottom: 25px;
+            letter-spacing: 2px;
+        }
+
+        .glitch-wrapper::before, .glitch-wrapper::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+        }
+
+        .glitch-wrapper::before {
+            left: 3px;
+            text-shadow: -2px 0 #f0f;
+            animation: glitch-anim-1 2s infinite linear alternate-reverse;
+        }
+
+        .glitch-wrapper::after {
+            left: -3px;
+            text-shadow: 2px 0 #0f0;
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim-1 {
+            0% { clip: rect(20px, 9999px, 85px, 0); }
+            20% { clip: rect(92px, 9999px, 11px, 0); }
+            40% { clip: rect(43px, 9999px, 67px, 0); }
+            60% { clip: rect(12px, 9999px, 94px, 0); }
+            80% { clip: rect(76px, 9999px, 33px, 0); }
+            100% { clip: rect(55px, 9999px, 21px, 0); }
+        }
+
+        @keyframes glitch-anim-2 {
+            0% { clip: rect(15px, 9999px, 94px, 0); }
+            20% { clip: rect(82px, 9999px, 22px, 0); }
+            40% { clip: rect(34px, 9999px, 55px, 0); }
+            60% { clip: rect(61px, 9999px, 78px, 0); }
+            80% { clip: rect(99px, 9999px, 44px, 0); }
+            100% { clip: rect(26px, 9999px, 88px, 0); }
+        }
+
+        /* Efek Teks Terminal */
+        .terminal {
+            font-size: 1.1rem;
+            margin-bottom: 35px;
+            color: #ccc;
+            min-height: 1.5em;
+            text-align: left;
+            display: inline-block;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.1em;
+            background-color: #0ff;
+            vertical-align: bottom;
+            margin-left: 5px;
+            animation: blink 1s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* Animasi Loading Bar */
+        .loading-container {
+            width: 100%;
+            height: 3px;
+            background: #111;
+            position: relative;
+            overflow: hidden;
+            border-radius: 2px;
+        }
+
+        .loading-bar {
+            height: 100%;
+            width: 25%;
+            background: #0ff;
+            box-shadow: 0 0 15px #0ff;
+            animation: load 1.8s ease-in-out infinite alternate;
+        }
+
+        @keyframes load {
+            0% { width: 10%; transform: translateX(0); }
+            100% { width: 40%; transform: translateX(150%); }
+        }
+
+        /* Overlay Garis Monitor TV Lama (CRT) */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.25) 50%, rgba(0,0,0,0.25));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <!-- Elemen Latar Belakang -->
+    <div class="cyber-grid"></div>
+    <div class="scanlines"></div>
+    
+    <!-- Konten Utama -->
+    <div class="container">
+        <!-- Pastikan data-text sama dengan isi teks untuk efek glitch -->
+        <div class="glitch-wrapper" data-text="SYSTEM OFFLINE">SYSTEM UNDER MAINTENANCE</div>
+        
+        <div class="terminal">
+            <span id="typed-text"></span><span class="cursor"></span>
+        </div>
+        
+        <div class="loading-container">
+            <div class="loading-bar"></div>
+        </div>
+    </div>
+
+    <!-- Script untuk Efek Mengetik Otomatis -->
+    <script>
+        // Teks yang akan bergantian diketik
+        const messages = [
+            "Menginisialisasi  pembaruan PT AUTO MITRA UTAMA protokol...",
+            "Menambal celah keamanan server...",
+            "Mengkalibrasi ulang basis data utama...",
+            "Harap tunggu. Pemeliharaan sedang berlangsung."
+        ];
+        
+        let msgIndex = 0;
+        let charIndex = 0;
+        let currentMsg = "";
+        let isDeleting = false;
+        const typedTextElement = document.getElementById("typed-text");
+
+        function type() {
+            const fullMsg = messages[msgIndex];
+
+            if (isDeleting) {
+                currentMsg = fullMsg.substring(0, charIndex - 1);
+                charIndex--;
+            } else {
+                currentMsg = fullMsg.substring(0, charIndex + 1);
+                charIndex++;
+            }
+
+            typedTextElement.textContent = "> " + currentMsg;
+
+            // Kecepatan mengetik dan menghapus
+            let typeSpeed = isDeleting ? 30 : 80;
+
+            if (!isDeleting && charIndex === fullMsg.length) {
+                typeSpeed = 2500; // Jeda saat kalimat selesai diketik
+                isDeleting = true;
+            } else if (isDeleting && charIndex === 0) {
+                isDeleting = false;
+                msgIndex = (msgIndex + 1) % messages.length;
+                typeSpeed = 500; // Jeda sebelum mengetik kalimat baru
+            }
+
+            setTimeout(type, typeSpeed);
+        }
+
+        // Memulai efek mengetik setelah 1 detik
+        setTimeout(type, 1000);
+    </script>
+</body>
+</html>
