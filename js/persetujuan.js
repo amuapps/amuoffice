@@ -5,17 +5,19 @@
 // tidak berubah sama sekali.
 
 import {
-  dbase, doc, collection, getDocs, query, where,
-  writeBatch, sertakanLog,
+  dbase, doc, collection, getDoc, getDocs, updateDoc, query, where,
+  writeBatch, catat, sertakanLog,
 } from "./db.js";
 import { bolehAkses, konfirmasiPassword } from "./auth.js";
 import { simpanPelangganOtomatis } from "./pelanggan.js";
+import { terapkanPerubahanUnit } from "./stok.js";
 import { tanya, konfirmasi } from "./dialog.js";
 import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
 
 const LABEL_JENIS = {
   pelanggan_spk: "Perubahan Data Pembeli/Pemakai",
   cashback_spk: "Pengajuan Cashback",
+  unit_diubah: "Perubahan Data Unit",
 };
 
 function kartuPengajuan(p) {
@@ -92,10 +94,11 @@ export async function halamanPersetujuan(wadah) {
     const p = data.find((x) => x.id === id);
     if (!p) return;
 
+    const label = p.jenis === "unit_diubah" ? `unit ${p.dataBaru?.noRangka || ""}`
+      : `SPK ${p.spkNo}`;
     const password = await tanya({
       judul: "Konfirmasi persetujuan",
-      pesan: `Masukkan password Anda untuk menyetujui perubahan pada ` +
-             `SPK ${p.spkNo}.`,
+      pesan: `Masukkan password Anda untuk menyetujui perubahan pada ${label}.`,
       petunjuk: "Password",
       tipeIsian: "password",
     });
@@ -109,38 +112,53 @@ export async function halamanPersetujuan(wadah) {
     }
 
     try {
-      const batch = writeBatch(dbase);
-
-      if (p.jenis === "cashback_spk") {
-        batch.update(doc(dbase, "transaksi", p.transaksiId), {
-          cashbackDisetujui: p.dataBaru.cashback,
-          cashbackStatus: "disetujui",
-        });
-        sertakanLog(batch, "cashback_disetujui", {
-          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+      if (p.jenis === "unit_diubah") {
+        // Fungsi ini punya batch & transaksi sendiri (jaga rangka
+        // unik), jadi dijalankan terpisah — bukan digabung ke satu
+        // batch seperti dua jenis lain.
+        const snapUnit = await getDoc(doc(dbase, "units", p.unitId));
+        if (!snapUnit.exists()) throw new Error("Unit ini sudah tidak ada.");
+        const unitSekarang = { id: p.unitId, ...snapUnit.data() };
+        await terapkanPerubahanUnit(unitSekarang, p.dataBaru);
+        await updateDoc(doc(dbase, "pengajuan", p.id), { status: "disetujui" });
+        await catat("perubahan_unit_disetujui", {
+          koleksi: "units", docId: p.unitId,
+          ringkas: p.dataBaru?.noRangka || "-",
         });
       } else {
-        // pelanggan_spk (bawaan): ubah data pembeli/pemakai
-        const { pembeli, pemakai, pemakaiSamaDenganPembeli } = p.dataBaru;
-        const pembeliId = await simpanPelangganOtomatis(pembeli);
-        const pemakaiId = pemakaiSamaDenganPembeli
-          ? pembeliId
-          : await simpanPelangganOtomatis(pemakai);
-        batch.update(doc(dbase, "transaksi", p.transaksiId), {
-          pembeli, pembeliId,
-          pemakaiSamaDenganPembeli,
-          pemakai: pemakaiSamaDenganPembeli ? null : pemakai,
-          pemakaiId,
-        });
-        sertakanLog(batch, "perubahan_spk_disetujui", {
-          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
-        });
+        const batch = writeBatch(dbase);
+
+        if (p.jenis === "cashback_spk") {
+          batch.update(doc(dbase, "transaksi", p.transaksiId), {
+            cashbackDisetujui: p.dataBaru.cashback,
+            cashbackStatus: "disetujui",
+          });
+          sertakanLog(batch, "cashback_disetujui", {
+            koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+          });
+        } else {
+          // pelanggan_spk (bawaan): ubah data pembeli/pemakai
+          const { pembeli, pemakai, pemakaiSamaDenganPembeli } = p.dataBaru;
+          const pembeliId = await simpanPelangganOtomatis(pembeli);
+          const pemakaiId = pemakaiSamaDenganPembeli
+            ? pembeliId
+            : await simpanPelangganOtomatis(pemakai);
+          batch.update(doc(dbase, "transaksi", p.transaksiId), {
+            pembeli, pembeliId,
+            pemakaiSamaDenganPembeli,
+            pemakai: pemakaiSamaDenganPembeli ? null : pemakai,
+            pemakaiId,
+          });
+          sertakanLog(batch, "perubahan_spk_disetujui", {
+            koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+          });
+        }
+
+        batch.update(doc(dbase, "pengajuan", p.id), { status: "disetujui" });
+        await batch.commit();
       }
 
-      batch.update(doc(dbase, "pengajuan", p.id), { status: "disetujui" });
-      await batch.commit();
-
-      kabar(`Pengajuan untuk SPK ${p.spkNo} disetujui & tersimpan.`, "netral");
+      kabar(`Pengajuan untuk ${label} disetujui & tersimpan.`, "netral");
       await muat();
     } catch (err) {
       kabar("Gagal menyetujui: " + err.message, "rem");
@@ -150,10 +168,11 @@ export async function halamanPersetujuan(wadah) {
   async function tolak(id) {
     const p = data.find((x) => x.id === id);
     if (!p) return;
+    const label = p.jenis === "unit_diubah" ? `unit ${p.dataBaru?.noRangka || ""}`
+      : `SPK ${p.spkNo}`;
     const yakin = await konfirmasi({
       judul: "Tolak pengajuan?",
-      pesan: `Pengajuan untuk SPK ${p.spkNo} akan ditolak. ` +
-             `SPK-nya tidak berubah sama sekali.`,
+      pesan: `Pengajuan untuk ${label} akan ditolak. Datanya tidak berubah sama sekali.`,
       oke: "Tolak", bahaya: true,
     });
     if (!yakin) return;
@@ -167,6 +186,10 @@ export async function halamanPersetujuan(wadah) {
         });
         sertakanLog(batch, "cashback_ditolak", {
           koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      } else if (p.jenis === "unit_diubah") {
+        sertakanLog(batch, "perubahan_unit_ditolak", {
+          koleksi: "units", docId: p.unitId, ringkas: p.dataBaru?.noRangka || "-",
         });
       } else {
         sertakanLog(batch, "perubahan_spk_ditolak", {

@@ -2,9 +2,9 @@
 // Input dibuat sependek mungkin: pilih tipe, isi dua nomor.
 
 import {
-  dbase, collection, doc, getDocs, query, where, orderBy,
-  limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
-  sertakanLog, tandaBaru,
+  dbase, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
+  orderBy, limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
+  sertakanLog, tandaBaru, catat,
 } from "./db.js";
 import { bolehAkses, sesi } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
@@ -22,13 +22,14 @@ const LABEL_STATUS = {
   terjual: "Terjual",
 };
 
-function tabelUnit(daftar) {
+function tabelUnit(daftar, bisaUbah) {
   return `<div style="overflow-x:auto">
     <table class="tabel">
       <thead>
         <tr>
           <th>No.</th><th>Tipe</th><th>Warna</th><th>Tahun</th><th>Rangka</th>
           <th>Mesin</th><th>Status</th><th>Masuk</th><th>No. DO</th>
+          ${bisaUbah ? "<th></th>" : ""}
         </tr>
       </thead>
       <tbody>
@@ -45,6 +46,9 @@ function tabelUnit(daftar) {
             ${LABEL_STATUS[u.status] || u.status}</span></td>
           <td>${tanggal(u.tglMasuk)}</td>
           <td class="mono">${aman(u.noDo || "-")}</td>
+          ${bisaUbah ? `<td><button class="tombol tombol--kecil"
+              data-ubah-unit="${u.id}"
+              onclick="event.stopPropagation()">Ubah</button></td>` : ""}
         </tr>`).join("")}
       </tbody>
     </table>
@@ -213,11 +217,15 @@ export async function halamanStok(wadah) {
     });
 
     daftarEl.innerHTML = unitTampil.length
-      ? tabelUnit(unitTampil)
+      ? tabelUnit(unitTampil, bisaUbah)
       : `<div class="hampa"><p>Tidak ada unit yang cocok dengan filter ini.</p></div>`;
 
     daftarEl.querySelectorAll("[data-lihat-pembeli]").forEach((tr) =>
       tr.addEventListener("click", () => lihatPembeli(tr.dataset.lihatPembeli)));
+    if (bisaUbah) {
+      daftarEl.querySelectorAll("[data-ubah-unit]").forEach((b) =>
+        b.addEventListener("click", () => bukaFormUbah(b.dataset.ubahUnit)));
+    }
   }
 
   async function lihatPembeli(unitId) {
@@ -404,6 +412,173 @@ export async function halamanStok(wadah) {
     }
   }
 
+  // ── Ubah unit yang sudah ada ─────────────────────────────────
+  // Buat membetulkan salah ketik (rangka/mesin/tipe/warna/dsb) —
+  // status (Ready/Dipesan/Terjual) SENGAJA tidak ikut diedit di
+  // sini, karena itu cuma boleh berubah lewat alur SPK/pembayaran.
+  //
+  // Owner: langsung tersimpan. Admin: cuma MENGAJUKAN — perubahan
+  // baru berlaku setelah Owner menyetujui (lihat persetujuan.js),
+  // supaya tidak ada yang bolak-balik ubah data unit sembarangan
+  // (apalagi unit yang sudah keluar dari showroom).
+  async function bukaFormUbah(unitId) {
+    const u = unitTampil.find((x) => x.id === unitId) ||
+      unitSemua.find((x) => x.id === unitId);
+    if (!u) return;
+
+    const owner = sesi && sesi.peran === "owner";
+    if (!owner) {
+      // Cegah pengajuan dobel untuk unit yang sama.
+      const sedangMenunggu = await getDocs(query(
+        collection(dbase, "pengajuan"),
+        where("unitId", "==", unitId),
+        where("status", "==", "menunggu"),
+        limit(1)
+      )).catch(() => null);
+      if (sedangMenunggu && !sedangMenunggu.empty) {
+        formEl.innerHTML = `<div class="lembar" style="margin-top:10px">
+          <p class="hampa">Sudah ada pengajuan perubahan untuk unit ini yang
+            masih menunggu persetujuan Owner.</p>
+          <button class="tombol tombol--kecil" id="tutup-ubah-unit">Tutup</button>
+        </div>`;
+        formEl.querySelector("#tutup-ubah-unit")
+          .addEventListener("click", () => (formEl.innerHTML = ""));
+        return;
+      }
+    }
+
+    const daftarTipe = await muatTipe();
+    formEl.innerHTML = formUnit(daftarTipe, bisaLihatHarga);
+    formEl.querySelector('button[type="submit"]').textContent =
+      owner ? "Simpan Perubahan" : "Ajukan Perubahan";
+    if (!owner) {
+      formEl.insertAdjacentHTML("afterbegin",
+        `<p class="petunjuk">Perubahan ini perlu <b>disetujui Owner</b> dulu
+          sebelum benar-benar berlaku.</p>`);
+    }
+
+    const pilihTipe = formEl.querySelector("#u-tipe");
+    const pilihWarna = formEl.querySelector("#u-warna");
+    pilihTipe.value = u.tipeId;
+    const t = tipeDari(u.tipeId);
+    pilihWarna.innerHTML = `<option value="">— pilih —</option>` +
+      ((t && t.warna) || []).map((w) =>
+        `<option value="${aman(w)}" ${w === u.warna ? "selected" : ""}>
+          ${aman(w)}</option>`).join("");
+    formEl.querySelector("#u-tahun").value = u.tahun || "";
+    formEl.querySelector("#u-rangka").value = u.noRangka || "";
+    formEl.querySelector("#u-mesin").value = u.noMesin || "";
+    formEl.querySelector("#u-do").value = u.noDo || "";
+    formEl.querySelector("#u-tgl").value = u.tglMasuk?.toDate
+      ? u.tglMasuk.toDate().toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+    if (bisaLihatHarga) {
+      const tebusEl = formEl.querySelector("#u-tebus");
+      pasangFormatUang(tebusEl);
+      try {
+        const snap = await getDoc(doc(dbase, "units", u.id, "rahasia", "harga"));
+        if (snap.exists()) {
+          tebusEl.value = Number(snap.data().hargaTebus || 0).toLocaleString("id-ID");
+        }
+      } catch { /* kalau gagal baca, biarkan kosong — bukan fatal */ }
+    }
+
+    pilihTipe.addEventListener("change", () => {
+      const tb = tipeDari(pilihTipe.value);
+      pilihWarna.innerHTML = `<option value="">— pilih —</option>` +
+        ((tb && tb.warna) || []).map((w) =>
+          `<option value="${aman(w)}">${aman(w)}</option>`).join("");
+    });
+
+    formEl.querySelector("#batal-unit")
+      .addEventListener("click", () => (formEl.innerHTML = ""));
+    formEl.querySelector("#form-unit").addEventListener("submit",
+      (e) => simpanUbah(e, u, owner));
+    formEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function simpanUbah(e, u, owner) {
+    e.preventDefault();
+    const tipeId = formEl.querySelector("#u-tipe").value;
+    const noRangkaBaru = formEl.querySelector("#u-rangka").value
+      .trim().toUpperCase();
+    if (!tipeId) { kabar("Pilih tipe motornya dulu.", "rem"); return; }
+    if (!noRangkaBaru) { kabar("Nomor rangka wajib diisi.", "rem"); return; }
+
+    const t = tipeDari(tipeId);
+    const dataBaru = {
+      tipeId,
+      tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
+      warna: formEl.querySelector("#u-warna").value,
+      tahun: Number(formEl.querySelector("#u-tahun").value || 0),
+      noRangka: noRangkaBaru,
+      noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
+      noDo: formEl.querySelector("#u-do").value.trim(),
+      tglMasuk: new Date(formEl.querySelector("#u-tgl").value),
+    };
+
+    // Harga tebus TIDAK ikut alur persetujuan — itu bukan identitas
+    // fisik unit (risiko yang dikhawatirkan), jadi tetap langsung
+    // tersimpan siapa pun yang mengedit (owner/admin, sesuai izin
+    // laba.lihat yang sudah ada).
+    if (bisaLihatHarga) {
+      const tebus = bacaAngka(formEl.querySelector("#u-tebus"));
+      if (tebus) {
+        try {
+          const p = pecahHarga(tebus, t.mewah);
+          await setDoc(doc(dbase, "units", u.id, "rahasia", "harga"), {
+            hargaTebus: tebus, dpp: p.dpp, ppnMasukan: p.ppn,
+            dicatatPada: serverTimestamp(),
+          }, { merge: true });
+        } catch (err) {
+          kabar("Gagal menyimpan harga tebus: " + err.message, "rem");
+        }
+      }
+    }
+
+    if (owner) {
+      try {
+        await terapkanPerubahanUnit(u, dataBaru);
+        formEl.innerHTML = "";
+        kabar("Perubahan unit tersimpan.", "netral");
+        await gambar();
+      } catch (err) {
+        kabar(err.message || "Gagal menyimpan perubahan.", "rem");
+      }
+      return;
+    }
+
+    // Admin: kirim pengajuan saja, tidak langsung berlaku.
+    try {
+      const ref = doc(collection(dbase, "pengajuan"));
+      await setDoc(ref, {
+        jenis: "unit_diubah",
+        unitId: u.id,
+        spkNo: null,
+        diajukanOlehUid: sesi ? sesi.uid : null,
+        diajukanOlehNama: sesi ? sesi.nama : "-",
+        diajukanOlehPeran: sesi ? sesi.peran : null,
+        status: "menunggu",
+        dataLama: {
+          tipeId: u.tipeId, tipeNama: u.tipeNama, warna: u.warna,
+          tahun: u.tahun, noRangka: u.noRangka, noMesin: u.noMesin,
+          noDo: u.noDo,
+        },
+        dataBaru,
+        catatan: buatCatatanUnit(u, dataBaru),
+        ...tandaBaru(),
+      });
+      await catat("unit_perubahan_diajukan", {
+        koleksi: "units", docId: u.id, ringkas: dataBaru.noRangka,
+      });
+      formEl.innerHTML = "";
+      kabar("Pengajuan perubahan unit terkirim, menunggu persetujuan Owner.", "netral");
+    } catch (err) {
+      kabar("Gagal mengirim pengajuan: " + err.message, "rem");
+    }
+  }
+
   if (bisaUbah) {
     wadah.querySelector("#tambah-unit").addEventListener("click", bukaForm);
   }
@@ -440,4 +615,63 @@ export function kunciUnitKeBatch(batch, unit, spkId) {
   batch.update(doc(dbase, "tipe_motor", unit.tipeId), {
     jumlahReady: increment(-1),
   });
+}
+
+// ── Terapkan perubahan identitas unit ───────────────────────────
+// Dipakai di DUA tempat: (1) Owner mengubah langsung dari halaman
+// ini, (2) Persetujuan Perubahan, saat Owner menyetujui pengajuan
+// Admin. Jadi logikanya (jaga rangka unik, pindahkan jumlahReady
+// kalau tipe berubah) cuma ditulis sekali, tidak dobel.
+export async function terapkanPerubahanUnit(u, dataBaru) {
+  const rangkaBerubah = dataBaru.noRangka !== u.noRangka;
+  const tipeBerubah = dataBaru.tipeId !== u.tipeId;
+
+  if (rangkaBerubah) {
+    await pakaiNilaiUnik("indeks_rangka", dataBaru.noRangka, u.id);
+  }
+
+  const batch = writeBatch(dbase);
+  batch.update(doc(dbase, "units", u.id), { ...dataBaru });
+
+  if (tipeBerubah && u.status === "ready") {
+    batch.update(doc(dbase, "tipe_motor", u.tipeId), { jumlahReady: increment(-1) });
+    batch.update(doc(dbase, "tipe_motor", dataBaru.tipeId), { jumlahReady: increment(1) });
+  }
+
+  sertakanLog(batch, "unit_diubah", {
+    koleksi: "units", docId: u.id,
+    ringkas: `${u.noRangka || "-"} → ${dataBaru.noRangka}`,
+  });
+
+  await batch.commit();
+
+  // Lepas indeks rangka LAMA baru setelah batch utama berhasil —
+  // supaya kalau batch di atas gagal, nomor lama tidak sampai
+  // kelanjur terlepas padahal datanya belum benar-benar berubah.
+  if (rangkaBerubah && u.noRangka) {
+    try {
+      await deleteDoc(doc(dbase, "indeks_rangka", u.noRangka.toUpperCase()));
+    } catch { /* tidak fatal — nomor lama tertinggal terkunci, bisa dibetulkan manual */ }
+  }
+
+  await sinkronKatalog();
+}
+
+// Bandingkan data lama vs baru jadi kalimat yang gampang dibaca
+// Owner — sama seperti buatCatatanPerubahan di spk.js, tapi untuk
+// field-field milik Data Unit.
+const LABEL_FIELD_UNIT = {
+  tipeNama: "Tipe Motor", warna: "Warna", tahun: "Tahun",
+  noRangka: "No. Rangka", noMesin: "No. Mesin", noDo: "No. DO",
+};
+export function buatCatatanUnit(u, dataBaru) {
+  const baris = [];
+  Object.keys(LABEL_FIELD_UNIT).forEach((f) => {
+    const lama = (u[f] ?? "-").toString().trim();
+    const baru = (dataBaru[f] ?? "-").toString().trim();
+    if (lama !== baru) {
+      baris.push(`${LABEL_FIELD_UNIT[f]}: "${lama || "-"}" → "${baru || "-"}"`);
+    }
+  });
+  return baris.length ? baris.join("\n") : "Tidak ada perubahan data yang terdeteksi.";
 }

@@ -6,7 +6,7 @@ import { initializeApp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, getDoc, setDoc, addDoc, updateDoc, runTransaction,
+  collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, runTransaction,
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -27,7 +27,7 @@ export const dbase = initializeFirestore(app, {
 });
 
 export {
-  collection, doc, getDoc, setDoc, addDoc, updateDoc, runTransaction,
+  collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, runTransaction,
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment, EmailAuthProvider, reauthenticateWithCredential,
 };
