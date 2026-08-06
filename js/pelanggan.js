@@ -59,6 +59,10 @@ export async function simpanPelanggan(data, id) {
 // tercatat sebelumnya.
 export async function simpanPelangganOtomatis(data) {
   const nik = (data.nik || "").trim();
+  const telepon = (data.telepon || "").trim();
+
+  // Cocokkan siapa pun yang lebih dulu mengisi identitas kuat
+  // (NIK) — paling diutamakan, karena paling jarang salah/tertukar.
   if (nik) {
     const snap = await getDocs(query(
       collection(dbase, "pelanggan"), where("nik", "==", nik), limit(1)
@@ -70,6 +74,23 @@ export async function simpanPelangganOtomatis(data) {
       return await simpanPelanggan(gabung, ada.id);
     }
   }
+
+  // NIK belum diisi (boleh, sesuai desain — "boleh diisi belakangan")
+  // — coba cocokkan dari nomor telepon sebagai cadangan, supaya
+  // konsumen yang sama tidak sampai tercatat dobel cuma karena
+  // NIK-nya belum sempat diisi sales yang menanganinya sekarang.
+  if (telepon) {
+    const snap = await getDocs(query(
+      collection(dbase, "pelanggan"), where("telepon", "==", telepon), limit(1)
+    ));
+    if (!snap.empty) {
+      const ada = snap.docs[0];
+      const gabung = { ...ada.data() };
+      Object.entries(data).forEach(([k, v]) => { if (v) gabung[k] = v; });
+      return await simpanPelanggan(gabung, ada.id);
+    }
+  }
+
   return await simpanPelanggan(data, null);
 }
 
@@ -259,9 +280,27 @@ export async function halamanPelanggan(wadah) {
   const formEl = wadah.querySelector("#form-pelanggan-wadah");
   const cariEl = wadah.querySelector("#cari-pelanggan");
 
+  async function pelangganMilikSalesSendiri() {
+    if (!sesi || sesi.peran !== "sales") return null; // null = tidak perlu disaring
+    const snap = await getDocs(query(
+      collection(dbase, "transaksi"), where("salesUid", "==", sesi.uid)
+    ));
+    const idMilik = new Set();
+    snap.docs.forEach((d) => {
+      const t = d.data();
+      if (t.pembeliId) idMilik.add(t.pembeliId);
+      if (t.pemakaiId) idMilik.add(t.pemakaiId);
+    });
+    return idMilik;
+  }
+
+  let daftarUntukSaya = null; // cache daftar milik sales (null = tidak dibatasi)
+
   async function gambar() {
     const semua = await muatPelanggan(true);
-    tapis(semua);
+    const idMilik = await pelangganMilikSalesSendiri();
+    daftarUntukSaya = idMilik ? semua.filter((p) => idMilik.has(p.id)) : semua;
+    tapis(daftarUntukSaya);
   }
 
   function tapis(semua) {
@@ -330,7 +369,7 @@ export async function halamanPelanggan(wadah) {
     }
   }
 
-  cariEl.addEventListener("input", () => tapis(cache));
+  cariEl.addEventListener("input", () => tapis(daftarUntukSaya || cache));
 
   async function buka(p) {
     formEl.innerHTML = `<p class="hampa">Memuat…</p>`;
