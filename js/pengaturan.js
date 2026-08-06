@@ -24,7 +24,21 @@ import { sesi, bolehAkses } from "./auth.js";
 import { PERAN, batasDiskon } from "./roles.js";
 import { FIREBASE } from "./config.js";
 import { konfirmasi, tanya, beritahu } from "./dialog.js";
-import { rupiah, aman, kabar, tanggal } from "./ui.js";
+import { rupiah, aman, kabar, tanggal, keTanggal } from "./ui.js";
+
+const OPSI_PENDIDIKAN = ["SD", "SMP", "SMA/SMK", "D3", "S1", "S2", "S3", "Lainnya"];
+
+// Dihitung dari tanggal bergabung — cukup buat gambaran umum, tidak
+// perlu presisi sampai hari.
+function masaKerja(tglBergabung) {
+  const d = keTanggal(tglBergabung);
+  if (!d) return null;
+  const bulan = Math.max(0, Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44)));
+  const th = Math.floor(bulan / 12);
+  const sisaBulan = bulan % 12;
+  if (th === 0) return `${sisaBulan} bulan`;
+  return `${th} thn${sisaBulan ? ` ${sisaBulan} bln` : ""}`;
+}
 
 // ── Pembuatan akun lewat sambungan terpisah ───────────────────
 async function buatAkun(email, sandi) {
@@ -59,26 +73,34 @@ function pesanBuat(e) {
 function kartuPengguna(u) {
   const p = PERAN[u.peran];
   const batas = batasDiskon(u.peran);
+  const mk = masaKerja(u.tanggalBergabung);
   return `<article class="kartu ${u.aktif ? "" : "kartu--batal"}">
     <div class="kartu-atas">
       <div>
         <h3 class="kartu-judul">${aman(u.nama || "Tanpa nama")}</h3>
-        <p class="kartu-sub">${aman(u.email || "")}</p>
+        <p class="kartu-sub">${aman(u.jabatan || (p ? p.label : u.peran))} ·
+          ${aman(u.email || "")}</p>
       </div>
       <span class="tanda ${u.aktif ? "tanda--ready" : "tanda--batal"}">
         ${u.aktif ? "Aktif" : "Nonaktif"}
       </span>
     </div>
     <dl class="rinci">
-      <div><dt>Peran</dt>
+      <div><dt>Peran (login)</dt>
         <dd>${aman(p ? p.label : u.peran)}${
           p ? ` <span class="mono">(${p.kode})</span>` : ""}</dd></div>
+      <div><dt>NIK</dt><dd class="mono">${aman(u.nik || "-")}</dd></div>
+      <div><dt>TTL</dt><dd>${aman(u.tempatLahir || "-")}${
+        u.tanggalLahir ? `, ${tanggal(u.tanggalLahir)}` : ""}</dd></div>
+      <div><dt>Pendidikan</dt><dd>${aman(u.pendidikan || "-")}</dd></div>
+      <div><dt>Alamat</dt><dd>${aman(u.alamat || "-")}</dd></div>
+      <div><dt>Bergabung</dt><dd>${u.tanggalBergabung
+        ? `${tanggal(u.tanggalBergabung)}${mk ? ` (${mk})` : ""}` : "-"}</dd></div>
       <div><dt>Batas diskon</dt>
         <dd>${batas === null ? "Tanpa batas" : rupiah(batas)}</dd></div>
-      <div><dt>Dibuat</dt><dd>${tanggal(u.dibuatPada)}</dd></div>
     </dl>
     <div class="aksi aksi--rapat">
-      <button class="tombol tombol--kecil" data-ubah="${u.id}">Ubah peran</button>
+      <button class="tombol tombol--kecil" data-ubah="${u.id}">Ubah Data</button>
       <button class="tombol tombol--kecil" data-status="${u.id}">
         ${u.aktif ? "Nonaktifkan" : "Aktifkan"}
       </button>
@@ -106,9 +128,9 @@ export async function halamanPengguna(wadah) {
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
-      <h2 class="judul">Pengguna &amp; Hak Akses</h2>
+      <h2 class="judul">Data Karyawan</h2>
       <button class="tombol tombol--kecil tombol--isi" id="tambah-pengguna">
-        Tambah pengguna
+        Tambah Karyawan
       </button>
     </div>
     <div id="form-pengguna"></div>
@@ -137,9 +159,43 @@ export async function halamanPengguna(wadah) {
 
   function buka() {
     formEl.innerHTML = `<form class="form" id="f-pengguna">
-      <label class="label label--gelap" for="u-nama">Nama karyawan</label>
+      <p class="pemisah">Identitas Karyawan</p>
+      <label class="label label--gelap" for="u-nama">Nama lengkap</label>
       <input class="isian isian--terang" id="u-nama"
-             placeholder="Nama yang muncul di dokumen">
+             placeholder="Sesuai KTP, muncul di dokumen">
+      <label class="label label--gelap" for="u-nik">NIK</label>
+      <input class="isian isian--terang mono" id="u-nik" inputmode="numeric"
+             placeholder="16 digit, sesuai KTP">
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="u-tempatlahir">Tempat lahir</label>
+          <input class="isian isian--terang" id="u-tempatlahir">
+        </div>
+        <div>
+          <label class="label label--gelap" for="u-tgllahir">Tanggal lahir</label>
+          <input class="isian isian--terang" id="u-tgllahir" type="date">
+        </div>
+      </div>
+      <label class="label label--gelap" for="u-alamat">Alamat</label>
+      <input class="isian isian--terang" id="u-alamat">
+      <label class="label label--gelap" for="u-pendidikan">Pendidikan terakhir</label>
+      <select class="isian isian--terang" id="u-pendidikan">
+        <option value="">— pilih —</option>
+        ${OPSI_PENDIDIKAN.map((p) => `<option value="${p}">${p}</option>`).join("")}
+      </select>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="u-jabatan">Jabatan</label>
+          <input class="isian isian--terang" id="u-jabatan"
+                 placeholder="Menyesuaikan peran login">
+        </div>
+        <div>
+          <label class="label label--gelap" for="u-bergabung">Tanggal bergabung</label>
+          <input class="isian isian--terang" id="u-bergabung" type="date">
+        </div>
+      </div>
+
+      <p class="pemisah">Akun Login</p>
       <label class="label label--gelap" for="u-email">Email</label>
       <input class="isian isian--terang" id="u-email" type="email"
              autocomplete="off">
@@ -158,6 +214,16 @@ export async function halamanPengguna(wadah) {
                 id="batal-pengguna">Batal</button>
       </div>
     </form>`;
+
+    // Jabatan otomatis terisi mengikuti peran yang dipilih — tapi
+    // tetap bisa ditimpa manual (mis. "Sales Senior" bukan cuma "Sales").
+    const jabatanEl = formEl.querySelector("#u-jabatan");
+    const peranEl = formEl.querySelector("#u-peran");
+    peranEl.addEventListener("change", () => {
+      if (!jabatanEl.value.trim()) {
+        jabatanEl.value = (PERAN[peranEl.value] || {}).label || "";
+      }
+    });
 
     formEl.querySelector("#batal-pengguna")
       .addEventListener("click", () => (formEl.innerHTML = ""));
@@ -178,6 +244,13 @@ export async function halamanPengguna(wadah) {
         const uid = await buatAkun(email, sandi);
         await setDoc(doc(dbase, "users", uid), {
           nama, email, peran, aktif: true,
+          nik: formEl.querySelector("#u-nik").value.trim(),
+          tempatLahir: formEl.querySelector("#u-tempatlahir").value.trim(),
+          tanggalLahir: formEl.querySelector("#u-tgllahir").value || null,
+          alamat: formEl.querySelector("#u-alamat").value.trim(),
+          pendidikan: formEl.querySelector("#u-pendidikan").value,
+          jabatan: jabatanEl.value.trim() || (PERAN[peran] || {}).label || "",
+          tanggalBergabung: formEl.querySelector("#u-bergabung").value || null,
           dibuatOleh: sesi.uid,
           dibuatPada: serverTimestamp(),
         });
@@ -204,9 +277,43 @@ export async function halamanPengguna(wadah) {
     const u = isi.find((x) => x.id === id);
     formEl.innerHTML = `<form class="form" id="f-peran">
       <p class="pemisah">${aman(u.nama)}</p>
-      <label class="label label--gelap" for="p-nama">Nama</label>
+      <label class="label label--gelap" for="p-nama">Nama lengkap</label>
       <input class="isian isian--terang" id="p-nama" value="${aman(u.nama)}">
-      <label class="label label--gelap" for="p-peran">Peran</label>
+      <label class="label label--gelap" for="p-nik">NIK</label>
+      <input class="isian isian--terang mono" id="p-nik" inputmode="numeric"
+             value="${aman(u.nik || "")}">
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="p-tempatlahir">Tempat lahir</label>
+          <input class="isian isian--terang" id="p-tempatlahir"
+                 value="${aman(u.tempatLahir || "")}">
+        </div>
+        <div>
+          <label class="label label--gelap" for="p-tgllahir">Tanggal lahir</label>
+          <input class="isian isian--terang" id="p-tgllahir" type="date"
+                 value="${aman(u.tanggalLahir || "")}">
+        </div>
+      </div>
+      <label class="label label--gelap" for="p-alamat">Alamat</label>
+      <input class="isian isian--terang" id="p-alamat" value="${aman(u.alamat || "")}">
+      <label class="label label--gelap" for="p-pendidikan">Pendidikan terakhir</label>
+      <select class="isian isian--terang" id="p-pendidikan">
+        <option value="">— pilih —</option>
+        ${OPSI_PENDIDIKAN.map((p) => `<option value="${p}"
+          ${p === u.pendidikan ? "selected" : ""}>${p}</option>`).join("")}
+      </select>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="p-jabatan">Jabatan</label>
+          <input class="isian isian--terang" id="p-jabatan" value="${aman(u.jabatan || "")}">
+        </div>
+        <div>
+          <label class="label label--gelap" for="p-bergabung">Tanggal bergabung</label>
+          <input class="isian isian--terang" id="p-bergabung" type="date"
+                 value="${aman(u.tanggalBergabung || "")}">
+        </div>
+      </div>
+      <label class="label label--gelap" for="p-peran">Peran (login)</label>
       <select class="isian isian--terang" id="p-peran">
         ${opsiPeran(u.peran)}
       </select>
@@ -232,7 +339,16 @@ export async function halamanPengguna(wadah) {
         if (!jadi) return;
       }
       try {
-        await updateDoc(doc(dbase, "users", u.id), { nama, peran });
+        await updateDoc(doc(dbase, "users", u.id), {
+          nama, peran,
+          nik: formEl.querySelector("#p-nik").value.trim(),
+          tempatLahir: formEl.querySelector("#p-tempatlahir").value.trim(),
+          tanggalLahir: formEl.querySelector("#p-tgllahir").value || null,
+          alamat: formEl.querySelector("#p-alamat").value.trim(),
+          pendidikan: formEl.querySelector("#p-pendidikan").value,
+          jabatan: formEl.querySelector("#p-jabatan").value.trim(),
+          tanggalBergabung: formEl.querySelector("#p-bergabung").value || null,
+        });
         await catat("pengguna_diubah", {
           koleksi: "users", docId: u.id, ringkas: `${nama} · ${peran}`,
         });

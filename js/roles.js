@@ -28,6 +28,8 @@ const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Referensi & Saran Isian", rute: "#/referensi", kode: "SYS-05" },
   { label: "Master Leasing", rute: "#/leasing", kode: "SYS-06" },
   { label: "Master Rekening", rute: "#/rekening", kode: "SYS-07" },
+  { label: "Master Agen", rute: "#/agen", kode: "SYS-12" },
+  { label: "Data Karyawan", rute: "#/pengguna", kode: "SYS-03" },
 ]};
 
 const INVENTORY = { grup: "Inventory", butir: [
@@ -49,12 +51,10 @@ const SALES = { grup: "Sales", butir: [
 
 const SISTEM_LENGKAP = { grup: "Sistem", butir: [
   { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
-  { label: "Pengguna", rute: "#/pengguna", kode: "SYS-03" },
   { label: "Ubah Nama Menu", rute: "#/label", kode: "SYS-08" },
   { label: "Log Aktivitas", rute: "#/log", kode: "SYS-09" },
   { label: "Panel Akses", rute: "#/akses", kode: "SYS-10" },
   { label: "Persetujuan Perubahan", rute: "#/persetujuan", kode: "SYS-11" },
-  { label: "Master Agen", rute: "#/agen", kode: "SYS-12" },
 ]};
 
 const SISTEM_PELANGGAN_SAJA = { grup: "Sistem", butir: [
