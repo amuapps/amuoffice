@@ -9,6 +9,23 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.1.1", tanggal: "Agustus 2026",
+    judul: "Layar Loading Lebih Informatif",
+    butir: [
+      "Layar muat di awal sekarang menampilkan persentase (bukan animasi bolak-balik tanpa arti).",
+      "Kalau loading kelamaan (lebih dari 12 detik) — biasanya tanda ada file yang belum lengkap ter-upload ke server — otomatis muncul pesan gagal-muat & tombol Muat Ulang, bukan macet diam tanpa penjelasan.",
+    ],
+  },
+  {
+    versi: "2.1.0", tanggal: "Agustus 2026",
+    judul: "Batas Diskon Ditegakkan Sungguhan",
+    butir: [
+      "Diskon yang diisi Sales/Admin melebihi batas perannya TIDAK lagi langsung berlaku begitu saja — otomatis masuk pengajuan ke Owner (mirip alur Cashback).",
+      "Diskon yang masih dalam batas tetap langsung berlaku seperti biasa, tanpa perlu persetujuan.",
+      "Owner memproses pengajuan diskon dari halaman Persetujuan Perubahan (Setujui/Tolak, pakai password), dan yang mengajukan dapat notifikasi balik di Inbox-nya.",
+    ],
+  },
+  {
     versi: "2.0.0", tanggal: "Agustus 2026",
     judul: "Pembayaran Bertahap, Agen & Persetujuan Diperluas",
     butir: [

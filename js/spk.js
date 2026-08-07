@@ -245,8 +245,8 @@ export async function halamanSpk(wadah) {
   const batas = sesi ? batasDiskon(sesi.peran) : 0;
   petunjukDiskon.textContent = batas === null
     ? "Peran Anda tidak dibatasi diskon."
-    : `Batas diskon Anda: ${rupiah(batas)}. Lebih dari ini perlu` +
-      ` persetujuan owner di luar sistem untuk saat ini.`;
+    : `Batas diskon Anda: ${rupiah(batas)}. Lebih dari ini akan otomatis ` +
+      `diajukan ke Owner untuk disetujui dulu, tidak langsung berlaku.`;
   pasangFormatUang(diskonEl);
 
   // ── Payment: pilih tipe → isi warna + cek stok ────────────────
@@ -366,6 +366,14 @@ export async function halamanSpk(wadah) {
       const agenTerpilih = agenId ? agenAktif().find((a) => a.id === agenId) : null;
       const feeAgen = elAgen ? bacaAngka(wadah.querySelector("#s-fee-agen")) : 0;
 
+      // Diskon yang MELEBIHI batas peran ini butuh persetujuan Owner
+      // dulu — tidak langsung berlaku. Kalau masih dalam batas (atau
+      // perannya Owner sendiri, batasnya null = tanpa batas), langsung
+      // berlaku seperti biasa.
+      const diskonDiisi = bacaAngka(diskonEl);
+      const perluPersetujuanDiskon = batas !== null && diskonDiisi > batas;
+      const diskonLangsung = perluPersetujuanDiskon ? 0 : diskonDiisi;
+
       const data = {
         spkNo,
         pembeliId, pembeli,
@@ -374,7 +382,7 @@ export async function halamanSpk(wadah) {
         salesUid: sesi ? sesi.uid : null,
         salesNama: sesi ? sesi.nama : "-",
         salesPeran: sesi ? sesi.peran : null,
-        diskon: bacaAngka(diskonEl),
+        diskon: diskonLangsung,
         catatan: wadah.querySelector("#s-catatan").value.trim(),
         tipeId, tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
         warna, hargaOtr: t.hargaOtr || 0,
@@ -400,6 +408,10 @@ export async function halamanSpk(wadah) {
         cashbackDiajukan,
         cashbackDisetujui: 0,
         cashbackStatus: cashbackDiajukan > 0 ? "menunggu" : null,
+        // Diskon yang melebihi batas — sama seperti cashback, BELUM
+        // berlaku sampai disetujui Owner.
+        diskonDiajukan: perluPersetujuanDiskon ? diskonDiisi : 0,
+        diskonStatus: perluPersetujuanDiskon ? "menunggu" : null,
         status: "berjalan",
         ...tandaBaru(),
       };
@@ -426,6 +438,25 @@ export async function halamanSpk(wadah) {
           dataBaru: { cashback: cashbackDiajukan },
           catatan: `Pengajuan cashback sebesar ${rupiah(cashbackDiajukan)} ` +
                    `untuk SPK ${spkNo} (${pembeli.nama}).`,
+          ...tandaBaru(),
+        });
+      }
+      if (perluPersetujuanDiskon) {
+        sertakanLog(batch, "diskon_diajukan", {
+          koleksi: "transaksi", docId: ref.id,
+          ringkas: `${spkNo} · ${rupiah(diskonDiisi)}`,
+        });
+        batch.set(doc(collection(dbase, "pengajuan")), {
+          jenis: "diskon_spk",
+          transaksiId: ref.id, spkNo,
+          diajukanOlehUid: sesi ? sesi.uid : null,
+          diajukanOlehNama: sesi ? sesi.nama : "-",
+          diajukanOlehPeran: sesi ? sesi.peran : null,
+          status: "menunggu",
+          dataBaru: { diskon: diskonDiisi },
+          catatan: `Pengajuan diskon ${rupiah(diskonDiisi)} untuk SPK ${spkNo} ` +
+                   `(${pembeli.nama}) — melebihi batas ${rupiah(batas)} ` +
+                   `untuk peran ini.`,
           ...tandaBaru(),
         });
       }

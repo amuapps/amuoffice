@@ -18,6 +18,7 @@ import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
 const LABEL_JENIS = {
   pelanggan_spk: "Perubahan Data Pembeli/Pemakai",
   cashback_spk: "Pengajuan Cashback",
+  diskon_spk: "Pengajuan Diskon Melebihi Batas",
   unit_diubah: "Perubahan Data Unit",
 };
 
@@ -137,6 +138,14 @@ export async function halamanPersetujuan(wadah) {
           sertakanLog(batch, "cashback_disetujui", {
             koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
           });
+        } else if (p.jenis === "diskon_spk") {
+          batch.update(doc(dbase, "transaksi", p.transaksiId), {
+            diskon: p.dataBaru.diskon,
+            diskonStatus: "disetujui",
+          });
+          sertakanLog(batch, "diskon_disetujui", {
+            koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+          });
         } else {
           // pelanggan_spk (bawaan): ubah data pembeli/pemakai
           const { pembeli, pemakai, pemakaiSamaDenganPembeli } = p.dataBaru;
@@ -190,6 +199,13 @@ export async function halamanPersetujuan(wadah) {
           cashbackStatus: "ditolak",
         });
         sertakanLog(batch, "cashback_ditolak", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      } else if (p.jenis === "diskon_spk") {
+        batch.update(doc(dbase, "transaksi", p.transaksiId), {
+          diskonStatus: "ditolak",
+        });
+        sertakanLog(batch, "diskon_ditolak", {
           koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
         });
       } else if (p.jenis === "unit_diubah") {
