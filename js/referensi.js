@@ -89,16 +89,10 @@ export async function tambahSaranOtomatis(kunci, nilai) {
 }
 
 // ── Tampilan satu daftar (dipakai berulang di halaman Referensi) ──
-// Kecamatan & Kabupaten/Kota SENGAJA dibedakan — dua ini bisa terus
-// bertambah otomatis dari alamat konsumen (bukan cuma yang owner
-// tambah manual), jadi lama-lama bisa jadi ratusan. Supaya tidak
-// "semak", keduanya diberi kotak pencarian DAN disembunyikan
-// sebagian secara default (baru tampil semua kalau dicari atau
-// tombol "Tampilkan semua" diklik). Tipe Motor & Warna tetap tampil
-// biasa karena jumlahnya wajar dikendalikan manual.
-const TUMBUH_OTOMATIS = ["kecamatan", "kota"];
-const BATAS_DEFAULT = 15;
-const expanded = {}; // { [kunci]: boolean }
+// Daftarnya SENGAJA tidak langsung ditampilkan begitu halaman
+// dibuka (lihat renderChip di bawah) — biar tidak "semak" walau
+// datanya (khususnya Kecamatan/Kota) terus bertambah dari waktu ke
+// waktu. Baru muncul begitu mulai mengetik di kotak pencariannya.
 
 function seksiDaftar(kunci, item, bisaUbah) {
   const judul = JUDUL[kunci];
@@ -109,8 +103,6 @@ function seksiDaftar(kunci, item, bisaUbah) {
     <input class="isian isian--terang" id="cari-${kunci}"
            placeholder="Cari ${aman(judul.toLowerCase())}…" style="margin:10px 0">
     <div class="chip-baris" id="daftar-${kunci}" style="flex-wrap:wrap"></div>
-    <button type="button" class="tombol tombol--kecil" id="lebih-${kunci}"
-            style="margin-top:8px" hidden></button>
     ${bisaUbah ? `<form class="form form--baris" id="tambah-${kunci}"
         style="margin-top:10px;display:flex;gap:8px">
         <input class="isian isian--terang" id="input-${kunci}"
@@ -143,16 +135,22 @@ export async function halamanReferensi(wadah) {
 
   function renderChip(kunci) {
     const kata = (w.querySelector(`#cari-${kunci}`)?.value || "").trim().toLowerCase();
-    const terurut = [...semua[kunci]].sort((a, b) => a.localeCompare(b, "id"));
-    const cocok = kata ? terurut.filter((x) => x.toLowerCase().includes(kata)) : terurut;
-
-    const otomatis = TUMBUH_OTOMATIS.includes(kunci);
-    const perluDibatasi = otomatis && !kata && !expanded[kunci] && cocok.length > BATAS_DEFAULT;
-    const tampil = perluDibatasi ? cocok.slice(0, BATAS_DEFAULT) : cocok;
-
     const daftarEl = w.querySelector(`#daftar-${kunci}`);
-    daftarEl.innerHTML = tampil.length
-      ? tampil.map((x) => {
+
+    // Kosong = tidak tampilkan apa-apa dulu — biar tidak "semak" pas
+    // dibuka. Daftarnya baru muncul begitu mulai mengetik sesuatu.
+    if (!kata) {
+      daftarEl.innerHTML = `<p class="hampa" style="margin:0">
+        Ketik untuk menampilkan daftar…</p>`;
+      return;
+    }
+
+    const cocok = [...semua[kunci]]
+      .filter((x) => x.toLowerCase().includes(kata))
+      .sort((a, b) => a.localeCompare(b, "id"));
+
+    daftarEl.innerHTML = cocok.length
+      ? cocok.map((x) => {
           const i = semua[kunci].indexOf(x);
           return `<span class="chip aktif" style="gap:6px">
             ${aman(x)}
@@ -163,18 +161,7 @@ export async function halamanReferensi(wadah) {
                        font-weight:bold">×</button>` : ""}
           </span>`;
         }).join("")
-      : `<p class="hampa" style="margin:0">${kata ? "Tidak ada yang cocok." : "Belum ada."}</p>`;
-
-    const tombolLebih = w.querySelector(`#lebih-${kunci}`);
-    if (perluDibatasi) {
-      tombolLebih.hidden = false;
-      tombolLebih.textContent = `Tampilkan semua (${cocok.length})`;
-    } else if (otomatis && expanded[kunci] && cocok.length > BATAS_DEFAULT && !kata) {
-      tombolLebih.hidden = false;
-      tombolLebih.textContent = "Tampilkan lebih sedikit";
-    } else {
-      tombolLebih.hidden = true;
-    }
+      : `<p class="hampa" style="margin:0">Tidak ada yang cocok.</p>`;
 
     daftarEl.querySelectorAll(".chip-hapus").forEach((b) => {
       b.addEventListener("click", async () => {
@@ -203,12 +190,6 @@ export async function halamanReferensi(wadah) {
     semuaKunci.forEach((kunci) => {
       w.querySelector(`#cari-${kunci}`)
         .addEventListener("input", () => renderChip(kunci));
-
-      const tombolLebih = w.querySelector(`#lebih-${kunci}`);
-      tombolLebih.addEventListener("click", () => {
-        expanded[kunci] = !expanded[kunci];
-        renderChip(kunci);
-      });
 
       const form = w.querySelector(`#tambah-${kunci}`);
       if (!form) return;
