@@ -115,6 +115,11 @@ service cloud.firestore {
       allow write: if salahSatu(['owner']);
     }
 
+    match /biro_jasa/{id} {
+      allow read:  if salahSatu(['owner']);
+      allow write: if salahSatu(['owner']);
+    }
+
     // ── SPK / transaksi ───────────────────────────────────
     // Sales cuma boleh BACA SPK miliknya sendiri (salesUid dia) —
     // Owner/Admin tetap bisa baca semua. Ini yang menegakkan
