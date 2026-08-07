@@ -934,3 +934,11 @@ select.isian {
   padding: 0 3px; line-height: 1;
 }
 .kartu--tandai { border-left: 3px solid var(--biru); }
+
+/* Data Unit — warna baris per status, biar gampang dipindai */
+.baris-status--ready   { background: rgba(34,176,125,.06); }
+.baris-status--booked  { background: rgba(245,166,35,.08); }
+.baris-status--terjual { background: rgba(120,120,130,.08); }
+.baris-status--ready:hover,
+.baris-status--booked:hover,
+.baris-status--terjual:hover { filter: brightness(0.97); }
