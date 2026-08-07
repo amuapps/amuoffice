@@ -1,0 +1,97 @@
+// tentang.js — riwayat versi aplikasi, khusus Owner. Isinya
+// diperbarui manual tiap ada pembaruan besar (bukan otomatis dari
+// git log atau semacamnya — ini aplikasi sederhana tanpa proses
+// build/CI, jadi cukup ditulis tangan di sini).
+
+import { sesi } from "./auth.js";
+import { VERSI } from "./config.js";
+import { aman } from "./ui.js";
+
+const RIWAYAT = [
+  {
+    versi: "2.0.0", tanggal: "Agustus 2026",
+    judul: "Pembayaran Bertahap, Agen & Persetujuan Diperluas",
+    butir: [
+      "SPK bisa dibayar bertahap (DP → cicilan → pelunasan) — tiap pembayaran dapat kuitansi & nomor sendiri, bukan cetak ulang yang sama.",
+      "Status Lunas & Terjual pada unit terdeteksi otomatis begitu total pembayaran mencapai Harga OTR.",
+      "Sumber dana kuitansi (Konsumen/Leasing) terdeteksi otomatis dari data SPK, tidak perlu diisi manual.",
+      "Master Agen (data agen penjualan, khusus Owner) beserta Fee Agen di SPK.",
+      "Cashback di SPK — bisa diajukan siapa saja, baru berlaku setelah disetujui Owner.",
+      "Ubah data Unit oleh Admin sekarang lewat alur pengajuan & persetujuan Owner (dulu langsung tersimpan).",
+      "Klik unit berstatus Dipesan/Terjual di Data Unit untuk langsung lihat siapa pembelinya.",
+    ],
+  },
+  {
+    versi: "1.9.0", tanggal: "Agustus 2026",
+    judul: "Dashboard Penjualan & Inbox Notifikasi",
+    butir: [
+      "Dashboard Penjualan (grafik tren bulanan, unit terjual per tipe, peringkat sales) — beranda default Owner.",
+      "Inbox notifikasi realtime (lonceng di panel atas) — Sales diberi tahu saat konsumennya bayar, Admin diberi tahu saat pengajuannya diputuskan.",
+      "Data Karyawan diperluas: ID Karyawan, NIK, TTL, Alamat, Pendidikan, Jabatan, Tanggal Bergabung, dan otomatis menghitung masa kerja.",
+      "Ubah password sendiri (semua peran) dan \"Lupa password?\" mandiri dari layar login.",
+    ],
+  },
+  {
+    versi: "1.8.0", tanggal: "Agustus 2026",
+    judul: "Kuitansi Rangkap 3 & Validasi QR",
+    butir: [
+      "Kuitansi dirombak jadi rangkap 3 dalam satu lembar (Konsumen/Showroom/Cadangan), bergaya krem-emas.",
+      "QR code di tiap kuitansi — bisa dipindai siapa saja untuk verifikasi keasliannya lewat halaman publik, tanpa perlu login.",
+      "Mencetak kuitansi pertama kali mengunci data pembeli/pemakai/unit SPK itu (wajib konfirmasi password Owner/Admin dulu).",
+    ],
+  },
+  {
+    versi: "1.7.0", tanggal: "Agustus 2026",
+    judul: "Alur Persetujuan Perubahan Data",
+    butir: [
+      "Perubahan data Pembeli/Pemakai pada SPK yang sudah tersimpan kini lewat pengajuan — baru berlaku setelah disetujui Owner (pakai password).",
+      "Halaman Persetujuan Perubahan — daftar semua pengajuan yang menunggu, lengkap catatan otomatis apa saja yang berubah.",
+      "Sales dibatasi cuma bisa lihat SPK & data konsumen yang dia tangani sendiri (ditegakkan sampai level Firestore rules).",
+    ],
+  },
+  {
+    versi: "1.5.1", tanggal: "Agustus 2026",
+    judul: "Fondasi Sistem",
+    butir: [
+      "Master data (Tipe Motor, Data Unit, Leasing, Rekening, Referensi & Saran Isian).",
+      "SPK — pembuatan, riwayat & laporan, cetak PDF dengan watermark otomatis.",
+      "Database Konsumen, Panel Akses per peran, Ubah Nama Menu, Log Aktivitas.",
+    ],
+  },
+];
+
+export async function halamanTentang(wadah) {
+  if (!sesi || sesi.peran !== "owner") {
+    wadah.innerHTML = `<section class="lembar">
+      <div class="hampa"><p>Halaman ini cuma tersedia untuk Owner.</p></div>
+    </section>`;
+    return;
+  }
+
+  wadah.innerHTML = `<section class="lembar">
+    <div class="lembar-atas">
+      <h2 class="judul">Tentang Aplikasi</h2>
+    </div>
+    <div class="lembar" style="margin:10px 0 16px;text-align:center">
+      <p class="kartu-sub" style="margin:0">Versi yang sedang berjalan</p>
+      <p class="angka-besar" style="margin:2px 0 0">v${aman(VERSI)}</p>
+    </div>
+
+    <h3 class="judul" style="font-size:15px;margin-bottom:8px">Riwayat Pembaruan</h3>
+    <div id="daftar-riwayat">
+      ${RIWAYAT.map((r, i) => `<div class="lembar" style="margin-bottom:10px;
+            ${i === 0 ? "border-left:3px solid var(--biru)" : ""}">
+        <div style="display:flex;justify-content:space-between;
+                    align-items:baseline;flex-wrap:wrap;gap:6px">
+          <h4 class="kartu-judul" style="margin:0">v${aman(r.versi)} —
+            ${aman(r.judul)}</h4>
+          ${i === 0 ? `<span class="tanda tanda--ready">Terbaru</span>` : ""}
+        </div>
+        <p class="kartu-sub" style="margin:2px 0 8px">${aman(r.tanggal)}</p>
+        <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.6">
+          ${r.butir.map((b) => `<li>${aman(b)}</li>`).join("")}
+        </ul>
+      </div>`).join("")}
+    </div>
+  </section>`;
+}

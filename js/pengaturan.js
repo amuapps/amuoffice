@@ -17,7 +17,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import {
-  dbase, auth, collection, doc, getDocs, setDoc, updateDoc,
+  dbase, auth, collection, doc, getDocs, setDoc, updateDoc, query, where,
   serverTimestamp, catat,
 } from "./db.js";
 import { sesi, bolehAkses } from "./auth.js";
@@ -77,7 +77,9 @@ function kartuPengguna(u) {
   return `<article class="kartu ${u.aktif ? "" : "kartu--batal"}">
     <div class="kartu-atas">
       <div>
-        <h3 class="kartu-judul">${aman(u.nama || "Tanpa nama")}</h3>
+        <h3 class="kartu-judul">${aman(u.nama || "Tanpa nama")}
+          ${u.idKaryawan ? `<span class="mono" style="font-weight:400;
+            color:var(--abu-2);font-size:12.5px"> · ${aman(u.idKaryawan)}</span>` : ""}</h3>
         <p class="kartu-sub">${aman(u.jabatan || (p ? p.label : u.peran))} ·
           ${aman(u.email || "")}</p>
       </div>
@@ -160,6 +162,9 @@ export async function halamanPengguna(wadah) {
   function buka() {
     formEl.innerHTML = `<form class="form" id="f-pengguna">
       <p class="pemisah">Identitas Karyawan</p>
+      <label class="label label--gelap" for="u-idkaryawan">ID Karyawan</label>
+      <input class="isian isian--terang mono" id="u-idkaryawan"
+             placeholder="mis. KRY-001">
       <label class="label label--gelap" for="u-nama">Nama lengkap</label>
       <input class="isian isian--terang" id="u-nama"
              placeholder="Sesuai KTP, muncul di dokumen">
@@ -229,21 +234,31 @@ export async function halamanPengguna(wadah) {
       .addEventListener("click", () => (formEl.innerHTML = ""));
     formEl.querySelector("#f-pengguna").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const idKaryawan = formEl.querySelector("#u-idkaryawan").value.trim();
       const nama = formEl.querySelector("#u-nama").value.trim();
       const email = formEl.querySelector("#u-email").value.trim();
       const sandi = formEl.querySelector("#u-sandi").value;
       const peran = formEl.querySelector("#u-peran").value;
-      if (!nama || !email || !sandi) {
-        kabar("Nama, email, dan sandi wajib diisi.", "rem");
+      if (!idKaryawan || !nama || !email || !sandi) {
+        kabar("ID Karyawan, Nama, email, dan sandi wajib diisi.", "rem");
         return;
       }
       const tombol = e.target.querySelector('button[type="submit"]');
       tombol.disabled = true;
       tombol.textContent = "Membuat…";
       try {
+        const bentrok = await getDocs(query(
+          collection(dbase, "users"), where("idKaryawan", "==", idKaryawan)
+        ));
+        if (!bentrok.empty) {
+          kabar("ID Karyawan ini sudah dipakai karyawan lain.", "rem");
+          tombol.disabled = false;
+          tombol.textContent = "Buat akun";
+          return;
+        }
         const uid = await buatAkun(email, sandi);
         await setDoc(doc(dbase, "users", uid), {
-          nama, email, peran, aktif: true,
+          idKaryawan, nama, email, peran, aktif: true,
           nik: formEl.querySelector("#u-nik").value.trim(),
           tempatLahir: formEl.querySelector("#u-tempatlahir").value.trim(),
           tanggalLahir: formEl.querySelector("#u-tgllahir").value || null,
@@ -277,6 +292,9 @@ export async function halamanPengguna(wadah) {
     const u = isi.find((x) => x.id === id);
     formEl.innerHTML = `<form class="form" id="f-peran">
       <p class="pemisah">${aman(u.nama)}</p>
+      <label class="label label--gelap" for="p-idkaryawan">ID Karyawan</label>
+      <input class="isian isian--terang mono" id="p-idkaryawan"
+             value="${aman(u.idKaryawan || "")}">
       <label class="label label--gelap" for="p-nama">Nama lengkap</label>
       <input class="isian isian--terang" id="p-nama" value="${aman(u.nama)}">
       <label class="label label--gelap" for="p-nik">NIK</label>
@@ -327,8 +345,13 @@ export async function halamanPengguna(wadah) {
       .addEventListener("click", () => (formEl.innerHTML = ""));
     formEl.querySelector("#f-peran").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const idKaryawan = formEl.querySelector("#p-idkaryawan").value.trim();
       const nama = formEl.querySelector("#p-nama").value.trim();
       const peran = formEl.querySelector("#p-peran").value;
+      if (!idKaryawan) {
+        kabar("ID Karyawan wajib diisi.", "rem");
+        return;
+      }
       if (u.id === sesi.uid && peran !== "owner") {
         const jadi = await konfirmasi({
           judul: "Menurunkan peran sendiri",
@@ -339,8 +362,15 @@ export async function halamanPengguna(wadah) {
         if (!jadi) return;
       }
       try {
+        const bentrok = await getDocs(query(
+          collection(dbase, "users"), where("idKaryawan", "==", idKaryawan)
+        ));
+        if (bentrok.docs.some((d) => d.id !== u.id)) {
+          kabar("ID Karyawan ini sudah dipakai karyawan lain.", "rem");
+          return;
+        }
         await updateDoc(doc(dbase, "users", u.id), {
-          nama, peran,
+          idKaryawan, nama, peran,
           nik: formEl.querySelector("#p-nik").value.trim(),
           tempatLahir: formEl.querySelector("#p-tempatlahir").value.trim(),
           tanggalLahir: formEl.querySelector("#p-tgllahir").value || null,

@@ -10,7 +10,7 @@ import {
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, EmailAuthProvider, reauthenticateWithCredential }
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { FIREBASE, MODE_UJI } from "./config.js";
@@ -30,6 +30,7 @@ export {
   collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, runTransaction,
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment, EmailAuthProvider, reauthenticateWithCredential,
+  updatePassword,
 };
 
 // ── Status koneksi ────────────────────────────────────────────

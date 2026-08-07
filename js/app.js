@@ -9,14 +9,14 @@
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
 import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js";
-import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi }
-  from "./auth.js";
+import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
+  ubahPasswordSendiri, mintaResetPassword } from "./auth.js";
 import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js";
 import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
   from "./router.js";
 import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js";
-import { konfirmasi } from "./dialog.js";
+import { konfirmasi, tanya } from "./dialog.js";
 import { halamanStok } from "./stok.js";
 import { halamanTipe } from "./tipe.js";
 import { halamanReferensi } from "./referensi.js";
@@ -32,6 +32,7 @@ import { halamanLog } from "./log.js";
 import { halamanPersetujuan } from "./persetujuan.js";
 import { halamanAgen } from "./agen.js";
 import { halamanDashboard } from "./dashboard.js";
+import { halamanTentang } from "./tentang.js";
 import { halamanInbox, pasangLencana } from "./notifikasi.js";
 import { halamanSegera } from "./segera.js";
 
@@ -69,6 +70,29 @@ function siapkanLayarMasuk() {
       tombol.disabled = false;
       tombol.textContent = "Masuk";
     }
+  });
+
+  // Lupa password — dipakai SEBELUM login, jadi pakai email yang
+  // sudah diketik di kotak Email (kalau ada) sebagai isian awal.
+  // Pesannya SENGAJA sama persis mau emailnya terdaftar atau tidak
+  // (tidak bilang "email tidak ditemukan") — supaya orang luar tidak
+  // bisa dipakai untuk menebak-nebak email siapa saja yang terdaftar
+  // di sistem ini.
+  el("tombol-lupa-sandi").addEventListener("click", async () => {
+    const isian = el("email").value.trim();
+    const email = await tanya({
+      judul: "Lupa Password",
+      pesan: "Masukkan email akun Anda. Kalau email ini terdaftar, " +
+             "link buat bikin password baru akan dikirim ke email itu.",
+      petunjuk: "Email", nilai: isian,
+    });
+    if (email === null) return;
+    try {
+      await mintaResetPassword(email.trim());
+    } catch { /* diabaikan dengan sengaja, lihat catatan di atas */ }
+    kabar("Kalau email itu terdaftar, link reset password sudah " +
+          "dikirim. Cek inbox (atau folder Spam) beberapa saat lagi.",
+          "netral");
   });
 }
 
@@ -249,6 +273,7 @@ function daftarkanHalaman(profil) {
     "#/persetujuan": (w) => halamanPersetujuan(w),
     "#/agen": (w) => halamanAgen(w),
     "#/dashboard": (w) => halamanDashboard(w),
+    "#/tentang": (w) => halamanTentang(w),
     "#/inbox": (w) => halamanInbox(w),
   };
 
@@ -405,6 +430,51 @@ el("tombol-keluar").addEventListener("click", async () => {
 });
 
 el("tombol-inbox").addEventListener("click", () => pergiKe("#/inbox"));
+
+// Ganti sandi sendiri — dibuka siapa saja yang login, tidak
+// bergantung menu/peran (kayak Inbox). Tiga langkah pakai dialog
+// tanya() berurutan (sandi lama → sandi baru → konfirmasi), supaya
+// tidak perlu bikin komponen dialog baru cuma buat ini.
+el("tombol-sandi").addEventListener("click", async () => {
+  const lama = await tanya({
+    judul: "Ubah Password",
+    pesan: "Masukkan password Anda saat ini untuk konfirmasi.",
+    petunjuk: "Password saat ini", tipeIsian: "password",
+  });
+  if (lama === null) return;
+
+  const baru = await tanya({
+    judul: "Password Baru",
+    pesan: "Masukkan password baru (minimal 6 karakter).",
+    petunjuk: "Password baru", tipeIsian: "password",
+  });
+  if (baru === null) return;
+  if (baru.length < 6) {
+    kabar("Password baru minimal 6 karakter.", "rem");
+    return;
+  }
+
+  const ulang = await tanya({
+    judul: "Konfirmasi Password Baru",
+    pesan: "Ketik ulang password baru tadi, supaya tidak salah ketik.",
+    petunjuk: "Ulangi password baru", tipeIsian: "password",
+  });
+  if (ulang === null) return;
+  if (ulang !== baru) {
+    kabar("Konfirmasi password tidak cocok dengan password baru.", "rem");
+    return;
+  }
+
+  try {
+    await ubahPasswordSendiri(lama, baru);
+    kabar("Password berhasil diubah.", "netral");
+  } catch (err) {
+    const salahSandiLama = ["auth/wrong-password", "auth/invalid-credential"]
+      .includes(err.code);
+    kabar(salahSandiLama ? "Password saat ini yang Anda masukkan salah."
+      : "Gagal mengubah password: " + err.message, "rem");
+  }
+});
 
 function selesaiMemuat() {
   const m = el("muat");

@@ -2,10 +2,11 @@
 
 import {
   signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  sendPasswordResetEmail,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { auth, dbase, doc, getDoc, catat,
-  EmailAuthProvider, reauthenticateWithCredential } from "./db.js";
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "./db.js";
 import { PERAN, boleh } from "./roles.js";
 import { kabar } from "./ui.js";
 
@@ -122,6 +123,22 @@ export async function konfirmasiPassword(password) {
   if (!u || !u.email) throw new Error("Sesi tidak valid, coba masuk ulang.");
   const kredensial = EmailAuthProvider.credential(u.email, password);
   await reauthenticateWithCredential(u, kredensial); // melempar kalau salah
+}
+
+// Dipakai siapa saja yang login (bukan cuma Owner) buat ganti sandi
+// sendiri, mis. dari sandi awal yang diberikan Owner. Wajib
+// konfirmasi sandi lama dulu — sama seperti aksi sensitif lainnya.
+export async function ubahPasswordSendiri(passwordLama, passwordBaru) {
+  await konfirmasiPassword(passwordLama); // melempar kalau sandi lama salah
+  await updatePassword(auth.currentUser, passwordBaru);
+}
+
+// Dipakai dari layar login (belum login sama sekali) — karyawan
+// yang sudah terdaftar Owner bisa minta link reset sendiri, masuk
+// ke emailnya sendiri (lewat layanan email Firebase), tanpa perlu
+// menunggu Owner memicu dari halaman Data Karyawan.
+export async function mintaResetPassword(email) {
+  await sendPasswordResetEmail(auth, email);
 }
 
 export function pesanTolak(e) {
