@@ -29,6 +29,7 @@ const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Master Leasing", rute: "#/leasing", kode: "SYS-06" },
   { label: "Master Rekening", rute: "#/rekening", kode: "SYS-07" },
   { label: "Master Agen", rute: "#/agen", kode: "SYS-12" },
+  { label: "Master Biro Jasa", rute: "#/biro", kode: "SYS-14" },
   { label: "Data Karyawan", rute: "#/pengguna", kode: "SYS-03" },
 ]};
 

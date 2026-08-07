@@ -9,6 +9,25 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.3.0", tanggal: "Agustus 2026",
+    judul: "Batalkan SPK",
+    butir: [
+      "Tombol \"Batalkan\" di Riwayat SPK & Lihat Pesanan — SPK yang belum Lunas/Terjual sekarang bisa dibatalkan langsung dari aplikasi (dulu cuma bisa manual lewat Firebase Console).",
+      "SPK yang sudah Lunas & unitnya sudah Terjual TIDAK bisa dibatalkan lewat sistem — harus ditangani Owner di luar sistem (retur/tukar unit).",
+      "Owner bisa langsung membatalkan (pakai password kalau kuitansi sudah dicetak). Admin/Sales cuma bisa mengajukan, Owner yang menyetujui/menolak lewat Persetujuan Perubahan.",
+      "Unit yang terkunci ke SPK yang dibatalkan otomatis kembali jadi Ready, stok bertambah balik.",
+      "Alasan pembatalan wajib diisi & tercatat di Log Aktivitas; sales pemilik SPK dapat notifikasi kalau yang membatalkan Owner.",
+    ],
+  },
+  {
+    versi: "2.2.0", tanggal: "Agustus 2026",
+    judul: "Master Biro Jasa",
+    butir: [
+      "Master Biro Jasa (vendor pengurusan STNK/BPKB) — pola & kerahasiaan sama seperti Master Agen, khusus Owner.",
+      "Field \"Biro Jasa\" & \"Biaya Biro Jasa / BBN\" ditambahkan ke SPK, cuma terlihat Owner — mencatat siapa yang mengurus dokumen unit & berapa biaya sungguhannya.",
+    ],
+  },
+  {
     versi: "2.1.1", tanggal: "Agustus 2026",
     judul: "Layar Loading Lebih Informatif",
     butir: [

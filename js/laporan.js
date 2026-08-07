@@ -5,7 +5,7 @@ import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
 import { rupiah, aman, tanggal } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
-import { pasangEditPelangganSpk } from "./spk.js";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { bolehAkses, sesi } from "./auth.js";
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
@@ -19,20 +19,26 @@ function hariIni() {
 }
 
 function baris(t) {
-  return `<tr>
+  const batal = t.status === "batal";
+  return `<tr style="${batal ? "opacity:.55" : ""}">
     <td class="mono">${aman(t.spkNo)}</td>
     <td>${tanggal(t.dibuatPada)}</td>
     <td>${aman(t.pembeli?.nama)}</td>
     <td>${aman(t.tipeNama)} · ${aman(t.warna)}</td>
     <td>${rupiah(t.hargaOtr)}</td>
-    <td><span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
-      ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span></td>
+    <td>${batal
+      ? `<span class="tanda tanda--batal">Batal</span>`
+      : `<span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
+          ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}</td>
     <td style="white-space:nowrap">
-      ${bolehAkses("cetak.dokumen") ? `
-        <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
-        <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
-          ${labelTombolKuitansi(t)}</button>` : ""}
-      <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
+      ${batal ? aman(t.alasanBatal || "-") : `
+        ${bolehAkses("cetak.dokumen") ? `
+          <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
+          <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
+            ${labelTombolKuitansi(t)}</button>` : ""}
+        <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
+        <button class="tombol tombol--kecil" data-batalkan="${t.id}">Batalkan</button>
+      `}
     </td>
   </tr>
   <tr data-baris-edit="${t.id}" hidden>
@@ -163,6 +169,11 @@ export async function halamanLaporan(wadah) {
         }
         barisSembunyi.hidden = false;
         pasangEditPelangganSpk(target, t, muat);
+      }));
+    barisEl.querySelectorAll("[data-batalkan]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = dataSpk.find((x) => x.id === b.dataset.batalkan);
+        mintaBatalkanSpk(t, muat);
       }));
   }
 

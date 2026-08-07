@@ -6,11 +6,12 @@
 
 import {
   dbase, doc, collection, getDoc, getDocs, updateDoc, query, where,
-  writeBatch, catat, sertakanLog,
+  writeBatch, catat, sertakanLog, serverTimestamp, increment,
 } from "./db.js";
-import { bolehAkses, konfirmasiPassword } from "./auth.js";
+import { bolehAkses, konfirmasiPassword, sesi } from "./auth.js";
 import { simpanPelangganOtomatis } from "./pelanggan.js";
 import { terapkanPerubahanUnit } from "./stok.js";
+import { hitungTotalDibayar } from "./cetak.js";
 import { buatNotifikasi } from "./notifikasi.js";
 import { tanya, konfirmasi } from "./dialog.js";
 import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js";
@@ -20,6 +21,7 @@ const LABEL_JENIS = {
   cashback_spk: "Pengajuan Cashback",
   diskon_spk: "Pengajuan Diskon Melebihi Batas",
   unit_diubah: "Perubahan Data Unit",
+  batal_spk: "Pengajuan Pembatalan SPK",
 };
 
 function kartuPengajuan(p) {
@@ -127,6 +129,45 @@ export async function halamanPersetujuan(wadah) {
           koleksi: "units", docId: p.unitId,
           ringkas: p.dataBaru?.noRangka || "-",
         });
+      } else if (p.jenis === "batal_spk") {
+        // Cek ulang statusnya SAAT INI (bisa saja berubah sejak
+        // pengajuan dikirim, mis. sudah keburu dibayar lunas) —
+        // jangan cuma percaya kondisi waktu diajukan dulu.
+        const snapTrx = await getDoc(doc(dbase, "transaksi", p.transaksiId));
+        if (!snapTrx.exists()) throw new Error("SPK ini sudah tidak ada.");
+        const trx = { id: p.transaksiId, ...snapTrx.data() };
+        if (trx.status === "batal") throw new Error("SPK ini sudah dibatalkan.");
+        const totalDibayar = hitungTotalDibayar(trx);
+        const lunas = (trx.hargaOtr || 0) > 0 && totalDibayar >= (trx.hargaOtr || 0);
+        if (lunas) {
+          throw new Error("SPK ini sudah Lunas sejak pengajuan dikirim — " +
+            "tidak bisa dibatalkan lewat sistem lagi.");
+        }
+
+        const batch = writeBatch(dbase);
+        batch.update(doc(dbase, "transaksi", p.transaksiId), {
+          status: "batal",
+          alasanBatal: p.dataBaru?.alasan || "-",
+          dibatalkanPada: serverTimestamp(),
+          dibatalkanOleh: sesi.uid,
+        });
+        if (trx.unitId) {
+          const snapUnit = await getDoc(doc(dbase, "units", trx.unitId));
+          if (snapUnit.exists() && snapUnit.data().status === "booked") {
+            batch.update(doc(dbase, "units", trx.unitId), {
+              status: "ready", spkId: null,
+            });
+            batch.update(doc(dbase, "tipe_motor", trx.tipeId), {
+              jumlahReady: increment(1),
+            });
+          }
+        }
+        batch.update(doc(dbase, "pengajuan", p.id), { status: "disetujui" });
+        sertakanLog(batch, "spk_dibatalkan", {
+          koleksi: "transaksi", docId: p.transaksiId,
+          ringkas: `${p.spkNo} · ${p.dataBaru?.alasan || "-"}`,
+        });
+        await batch.commit();
       } else {
         const batch = writeBatch(dbase);
 
@@ -206,6 +247,12 @@ export async function halamanPersetujuan(wadah) {
           diskonStatus: "ditolak",
         });
         sertakanLog(batch, "diskon_ditolak", {
+          koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
+        });
+      } else if (p.jenis === "batal_spk") {
+        // Ditolak = SPK-nya TIDAK berubah sama sekali, cuma
+        // pengajuannya yang ditandai selesai.
+        sertakanLog(batch, "batal_spk_ditolak", {
           koleksi: "transaksi", docId: p.transaksiId, ringkas: p.spkNo,
         });
       } else if (p.jenis === "unit_diubah") {

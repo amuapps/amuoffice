@@ -10,7 +10,7 @@ import {
 import { bolehAkses, sesi } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
-import { pasangEditPelangganSpk } from "./spk.js";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
   from "./referensi.js";
 
@@ -210,28 +210,34 @@ export async function muatPesananPelanggan(pelangganId) {
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
 function kartuPesanan(t) {
-  return `<article class="kartu">
+  const batal = t.status === "batal";
+  return `<article class="kartu" style="${batal ? "opacity:.55" : ""}">
     <div class="kartu-atas">
       <div>
         <h3 class="kartu-judul mono">${aman(t.spkNo)}</h3>
         <p class="kartu-sub">${aman(t.tipeNama)} · ${aman(t.warna)}</p>
       </div>
-      <span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
-        ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}
-      </span>
+      ${batal
+        ? `<span class="tanda tanda--batal">Batal</span>`
+        : `<span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
+            ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}
     </div>
     <dl class="rinci">
       <div><dt>Harga OTR</dt><dd>${rupiah(t.hargaOtr)}</dd></div>
       <div><dt>Cara bayar</dt><dd>${aman((t.caraBayar || []).join(", "))}</dd></div>
       <div><dt>Sales</dt><dd>${aman(namaTampilan(t.salesPeran, t.salesNama))}</dd></div>
       <div><dt>Tanggal</dt><dd>${tanggal(t.dibuatPada)}</dd></div>
+      ${batal ? `<div><dt>Alasan Batal</dt><dd>${aman(t.alasanBatal || "-")}</dd></div>` : ""}
     </dl>
-    ${bolehAkses("cetak.dokumen") ? `
-      <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
-      <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
-        ${labelTombolKuitansi(t)}</button>` : ""}
-    <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
-    <div data-wadah-edit-pesanan="${t.id}"></div>
+    ${!batal ? `
+      ${bolehAkses("cetak.dokumen") ? `
+        <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
+        <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
+          ${labelTombolKuitansi(t)}</button>` : ""}
+      <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
+      <button class="tombol tombol--kecil" data-batalkan-pesanan="${t.id}">Batalkan SPK</button>
+      <div data-wadah-edit-pesanan="${t.id}"></div>
+    ` : ""}
   </article>`;
 }
 
@@ -419,6 +425,14 @@ export async function halamanPelanggan(wadah) {
           pasangEditPelangganSpk(target, t, () => {
             // Reset flag toggle dulu, supaya panggilan ulang bukaPesanan
             // memuat ulang datanya (bukan malah menutup panelnya).
+            wadahPesanan.dataset.terbuka = "0";
+            return bukaPesanan(id);
+          });
+        }));
+      wadahPesanan.querySelectorAll("[data-batalkan-pesanan]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const t = pesanan.find((x) => x.id === b.dataset.batalkanPesanan);
+          mintaBatalkanSpk(t, () => {
             wadahPesanan.dataset.terbuka = "0";
             return bukaPesanan(id);
           });

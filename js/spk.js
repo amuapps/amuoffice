@@ -8,11 +8,11 @@
 // yang berstatus Indent, tanpa membuat unit palsu di Data Unit.
 
 import {
-  dbase, doc, collection, setDoc, getDocs, query, where, limit,
-  writeBatch, serverTimestamp, catat,
+  dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
+  limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
 } from "./db.js";
-import { sesi, bolehAkses } from "./auth.js";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
 import { batasDiskon } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
 import { cariUnitReady, kunciUnitKeBatch } from "./stok.js";
@@ -22,8 +22,11 @@ import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
 import { muatAgen, agenAktif } from "./agen.js";
-import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi }
-  from "./cetak.js";
+import { muatBiro, biroAktif } from "./biro.js";
+import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
+  hitungTotalDibayar } from "./cetak.js";
+import { konfirmasi, tanya, beritahu } from "./dialog.js";
+import { buatNotifikasi } from "./notifikasi.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
 
 function opsiTipe(daftarTipe) {
@@ -48,7 +51,7 @@ function panelCustomer(saranKecamatan, saranKota) {
   </div>`;
 }
 
-function panelInternal(daftarAgen) {
+function panelInternal(daftarAgen, daftarBiro) {
   const bisaLihatAgen = bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna");
   return `<div class="tab-panel" data-panel="internal" hidden>
     <label class="label label--gelap">Sales</label>
@@ -75,6 +78,16 @@ function panelInternal(daftarAgen) {
     </select>
     <label class="label label--gelap" for="s-fee-agen">Fee Agen (Rp)</label>
     <input class="isian isian--terang" id="s-fee-agen" inputmode="numeric" value="0">
+
+    <label class="label label--gelap" for="s-biro">Biro Jasa (STNK/BPKB)
+      <span class="kunci">cuma terlihat Owner</span></label>
+    <select class="isian isian--terang" id="s-biro">
+      <option value="">— tidak ada biro jasa —</option>
+      ${daftarBiro.map((b) =>
+        `<option value="${b.id}">${aman(b.idBiro)} · ${aman(b.nama)}</option>`).join("")}
+    </select>
+    <label class="label label--gelap" for="s-biaya-biro">Biaya Biro Jasa / BBN (Rp)</label>
+    <input class="isian isian--terang" id="s-biaya-biro" inputmode="numeric" value="0">
     ` : ""}
 
     <label class="label label--gelap" for="s-catatan">Catatan internal</label>
@@ -167,7 +180,8 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 
 export async function halamanSpk(wadah) {
   wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
-  let daftarTipe = [], daftarLeasing = [], daftarRekening = [], daftarAgen = [];
+  let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
+  let daftarAgen = [], daftarBiro = [];
   let saranKecamatan = [], saranKota = [];
   try {
     [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota] =
@@ -176,7 +190,7 @@ export async function halamanSpk(wadah) {
         muatSaranKecamatan(), muatSaranKota(),
       ]);
     if (bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna")) {
-      daftarAgen = await muatAgen();
+      [daftarAgen, daftarBiro] = await Promise.all([muatAgen(), muatBiro()]);
     }
   } catch (err) {
     wadah.innerHTML = `<div class="hampa">
@@ -192,6 +206,7 @@ export async function halamanSpk(wadah) {
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
   const agenPilihan = agenAktif().length ? agenAktif() : daftarAgen;
+  const biroPilihan = biroAktif().length ? biroAktif() : daftarBiro;
   const tanggalHariIni = new Date().toLocaleDateString("id-ID", {
     day: "numeric", month: "long", year: "numeric",
   });
@@ -212,7 +227,7 @@ export async function halamanSpk(wadah) {
     </div>
     <form id="form-spk" class="form">
       ${panelCustomer(saranKecamatan, saranKota)}
-      ${panelInternal(agenPilihan)}
+      ${panelInternal(agenPilihan, biroPilihan)}
       ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan SPK</button>
@@ -365,6 +380,10 @@ export async function halamanSpk(wadah) {
       const agenId = elAgen ? elAgen.value : "";
       const agenTerpilih = agenId ? agenAktif().find((a) => a.id === agenId) : null;
       const feeAgen = elAgen ? bacaAngka(wadah.querySelector("#s-fee-agen")) : 0;
+      const elBiro = wadah.querySelector("#s-biro");
+      const biroId = elBiro ? elBiro.value : "";
+      const biroTerpilih = biroId ? biroAktif().find((b) => b.id === biroId) : null;
+      const biayaBiro = elBiro ? bacaAngka(wadah.querySelector("#s-biaya-biro")) : 0;
 
       // Diskon yang MELEBIHI batas peran ini butuh persetujuan Owner
       // dulu — tidak langsung berlaku. Kalau masih dalam batas (atau
@@ -403,6 +422,11 @@ export async function halamanSpk(wadah) {
         agenId: agenTerpilih ? agenTerpilih.id : null,
         agenNama: agenTerpilih ? agenTerpilih.nama : null,
         feeAgen: agenTerpilih ? feeAgen : 0,
+        // Biro Jasa (pengurus STNK/BPKB) & biaya sungguhannya — sama
+        // rahasianya seperti Fee Agen, cuma Owner yang lihat/isi.
+        biroId: biroTerpilih ? biroTerpilih.id : null,
+        biroNama: biroTerpilih ? biroTerpilih.nama : null,
+        biayaBiro: biroTerpilih ? biayaBiro : 0,
         // Cashback BELUM berlaku sampai Owner menyetujui — lihat
         // pengajuan yang dibuat setelah batch ini kalau nilainya > 0.
         cashbackDiajukan,
@@ -516,6 +540,13 @@ export async function halamanSpk(wadah) {
 // lain (Riwayat SPK, Lihat Pesanan) dengan kontainer kosong untuk
 // diisi form-nya.
 export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
+  if (t.status === "batal") {
+    kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
+      <p class="hampa">SPK ini sudah dibatalkan, tidak bisa diajukan
+        perubahan apa pun lagi.</p>
+    </div>`;
+    return;
+  }
   if (t.kuitansiTercetak) {
     kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
       <p class="hampa">Kuitansi untuk SPK ini sudah dicetak (${aman(t.kuitansiNo || "")})
@@ -675,4 +706,145 @@ export function buatCatatanPerubahan(dataLama, dataBaru) {
     });
   });
   return baris.length ? baris.join("\n") : "Tidak ada perubahan data yang terdeteksi.";
+}
+
+// ── Batalkan SPK ─────────────────────────────────────────────
+// SENGAJA tidak semua SPK boleh dibatalkan lewat sini — kalau
+// sudah Lunas & unitnya sudah Terjual (fisik sudah keluar
+// showroom), itu bukan lagi urusan "batal SPK" tapi retur/tukar
+// unit yang lebih rumit, di luar cakupan tombol ini.
+//
+// Owner: langsung dibatalkan (pakai password kalau kuitansinya
+// sudah pernah dicetak). Admin/Sales: cuma bisa MENGAJUKAN,
+// Owner yang memutuskan lewat Persetujuan Perubahan — sama pola
+// dengan Cashback/Diskon/Ubah Unit.
+export async function mintaBatalkanSpk(t, muatUlang) {
+  if (!t) return;
+  if (t.status === "batal") {
+    kabar("SPK ini sudah dibatalkan sebelumnya.", "rem");
+    return;
+  }
+
+  const totalDibayar = hitungTotalDibayar(t);
+  const lunas = (t.hargaOtr || 0) > 0 && totalDibayar >= (t.hargaOtr || 0);
+  if (lunas) {
+    await beritahu({
+      judul: "Tidak Bisa Dibatalkan",
+      pesan: `SPK ${t.spkNo} sudah Lunas dan unitnya sudah Terjual — ` +
+             `pembatalan lewat sistem tidak tersedia untuk kondisi ini. ` +
+             `Kalau memang perlu, hubungi Owner untuk penanganan ` +
+             `retur/tukar unit di luar sistem.`,
+    });
+    return;
+  }
+
+  const owner = sesi && sesi.peran === "owner";
+
+  const alasan = await tanya({
+    judul: owner ? "Batalkan SPK" : "Ajukan Pembatalan SPK",
+    pesan: `Alasan pembatalan SPK ${t.spkNo} (wajib diisi, akan tercatat).`,
+    petunjuk: "mis. Konsumen batal, salah input data, dsb.",
+  });
+  if (alasan === null) return;
+  if (!alasan.trim()) {
+    kabar("Alasan wajib diisi.", "rem");
+    return;
+  }
+
+  if (totalDibayar > 0) {
+    const lanjut = await konfirmasi({
+      judul: "Sudah Ada Pembayaran Diterima",
+      pesan: `SPK ini sudah menerima ${rupiah(totalDibayar)}. Pastikan ` +
+             `pengembaliannya sudah/akan diurus di luar sistem sebelum ` +
+             `lanjut membatalkan. Lanjutkan?`,
+      oke: "Tetap Lanjutkan", bahaya: true,
+    });
+    if (!lanjut) return;
+  } else {
+    const lanjut = await konfirmasi({
+      judul: owner ? "Batalkan SPK ini?" : "Ajukan pembatalan SPK ini?",
+      pesan: `SPK ${t.spkNo} (${t.pembeli?.nama || "-"}) akan ` +
+             `${owner ? "dibatalkan" : "diajukan pembatalannya ke Owner"}.`,
+      oke: owner ? "Batalkan" : "Ajukan", bahaya: true,
+    });
+    if (!lanjut) return;
+  }
+
+  if (owner && t.kuitansiTercetak) {
+    const password = await tanya({
+      judul: "Konfirmasi Password",
+      pesan: `Data SPK ${t.spkNo} sudah terkunci (kuitansi pernah ` +
+             `dicetak). Masukkan password untuk konfirmasi pembatalan.`,
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+    } catch {
+      kabar("Password salah. Pembatalan dibatalkan.", "rem");
+      return;
+    }
+  }
+
+  try {
+    if (owner) {
+      const batch = writeBatch(dbase);
+      batch.update(doc(dbase, "transaksi", t.id), {
+        status: "batal",
+        alasanBatal: alasan.trim(),
+        dibatalkanPada: serverTimestamp(),
+        dibatalkanOleh: sesi.uid,
+      });
+      // Unit yang masih terkunci (Dipesan, belum Lunas) dikembalikan
+      // ke Ready — dicek langsung ke dokumen unitnya, bukan cuma
+      // percaya field kondisiUnit yang tersimpan di SPK (bisa saja
+      // sudah tidak sinkron).
+      if (t.unitId) {
+        try {
+          const snapUnit = await getDoc(doc(dbase, "units", t.unitId));
+          if (snapUnit.exists() && snapUnit.data().status === "booked") {
+            batch.update(doc(dbase, "units", t.unitId), {
+              status: "ready", spkId: null,
+            });
+            batch.update(doc(dbase, "tipe_motor", t.tipeId), {
+              jumlahReady: increment(1),
+            });
+          }
+        } catch { /* kalau gagal cek unit, tetap lanjut batalkan SPK-nya */ }
+      }
+      sertakanLog(batch, "spk_dibatalkan", {
+        koleksi: "transaksi", docId: t.id,
+        ringkas: `${t.spkNo} · ${alasan.trim()}`,
+      });
+      await batch.commit();
+      kabar(`SPK ${t.spkNo} dibatalkan.`, "netral");
+      // Beri tahu sales pemilik SPK ini, kalau bukan dia sendiri yang
+      // membatalkan (mis. Owner yang membatalkan SPK milik Sales lain).
+      if (t.salesUid && t.salesUid !== sesi.uid) {
+        await buatNotifikasi(t.salesUid, "SPK Dibatalkan",
+          `SPK ${t.spkNo} (${t.pembeli?.nama || "-"}) dibatalkan Owner. ` +
+          `Alasan: ${alasan.trim()}`, "#/laporan");
+      }
+    } else {
+      await setDoc(doc(collection(dbase, "pengajuan")), {
+        jenis: "batal_spk",
+        transaksiId: t.id, spkNo: t.spkNo,
+        diajukanOlehUid: sesi ? sesi.uid : null,
+        diajukanOlehNama: sesi ? sesi.nama : "-",
+        diajukanOlehPeran: sesi ? sesi.peran : null,
+        status: "menunggu",
+        dataBaru: { alasan: alasan.trim() },
+        catatan: `Pengajuan pembatalan SPK ${t.spkNo} ` +
+                 `(${t.pembeli?.nama || "-"}). Alasan: ${alasan.trim()}`,
+        ...tandaBaru(),
+      });
+      await catat("batal_spk_diajukan", {
+        koleksi: "transaksi", docId: t.id, ringkas: t.spkNo,
+      });
+      kabar("Pengajuan pembatalan terkirim, menunggu persetujuan Owner.", "netral");
+    }
+    if (muatUlang) await muatUlang();
+  } catch (err) {
+    kabar("Gagal: " + err.message, "rem");
+  }
 }
