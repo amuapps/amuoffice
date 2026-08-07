@@ -684,9 +684,12 @@ select.isian {
 
 /* ── Kolom identitas ─────────────────────────────────────── */
 .masuk-brand {
-  /* Warna diambil langsung dari sampel piksel latar vespa.gif,
-     supaya gambarnya menyatu tanpa kelihatan kotak/garis pemisah. */
-  background: linear-gradient(180deg, #467092 0%, #284863 100%);
+  /* Solid (bukan gradasi) — supaya TIDAK mungkin timbul beda warna
+     lagi walau panelnya tinggi (gradasi CSS meregang mengikuti
+     tinggi kontainer, sedangkan gradasi di dalam GIF tetap tetap
+     ~225px, jadi keduanya gampang tidak sinkron). Warna diambil
+     dari sampel piksel latar vespa.gif. */
+  background: #33587A;
   color: #fff;
   padding: 44px 44px 24px;
   display: flex; flex-direction: column; justify-content: center;
@@ -766,7 +769,13 @@ select.isian {
   .masuk-nama { font-size: 21px; }
   .masuk-poin, .masuk-kaki-brand { display: none; }
   .masuk-brand::after { display: none; }
-  .masuk-vespa { display: none; }
+  .masuk-vespa {
+    /* Tetap tampil di HP (jangan disembunyikan) — cuma ukurannya
+       diperkecil & posisinya disesuaikan supaya pas di panel yang
+       lebih pendek di layar sempit. */
+    width: 150px; max-width: 42%;
+    right: -6px; bottom: -6px;
+  }
   .masuk-panel { padding: 26px 22px; align-items: flex-start; }
   .masuk-panel-isi { max-width: none; }
 }
