@@ -14,7 +14,6 @@ import { hitungTotalDibayar } from "./cetak.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
 } from "./ui.js";
-import * as XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 
 const LABEL_STATUS = {
   ready: "Ready",
@@ -326,9 +325,13 @@ export async function halamanStok(wadah) {
     el.addEventListener("change", terapkanFilterLokal));
 
   // ── Unduh Excel ────────────────────────────────────────────
-  // File .xlsx asli (bukan .csv) — supaya kolomnya selalu rapi di
-  // Excel apa pun setting regionnya (koma vs titik koma). Isinya
-  // mengikuti data yang SEDANG tampil (sesudah semua filter).
+  // Format .xls (tabel HTML, bukan .xlsx XML) — supaya border &
+  // header tebal otomatis ada TIAP kali diunduh, tanpa perlu
+  // "Format as Table" manual di Excel setiap kali (library .xlsx
+  // gratis yang dipakai sebelumnya tidak bisa nulis style/border).
+  // Konsekuensinya: tidak ada panah dropdown AutoFilter otomatis
+  // seperti versi .xlsx — tapi tinggal klik "Data > Filter" sekali
+  // di Excel kalau perlu, jadi bukan kehilangan besar.
   wadah.querySelector("#unduh-excel").addEventListener("click", () => {
     if (!unitTampil.length) {
       kabar("Tidak ada data untuk diunduh — sesuaikan dulu filternya.", "rem");
@@ -336,18 +339,25 @@ export async function halamanStok(wadah) {
     }
     const kolom = ["Tipe", "Warna", "Tahun", "No Rangka", "No Mesin",
       "Status", "No DO", "Tanggal Masuk"];
+    const gStyle = "border:1px solid #999;padding:4px 8px;font-family:Calibri,Arial,sans-serif;font-size:12px;";
+    const hStyle = gStyle + "background:#1F4E78;color:#fff;font-weight:bold;text-align:left;";
     const baris = unitTampil.map((u) => [
       u.tipeNama, u.warna, u.tahun, u.noRangka, u.noMesin,
       LABEL_STATUS[u.status] || u.status, u.noDo, tanggal(u.tglMasuk),
     ]);
-    const ws = XLSX.utils.aoa_to_sheet([kolom, ...baris]);
-    ws["!cols"] = [
-      { wch: 26 }, { wch: 16 }, { wch: 8 }, { wch: 18 }, { wch: 18 },
-      { wch: 10 }, { wch: 14 }, { wch: 14 },
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Data Unit");
-    XLSX.writeFile(wb, `data-unit-${status}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+      <table>
+        <thead><tr>${kolom.map((k) => `<th style="${hStyle}">${aman(k)}</th>`).join("")}</tr></thead>
+        <tbody>${baris.map((b) => `<tr>${b.map((v) =>
+          `<td style="${gStyle}">${aman(v ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>
+      </table>
+    </body></html>`;
+    const blob = new Blob(["\ufeff" + html], { type: "application/vnd.ms-excel" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `data-unit-${status}-${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   });
 
   async function bukaForm() {
