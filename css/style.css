@@ -706,6 +706,11 @@ select.isian {
   width: 300px; max-width: 46%; height: auto;
   filter: drop-shadow(0 14px 22px rgba(0,0,0,.35));
   opacity: .96;
+  /* GIF-nya sendiri punya latar solid (tidak transparan) — jadi
+     tepinya dipudarkan di sini supaya menyatu ke gradasi latar
+     apa pun warna aslinya, tanpa perlu edit file GIF-nya. */
+  mask-image: radial-gradient(circle at 62% 55%, #000 48%, transparent 74%);
+  -webkit-mask-image: radial-gradient(circle at 62% 55%, #000 48%, transparent 74%);
 }
 .masuk-brand-isi { position: relative; z-index: 1; }
 .masuk-logo {
