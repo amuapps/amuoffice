@@ -111,7 +111,7 @@ service cloud.firestore {
     // SELURUHNYA cuma Owner — konsisten dengan aturan Fee Agen
     // yang juga cuma boleh dilihat Owner.
     match /agen/{id} {
-      allow read:  if salahSatu(['owner']);
+      allow read:  if salahSatu(['owner', 'admin', 'sales']);
       allow write: if salahSatu(['owner']);
     }
 
