@@ -9,6 +9,37 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.4.1", tanggal: "Agustus 2026",
+    judul: "Sales Bisa Pilih Agen",
+    butir: [
+      "Sales sekarang bisa memilih Agen di SPK (buat catat siapa yang membawa konsumen) — tapi tetap TIDAK bisa lihat/isi nominal Fee Agen (cuma Owner & Admin).",
+    ],
+  },
+  {
+    versi: "2.4.0", tanggal: "Agustus 2026",
+    judul: "Koreksi Alur Agen & Biro Jasa",
+    butir: [
+      "Biro Jasa dihapus dari form SPK — pemilihan biro jasa buat urus STNK/BPKB itu keputusan Owner belakangan, terpisah dari proses jual (bukan diisi sales/admin saat SPK dibuat). Master Biro Jasa tetap ada buat catatan Owner.",
+      "Fee Agen sekarang juga terlihat Admin (dulu cuma Owner) — karena Admin/Kasir yang membayarkan fee itu ke rekening agen yang dipilih di SPK.",
+    ],
+  },
+  {
+    versi: "2.3.2", tanggal: "Agustus 2026",
+    judul: "Koreksi: Biaya Internal Terpisah dari Harga Jual",
+    butir: [
+      "Harga OTR (jual) dikembalikan ke Offroad + BBN saja, sesuai maksud awal — Admin/Sales tetap pakai formula ini.",
+      "Biaya Pengiriman, Aksesoris, dan Lain-lain (dari pembaruan sebelumnya) sekarang jadi \"Catatan Biaya Internal\" terpisah, cuma terlihat Owner, TIDAK menambah harga jual sama sekali.",
+    ],
+  },
+  {
+    versi: "2.3.1", tanggal: "Agustus 2026",
+    judul: "Komponen Harga OTR Lebih Lengkap",
+    butir: [
+      "Tipe Motor sekarang punya 3 kolom harga tambahan: Biaya Pengiriman, Aksesoris, dan Lain-lain.",
+      "Harga OTR otomatis dihitung dari Offroad + Pengiriman + Aksesoris + Lain-lain + BBN (dulu cuma Offroad + BBN).",
+    ],
+  },
+  {
     versi: "2.3.0", tanggal: "Agustus 2026",
     judul: "Batalkan SPK",
     butir: [

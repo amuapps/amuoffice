@@ -86,7 +86,7 @@ function tabelTipe(daftar, bisaUbah) {
   </div>`;
 }
 
-function formTipe(t = {}, saranTipe = [], saranWarna = []) {
+function formTipe(t = {}, saranTipe = [], saranWarna = [], bisaLihatBiayaInternal = false) {
   return `<form id="form-tipe" class="form">
     <input type="hidden" id="t-id" value="${aman(t.id || "")}">
     <div class="dua">
@@ -148,6 +148,33 @@ function formTipe(t = {}, saranTipe = [], saranWarna = []) {
       <span class="kunci">otomatis: offroad + BBN</span></label>
     <input class="isian isian--terang" id="t-harga" inputmode="numeric" readonly
            value="${t.hargaOtr ? Number(t.hargaOtr).toLocaleString("id-ID") : "0"}">
+
+    ${bisaLihatBiayaInternal ? `
+    <p class="pemisah">Catatan Biaya Internal
+      <span class="kunci">cuma terlihat Owner, TIDAK masuk harga jual</span></p>
+    <div class="dua">
+      <div>
+        <label class="label label--gelap" for="t-kirim">Biaya Pengiriman</label>
+        <input class="isian isian--terang" id="t-kirim" inputmode="numeric"
+               value="${t.biayaKirim ? Number(t.biayaKirim).toLocaleString("id-ID") : ""}"
+               placeholder="Opsional, 0 kalau tidak ada">
+      </div>
+      <div>
+        <label class="label label--gelap" for="t-aksesoris">Aksesoris</label>
+        <input class="isian isian--terang" id="t-aksesoris" inputmode="numeric"
+               value="${t.aksesoris ? Number(t.aksesoris).toLocaleString("id-ID") : ""}"
+               placeholder="Opsional, 0 kalau tidak ada">
+      </div>
+    </div>
+    <label class="label label--gelap" for="t-lain">Lain-lain</label>
+    <input class="isian isian--terang" id="t-lain" inputmode="numeric"
+           value="${t.lainLain ? Number(t.lainLain).toLocaleString("id-ID") : ""}"
+           placeholder="Opsional, 0 kalau tidak ada">
+    <p class="petunjuk">Ini murni catatan biaya buat Owner sendiri (mis.
+      lacak margin) — tidak ditambahkan ke Harga OTR yang dipakai Admin/Sales
+      untuk jual ke konsumen.</p>
+    ` : ""}
+
     <label class="label label--gelap" for="t-foto">Tautan foto</label>
     <input class="isian isian--terang" id="t-foto"
            value="${aman(t.foto || "")}" placeholder="https://…">
@@ -239,7 +266,10 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
     tampilkanTersaring();
   }
 
+  let sedangDiubah = null; // referensi tipe yang lagi diedit, dipakai bareng oleh bukaForm() & simpan()
+
   async function bukaForm(t) {
+    sedangDiubah = t || null;
     formEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     let saranTipe = [], saranWarna = [];
     try {
@@ -255,14 +285,20 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
       </div>`;
       kabar("Gagal memuat saran Tipe/Warna: " + err.message, "rem");
     }
-    formEl.innerHTML = formTipe(t || {}, saranTipe, saranWarna);
+    formEl.innerHTML = formTipe(t || {}, saranTipe, saranWarna,
+      bolehAkses("kelola.pengguna"));
     const offroad = formEl.querySelector("#t-offroad");
     const bbn = formEl.querySelector("#t-bbn");
+    const kirim = formEl.querySelector("#t-kirim");
+    const aksesoris = formEl.querySelector("#t-aksesoris");
+    const lain = formEl.querySelector("#t-lain");
     const otr = formEl.querySelector("#t-harga");
-    pasangFormatUang(offroad);
-    pasangFormatUang(bbn);
+    [offroad, bbn, kirim, aksesoris, lain].filter(Boolean).forEach(pasangFormatUang);
 
-    // OTR = Offroad + BBN, dihitung ulang tiap kali salah satu diubah.
+    // OTR (harga jual) = Offroad + BBN saja. Biaya Pengiriman/
+    // Aksesoris/Lain-lain (kalau ada, cuma terlihat Owner) SENGAJA
+    // TIDAK ikut dihitung ke sini — itu murni catatan biaya internal,
+    // bukan bagian dari harga jual ke konsumen.
     function hitungOtr() {
       const jumlah = bacaAngka(offroad) + bacaAngka(bbn);
       otr.value = jumlah.toLocaleString("id-ID");
@@ -288,6 +324,15 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
     }
     const hargaOffroad = bacaAngka(formEl.querySelector("#t-offroad"));
     const bbn = bacaAngka(formEl.querySelector("#t-bbn"));
+    // Field biaya internal cuma ada di form kalau Owner — kalau
+    // Admin yang submit, elemennya tidak ada sama sekali di DOM,
+    // jadi dijaga null-safe di sini.
+    const elKirim = formEl.querySelector("#t-kirim");
+    const elAksesoris = formEl.querySelector("#t-aksesoris");
+    const elLain = formEl.querySelector("#t-lain");
+    const biayaKirim = elKirim ? bacaAngka(elKirim) : (sedangDiubah?.biayaKirim || 0);
+    const aksesoris = elAksesoris ? bacaAngka(elAksesoris) : (sedangDiubah?.aksesoris || 0);
+    const lainLain = elLain ? bacaAngka(elLain) : (sedangDiubah?.lainLain || 0);
     const data = {
       merek, tipe,
       varian: formEl.querySelector("#t-varian").value.trim(),
@@ -297,7 +342,12 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
         .split(",").map((s) => s.trim()).filter(Boolean),
       hargaOffroad,
       bbn,
-      hargaOtr: hargaOffroad + bbn, // dihitung dari offroad + BBN
+      // Catatan biaya internal — TIDAK masuk hargaOtr (lihat hitungOtr()).
+      biayaKirim, aksesoris, lainLain,
+      // Dihitung dari offroad + kirim + aksesoris + lain-lain + BBN.
+      // Harga jual dihitung dari Offroad + BBN saja — biaya internal
+      // di atas TIDAK ikut ditambahkan.
+      hargaOtr: hargaOffroad + bbn,
       mewah: false,
       foto: formEl.querySelector("#t-foto").value.trim(),
       aktif: true,

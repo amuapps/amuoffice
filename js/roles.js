@@ -80,6 +80,7 @@ export const PERAN = {
     izin: [
       "stok.lihat", "stok.ubah", "spk.buat", "spk.lihat", "cetak.dokumen",
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
+      "agen.lihat",
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.

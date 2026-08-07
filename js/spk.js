@@ -22,7 +22,6 @@ import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
 import { muatLeasing, leasingAktif } from "./leasing.js";
 import { muatRekening, rekeningAktif } from "./rekening.js";
 import { muatAgen, agenAktif } from "./agen.js";
-import { muatBiro, biroAktif } from "./biro.js";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar } from "./cetak.js";
 import { konfirmasi, tanya, beritahu } from "./dialog.js";
@@ -51,8 +50,11 @@ function panelCustomer(saranKecamatan, saranKota) {
   </div>`;
 }
 
-function panelInternal(daftarAgen, daftarBiro) {
-  const bisaLihatAgen = bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna");
+function panelInternal(daftarAgen) {
+  // Pilih agen (siapa yang bawa konsumen) boleh siapa saja yang
+  // buat SPK — nominal Fee-nya yang dirahasiakan (cuma Owner &
+  // Admin, karena mereka yang membayarkan ke rekening agennya).
+  const bisaLihatFeeAgen = bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna");
   return `<div class="tab-panel" data-panel="internal" hidden>
     <label class="label label--gelap">Sales</label>
     <input class="isian isian--terang" value="${aman(sesi ? namaTampilan(sesi.peran, sesi.nama) : "-")}" disabled>
@@ -68,26 +70,19 @@ function panelInternal(daftarAgen, daftarBiro) {
       diberikan ke konsumen. Baru berlaku setelah Owner menyetujui di
       halaman Persetujuan Perubahan.</p>
 
-    ${bisaLihatAgen ? `
     <label class="label label--gelap" for="s-agen">Agen
-      <span class="kunci">cuma terlihat Owner</span></label>
+      <span class="kunci">opsional — kalau konsumen ini dibawa agen</span></label>
     <select class="isian isian--terang" id="s-agen">
       <option value="">— tidak ada agen —</option>
       ${daftarAgen.map((a) =>
         `<option value="${a.id}">${aman(a.idAgen)} · ${aman(a.nama)}</option>`).join("")}
     </select>
-    <label class="label label--gelap" for="s-fee-agen">Fee Agen (Rp)</label>
+    ${bisaLihatFeeAgen ? `
+    <label class="label label--gelap" for="s-fee-agen">Fee Agen (Rp)
+      <span class="kunci">Owner &amp; Admin</span></label>
     <input class="isian isian--terang" id="s-fee-agen" inputmode="numeric" value="0">
-
-    <label class="label label--gelap" for="s-biro">Biro Jasa (STNK/BPKB)
-      <span class="kunci">cuma terlihat Owner</span></label>
-    <select class="isian isian--terang" id="s-biro">
-      <option value="">— tidak ada biro jasa —</option>
-      ${daftarBiro.map((b) =>
-        `<option value="${b.id}">${aman(b.idBiro)} · ${aman(b.nama)}</option>`).join("")}
-    </select>
-    <label class="label label--gelap" for="s-biaya-biro">Biaya Biro Jasa / BBN (Rp)</label>
-    <input class="isian isian--terang" id="s-biaya-biro" inputmode="numeric" value="0">
+    <p class="petunjuk">Fee ini yang nanti dibayarkan Admin/Kasir ke
+      rekening agen yang dipilih di atas.</p>
     ` : ""}
 
     <label class="label label--gelap" for="s-catatan">Catatan internal</label>
@@ -181,17 +176,14 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 export async function halamanSpk(wadah) {
   wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
   let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
-  let daftarAgen = [], daftarBiro = [];
+  let daftarAgen = [];
   let saranKecamatan = [], saranKota = [];
   try {
-    [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota] =
+    [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota, daftarAgen] =
       await Promise.all([
         muatTipe(), muatLeasing(), muatRekening(),
-        muatSaranKecamatan(), muatSaranKota(),
+        muatSaranKecamatan(), muatSaranKota(), muatAgen(),
       ]);
-    if (bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna")) {
-      [daftarAgen, daftarBiro] = await Promise.all([muatAgen(), muatBiro()]);
-    }
   } catch (err) {
     wadah.innerHTML = `<div class="hampa">
       <p><b>Gagal memuat data SPK.</b></p>
@@ -206,7 +198,6 @@ export async function halamanSpk(wadah) {
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
   const agenPilihan = agenAktif().length ? agenAktif() : daftarAgen;
-  const biroPilihan = biroAktif().length ? biroAktif() : daftarBiro;
   const tanggalHariIni = new Date().toLocaleDateString("id-ID", {
     day: "numeric", month: "long", year: "numeric",
   });
@@ -227,7 +218,7 @@ export async function halamanSpk(wadah) {
     </div>
     <form id="form-spk" class="form">
       ${panelCustomer(saranKecamatan, saranKota)}
-      ${panelInternal(agenPilihan, biroPilihan)}
+      ${panelInternal(agenPilihan)}
       ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan SPK</button>
@@ -379,11 +370,11 @@ export async function halamanSpk(wadah) {
       const elAgen = wadah.querySelector("#s-agen");
       const agenId = elAgen ? elAgen.value : "";
       const agenTerpilih = agenId ? agenAktif().find((a) => a.id === agenId) : null;
-      const feeAgen = elAgen ? bacaAngka(wadah.querySelector("#s-fee-agen")) : 0;
-      const elBiro = wadah.querySelector("#s-biro");
-      const biroId = elBiro ? elBiro.value : "";
-      const biroTerpilih = biroId ? biroAktif().find((b) => b.id === biroId) : null;
-      const biayaBiro = elBiro ? bacaAngka(wadah.querySelector("#s-biaya-biro")) : 0;
+      // Field Fee Agen cuma ada di DOM kalau Owner/Admin (lihat
+      // panelInternal) — Sales bisa pilih agennya, tapi nominal fee
+      // tetap 0 dari sisinya, biar tidak bisa diintip/diisi sendiri.
+      const elFeeAgen = wadah.querySelector("#s-fee-agen");
+      const feeAgen = elFeeAgen ? bacaAngka(elFeeAgen) : 0;
 
       // Diskon yang MELEBIHI batas peran ini butuh persetujuan Owner
       // dulu — tidak langsung berlaku. Kalau masih dalam batas (atau
@@ -417,16 +408,12 @@ export async function halamanSpk(wadah) {
           tenor: Number(wadah.querySelector("#s-tenor").value || 0),
           tanggalSurvey: wadah.querySelector("#s-survey").value || null,
         } : null,
-        // Fee Agen — cuma terisi kalau Owner yang mengisi (Admin/Sales
-        // tidak pernah lihat field ini sama sekali, lihat panelInternal).
+        // Fee Agen — Owner & Admin (Sales tidak lihat field ini sama
+        // sekali, lihat panelInternal). Ini yang jadi acuan Admin/Kasir
+        // waktu bayarkan feenya ke rekening agen.
         agenId: agenTerpilih ? agenTerpilih.id : null,
         agenNama: agenTerpilih ? agenTerpilih.nama : null,
         feeAgen: agenTerpilih ? feeAgen : 0,
-        // Biro Jasa (pengurus STNK/BPKB) & biaya sungguhannya — sama
-        // rahasianya seperti Fee Agen, cuma Owner yang lihat/isi.
-        biroId: biroTerpilih ? biroTerpilih.id : null,
-        biroNama: biroTerpilih ? biroTerpilih.nama : null,
-        biayaBiro: biroTerpilih ? biayaBiro : 0,
         // Cashback BELUM berlaku sampai Owner menyetujui — lihat
         // pengajuan yang dibuat setelah batch ini kalau nilainya > 0.
         cashbackDiajukan,
