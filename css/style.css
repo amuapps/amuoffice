@@ -684,9 +684,9 @@ select.isian {
 
 /* ── Kolom identitas ─────────────────────────────────────── */
 .masuk-brand {
-  background:
-    radial-gradient(at 80% 8%, rgba(255,255,255,.10) 0%, transparent 55%),
-    linear-gradient(158deg, #1B3A4B 0%, #0D1F2D 100%);
+  /* Warna diambil langsung dari sampel piksel latar vespa.gif,
+     supaya gambarnya menyatu tanpa kelihatan kotak/garis pemisah. */
+  background: linear-gradient(180deg, #467092 0%, #284863 100%);
   color: #fff;
   padding: 44px 44px 24px;
   display: flex; flex-direction: column; justify-content: center;
@@ -706,11 +706,6 @@ select.isian {
   width: 300px; max-width: 46%; height: auto;
   filter: drop-shadow(0 14px 22px rgba(0,0,0,.35));
   opacity: .96;
-  /* GIF-nya sendiri punya latar solid (tidak transparan) — jadi
-     tepinya dipudarkan di sini supaya menyatu ke gradasi latar
-     apa pun warna aslinya, tanpa perlu edit file GIF-nya. */
-  mask-image: radial-gradient(circle at 62% 55%, #000 48%, transparent 74%);
-  -webkit-mask-image: radial-gradient(circle at 62% 55%, #000 48%, transparent 74%);
 }
 .masuk-brand-isi { position: relative; z-index: 1; }
 .masuk-logo {
