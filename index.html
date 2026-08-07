@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="icon" href="./logo.png">
 <link rel="apple-touch-icon" href="./logo.png">
-<link rel="stylesheet" href="./css/style.css?v=1.6.0">
+<link rel="stylesheet" href="./css/style.css?v=2.1.1">
 </head>
 <body>
 
@@ -33,9 +33,82 @@
       </svg>
     </div>
     <p class="muat-nama">PT AUTO MITRA UTAMA</p>
-    <div class="muat-bar"><span></span></div>
+    <div class="muat-bar"><span id="muat-bar-isi"></span></div>
+    <p class="muat-persen" id="muat-persen">Memuat… 0%</p>
+
+    <div id="muat-gagal" class="muat-gagal" hidden>
+      <p class="muat-gagal-judul">Gagal memuat aplikasi</p>
+      <p class="muat-gagal-teks">Ini kelamaan dari biasanya — kemungkinan
+        koneksi lambat, atau ada file yang belum lengkap ter-upload ke
+        server. Coba muat ulang; kalau masih terjadi, hubungi admin.</p>
+      <button type="button" class="tombol tombol--utama"
+              onclick="location.reload()">Muat Ulang</button>
+    </div>
   </div>
 </div>
+
+<script>
+  // Bar persentase ini SENGAJA cuma perkiraan (bukan progres asli
+  // per-file, karena browser tidak menyediakan itu untuk import
+  // ES module) — naik pelan mendekati 90% lalu berhenti menunggu.
+  // Begitu app.js beneran selesai (kelas "muat--pergi" ditambahkan),
+  // langsung dilompatkan ke 100% dan berhenti.
+  //
+  // Skrip biasa (BUKAN type="module") sengaja dipakai di sini —
+  // supaya tetap jalan APA PUN yang terjadi ke app.js (termasuk
+  // kalau app.js gagal total karena ada file yang hilang), jadi
+  // batas waktu gagal-muat di bawah ini tetap bisa memberi tahu.
+  (function () {
+    var barEl = document.getElementById("muat-bar-isi");
+    var persenEl = document.getElementById("muat-persen");
+    var muatEl = document.getElementById("muat");
+    var gagalEl = document.getElementById("muat-gagal");
+    var persen = 0;
+    var selesai = false;
+
+    function tampilkan(p) {
+      if (barEl) barEl.style.width = p + "%";
+      if (persenEl) persenEl.textContent = "Memuat… " + p + "%";
+    }
+
+    var interval = setInterval(function () {
+      if (selesai) { clearInterval(interval); return; }
+      // Melambat mendekati 90% — kesan wajar, tidak pernah benar-benar
+      // menyentuh 100% sampai memang benar-benar selesai.
+      persen += Math.max(1, Math.round((90 - persen) / 8));
+      if (persen >= 90) persen = 90;
+      tampilkan(persen);
+    }, 220);
+
+    // Batas waktu gagal-muat — 12 detik dianggap sudah kelamaan
+    // untuk aplikasi seringan ini.
+    var batasWaktu = setTimeout(function () {
+      if (selesai || !muatEl || muatEl.classList.contains("muat--pergi")) return;
+      clearInterval(interval);
+      if (gagalEl) gagalEl.hidden = false;
+      if (persenEl) persenEl.hidden = true;
+      if (document.querySelector(".muat-bar")) {
+        document.querySelector(".muat-bar").hidden = true;
+      }
+    }, 12000);
+
+    // Pantau kelas "muat--pergi" (dipasang app.js begitu benar-benar
+    // selesai) lewat MutationObserver — supaya bar-nya langsung
+    // dilompatkan ke 100% pas selesai, bukan nanggung di 90%.
+    if (muatEl && window.MutationObserver) {
+      var pengamat = new MutationObserver(function () {
+        if (muatEl.classList.contains("muat--pergi")) {
+          selesai = true;
+          clearInterval(interval);
+          clearTimeout(batasWaktu);
+          tampilkan(100);
+          pengamat.disconnect();
+        }
+      });
+      pengamat.observe(muatEl, { attributes: true, attributeFilter: ["class"] });
+    }
+  })();
+</script>
 
 <!-- ── Layar masuk ─────────────────────────────────────────── -->
 <div id="layar-masuk" class="masuk">
@@ -155,6 +228,6 @@
 
 <div id="kabar" class="kabar-wadah" aria-live="polite"></div>
 
-<script type="module" src="./js/app.js?v=1.6.0"></script>
+<script type="module" src="./js/app.js?v=2.1.1"></script>
 </body>
 </html>
