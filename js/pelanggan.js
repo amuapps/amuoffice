@@ -235,12 +235,20 @@ function kartuPesanan(t) {
   </article>`;
 }
 
-function kartuPelanggan(p) {
+function kartuPelanggan(p, nomor, peranP) {
+  const labelPeran = peranP === "keduanya" ? "Pembeli &amp; Nama STNK"
+    : peranP === "pembeli" ? "Pembeli"
+    : peranP === "pemakai" ? "Nama STNK"
+    : "";
   return `<article class="kartu">
     <div class="kartu-atas">
-      <div>
-        <h3 class="kartu-judul">${aman(p.nama)}</h3>
-        <p class="kartu-sub mono">${aman(p.telepon || "tanpa nomor")}</p>
+      <div style="display:flex;gap:10px;align-items:baseline">
+        <span class="mono" style="color:var(--abu-2);font-size:12.5px">${nomor}.</span>
+        <div>
+          <h3 class="kartu-judul">${aman(p.nama)}</h3>
+          <p class="kartu-sub mono">${aman(p.telepon || "tanpa nomor")}
+            ${labelPeran ? ` · <span style="font-family:inherit">${labelPeran}</span>` : ""}</p>
+        </div>
       </div>
       <div class="aksi aksi--rapat">
         <button class="tombol tombol--kecil" data-pesanan="${p.id}">Lihat Pesanan</button>
@@ -265,11 +273,25 @@ export async function halamanPelanggan(wadah) {
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
       <h2 class="judul">Database Konsumen</h2>
-      ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
-        id="tambah-pelanggan">Tambah</button>` : ""}
+      <div style="display:flex;gap:8px">
+        <button class="tombol tombol--kecil" id="toggle-filter-pelanggan">Filter</button>
+        ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
+          id="tambah-pelanggan">Tambah</button>` : ""}
+      </div>
     </div>
     <input class="isian isian--terang" id="cari-pelanggan"
            placeholder="Cari nama atau nomor telepon">
+
+    <div id="panel-filter-pelanggan" class="lembar" style="margin-top:10px" hidden>
+      <label class="label label--gelap" for="f-peran-pelanggan">Peran</label>
+      <select class="isian isian--terang" id="f-peran-pelanggan">
+        <option value="">— semua —</option>
+        <option value="pembeli">Pembeli saja</option>
+        <option value="pemakai">Nama STNK saja</option>
+        <option value="keduanya">Pernah jadi keduanya</option>
+      </select>
+    </div>
+
     <div id="form-pelanggan-wadah"></div>
     <div id="daftar-pelanggan" class="daftar" style="margin-top:14px">
       <p class="hampa">Memuat…</p>
@@ -279,41 +301,78 @@ export async function halamanPelanggan(wadah) {
   const daftarEl = wadah.querySelector("#daftar-pelanggan");
   const formEl = wadah.querySelector("#form-pelanggan-wadah");
   const cariEl = wadah.querySelector("#cari-pelanggan");
+  const peranEl = wadah.querySelector("#f-peran-pelanggan");
 
-  async function pelangganMilikSalesSendiri() {
-    if (!sesi || sesi.peran !== "sales") return null; // null = tidak perlu disaring
+  wadah.querySelector("#toggle-filter-pelanggan").addEventListener("click", () => {
+    const p = wadah.querySelector("#panel-filter-pelanggan");
+    p.hidden = !p.hidden;
+  });
+
+  // Satu data konsumen bisa berperan sebagai Pembeli di satu SPK,
+  // dan/atau jadi Nama STNK (pemakai) di SPK lain — dicek dari
+  // seluruh transaksi yang relevan (disaring per-sales kalau perlu,
+  // sama seperti pembatasan "lihat punya sendiri" di atas).
+  async function klasifikasiPeran() {
+    const filterSales = sesi && sesi.peran === "sales"
+      ? [where("salesUid", "==", sesi.uid)] : [];
     const snap = await getDocs(query(
-      collection(dbase, "transaksi"), where("salesUid", "==", sesi.uid)
+      collection(dbase, "transaksi"), ...filterSales
     ));
-    const idMilik = new Set();
+    const idMilik = filterSales.length ? new Set() : null;
+    const idPembeli = new Set();
+    const idPemakai = new Set();
     snap.docs.forEach((d) => {
       const t = d.data();
-      if (t.pembeliId) idMilik.add(t.pembeliId);
-      if (t.pemakaiId) idMilik.add(t.pemakaiId);
+      if (t.pembeliId) {
+        idPembeli.add(t.pembeliId);
+        if (idMilik) idMilik.add(t.pembeliId);
+      }
+      if (t.pemakaiId && t.pemakaiSamaDenganPembeli === false) {
+        idPemakai.add(t.pemakaiId);
+        if (idMilik) idMilik.add(t.pemakaiId);
+      }
     });
-    return idMilik;
+    return { idMilik, idPembeli, idPemakai };
+  }
+
+  function peranUntuk(id, k) {
+    const p = k.idPembeli.has(id);
+    const s = k.idPemakai.has(id);
+    if (p && s) return "keduanya";
+    if (p) return "pembeli";
+    if (s) return "pemakai";
+    return "";
   }
 
   let daftarUntukSaya = null; // cache daftar milik sales (null = tidak dibatasi)
+  let klasifikasi = { idMilik: null, idPembeli: new Set(), idPemakai: new Set() };
 
   async function gambar() {
     const semua = await muatPelanggan(true);
-    const idMilik = await pelangganMilikSalesSendiri();
-    daftarUntukSaya = idMilik ? semua.filter((p) => idMilik.has(p.id)) : semua;
+    klasifikasi = await klasifikasiPeran();
+    daftarUntukSaya = klasifikasi.idMilik
+      ? semua.filter((p) => klasifikasi.idMilik.has(p.id)) : semua;
     tapis(daftarUntukSaya);
   }
 
   function tapis(semua) {
     const q = cariEl.value.trim().toLowerCase();
-    const hasil = q
+    const peran = peranEl.value;
+    let hasil = q
       ? semua.filter((p) =>
           (p.nama || "").toLowerCase().includes(q) ||
           (p.telepon || "").includes(q))
       : semua;
+    if (peran) {
+      hasil = hasil.filter((p) => {
+        const r = peranUntuk(p.id, klasifikasi);
+        return peran === "keduanya" ? r === "keduanya" : (r === peran || r === "keduanya");
+      });
+    }
     daftarEl.innerHTML = hasil.length
-      ? hasil.map(kartuPelanggan).join("")
+      ? hasil.map((p, i) => kartuPelanggan(p, i + 1, peranUntuk(p.id, klasifikasi))).join("")
       : `<div class="hampa"><p>${
-          q ? "Tidak ada yang cocok." : "Belum ada pelanggan terdaftar."
+          q || peran ? "Tidak ada yang cocok." : "Belum ada pelanggan terdaftar."
         }</p></div>`;
     if (bisaUbah) {
       daftarEl.querySelectorAll("[data-ubah]").forEach((b) =>
@@ -322,6 +381,7 @@ export async function halamanPelanggan(wadah) {
     daftarEl.querySelectorAll("[data-pesanan]").forEach((b) =>
       b.addEventListener("click", () => bukaPesanan(b.dataset.pesanan)));
   }
+  peranEl.addEventListener("change", () => tapis(daftarUntukSaya || []));
 
   async function bukaPesanan(id) {
     const wadahPesanan = daftarEl.querySelector(`[data-wadah-pesanan="${id}"]`);
