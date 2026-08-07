@@ -689,7 +689,7 @@ select.isian {
      tinggi kontainer, sedangkan gradasi di dalam GIF tetap tetap
      ~225px, jadi keduanya gampang tidak sinkron). Warna diambil
      dari sampel piksel latar vespa.gif. */
-  background: #436F8E;
+  background: #457292;
   color: #fff;
   padding: 44px 44px 24px;
   display: flex; flex-direction: column; justify-content: center;
@@ -707,8 +707,6 @@ select.isian {
   position: absolute; z-index: 0; pointer-events: none;
   right: -18px; bottom: -14px;
   width: 300px; max-width: 46%; height: auto;
-  filter: drop-shadow(0 14px 22px rgba(0,0,0,.35));
-  opacity: .96;
 }
 .masuk-brand-isi { position: relative; z-index: 1; }
 .masuk-logo {
