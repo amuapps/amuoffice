@@ -33,7 +33,8 @@ function tabelUnit(daftar, bisaUbah) {
         </tr>
       </thead>
       <tbody>
-        ${daftar.map((u, i) => `<tr class="${u.status !== "ready" ? "baris-klik" : ""}"
+        ${daftar.map((u, i) => `<tr class="baris-status--${u.status} ${
+              u.status !== "ready" ? "baris-klik" : ""}"
               ${u.status !== "ready" ? `data-lihat-pembeli="${u.id}"` : ""}
               ${u.status !== "ready" ? `title="Klik untuk lihat pembelinya"` : ""}>
           <td class="mono">${i + 1}</td>
@@ -132,6 +133,7 @@ export async function halamanStok(wadah) {
       <div style="display:flex;gap:8px">
         <button class="tombol tombol--kecil" id="unduh-excel">
           Unduh Excel</button>
+        <button class="tombol tombol--kecil" id="toggle-filter-unit">Filter</button>
         ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
           id="tambah-unit">Tambah unit</button>` : ""}
       </div>
@@ -143,36 +145,51 @@ export async function halamanStok(wadah) {
       <button class="chip" data-status="terjual">Terjual</button>
     </div>
 
-    <div class="dua" style="margin-top:10px">
-      <div>
-        <label class="label label--gelap" for="f-tipe">Tipe motor</label>
-        <select class="isian isian--terang" id="f-tipe">
-          <option value="">— semua tipe —</option>
-          ${daftarTipe.map((t) => `<option value="${t.id}">
-            ${aman(t.merek)} ${aman(t.tipe)} ${aman(t.varian || "")}</option>`).join("")}
-        </select>
+    <div id="panel-filter-unit" class="lembar" style="margin-top:10px" hidden>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="f-tipe">Tipe motor</label>
+          <select class="isian isian--terang" id="f-tipe">
+            <option value="">— semua tipe —</option>
+            ${daftarTipe.map((t) => `<option value="${t.id}">
+              ${aman(t.merek)} ${aman(t.tipe)} ${aman(t.varian || "")}</option>`).join("")}
+          </select>
+        </div>
+        <div>
+          <label class="label label--gelap" for="f-warna">Warna</label>
+          <select class="isian isian--terang" id="f-warna">
+            <option value="">— semua warna —</option>
+          </select>
+        </div>
       </div>
-      <div>
-        <label class="label label--gelap" for="f-warna">Warna</label>
-        <select class="isian isian--terang" id="f-warna">
-          <option value="">— semua warna —</option>
-        </select>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="f-dari">Masuk dari tanggal</label>
+          <input class="isian isian--terang" id="f-dari" type="date">
+        </div>
+        <div>
+          <label class="label label--gelap" for="f-sampai">Sampai tanggal</label>
+          <input class="isian isian--terang" id="f-sampai" type="date">
+        </div>
       </div>
-    </div>
-    <div class="dua">
-      <div>
-        <label class="label label--gelap" for="f-dari">Masuk dari tanggal</label>
-        <input class="isian isian--terang" id="f-dari" type="date">
-      </div>
-      <div>
-        <label class="label label--gelap" for="f-sampai">Sampai tanggal</label>
-        <input class="isian isian--terang" id="f-sampai" type="date">
-      </div>
+      <label class="label label--gelap" for="f-urut">Urutkan</label>
+      <select class="isian isian--terang" id="f-urut">
+        <option value="masuk-terbaru">Tanggal masuk — terbaru dulu</option>
+        <option value="masuk-terlama">Tanggal masuk — terlama dulu</option>
+        <option value="rangka-az">No. Rangka — A ke Z</option>
+        <option value="rangka-za">No. Rangka — Z ke A</option>
+        <option value="tipe-az">Tipe Motor — A ke Z</option>
+      </select>
     </div>
 
     <div id="wadah-form-unit"></div>
     <div id="daftar-unit" class="daftar"><p class="hampa">Memuat…</p></div>
   </section>`;
+
+  wadah.querySelector("#toggle-filter-unit").addEventListener("click", () => {
+    const p = wadah.querySelector("#panel-filter-unit");
+    p.hidden = !p.hidden;
+  });
 
   const daftarEl = wadah.querySelector("#daftar-unit");
   const formEl = wadah.querySelector("#wadah-form-unit");
@@ -180,9 +197,10 @@ export async function halamanStok(wadah) {
   const filterWarnaEl = wadah.querySelector("#f-warna");
   const filterDariEl = wadah.querySelector("#f-dari");
   const filterSampaiEl = wadah.querySelector("#f-sampai");
+  const filterUrutEl = wadah.querySelector("#f-urut");
   let status = "semua";
   let unitSemua = [];   // hasil query Firestore (cuma disaring status)
-  let unitTampil = [];  // unitSemua setelah disaring tipe/warna/tanggal
+  let unitTampil = [];  // unitSemua setelah disaring tipe/warna/tanggal/urutan
 
   // Warna yang ditawarkan mengikuti tipe yang dipilih — kalau
   // "semua tipe", tawarkan gabungan semua warna yang pernah dipakai.
@@ -206,6 +224,7 @@ export async function halamanStok(wadah) {
     const warna = filterWarnaEl.value;
     const dari = filterDariEl.value ? new Date(filterDariEl.value + "T00:00:00") : null;
     const sampai = filterSampaiEl.value ? new Date(filterSampaiEl.value + "T23:59:59") : null;
+    const urut = filterUrutEl.value;
 
     unitTampil = unitSemua.filter((u) => {
       if (tipeId && u.tipeId !== tipeId) return false;
@@ -215,6 +234,17 @@ export async function halamanStok(wadah) {
       if (sampai && masuk > sampai) return false;
       return true;
     });
+
+    const waktu = (u) => u.tglMasuk?.toDate
+      ? u.tglMasuk.toDate().getTime() : new Date(u.tglMasuk).getTime();
+    const pembanding = {
+      "masuk-terbaru": (a, b) => waktu(b) - waktu(a),
+      "masuk-terlama": (a, b) => waktu(a) - waktu(b),
+      "rangka-az": (a, b) => (a.noRangka || "").localeCompare(b.noRangka || ""),
+      "rangka-za": (a, b) => (b.noRangka || "").localeCompare(a.noRangka || ""),
+      "tipe-az": (a, b) => (a.tipeNama || "").localeCompare(b.tipeNama || ""),
+    };
+    unitTampil.sort(pembanding[urut] || pembanding["masuk-terbaru"]);
 
     daftarEl.innerHTML = unitTampil.length
       ? tabelUnit(unitTampil, bisaUbah)
@@ -292,7 +322,7 @@ export async function halamanStok(wadah) {
     perbaruiOpsiWarna();
     terapkanFilterLokal();
   });
-  [filterWarnaEl, filterDariEl, filterSampaiEl].forEach((el) =>
+  [filterWarnaEl, filterDariEl, filterSampaiEl, filterUrutEl].forEach((el) =>
     el.addEventListener("change", terapkanFilterLokal));
 
   // ── Unduh Excel ────────────────────────────────────────────
