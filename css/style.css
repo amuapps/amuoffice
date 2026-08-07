@@ -685,8 +685,8 @@ select.isian {
 /* ── Kolom identitas ─────────────────────────────────────── */
 .masuk-brand {
   background:
-    radial-gradient(at 80% 8%, rgba(255,255,255,.14) 0%, transparent 55%),
-    linear-gradient(158deg, #0A66C2 0%, #004578 100%);
+    radial-gradient(at 80% 8%, rgba(255,255,255,.10) 0%, transparent 55%),
+    linear-gradient(158deg, #1B3A4B 0%, #0D1F2D 100%);
   color: #fff;
   padding: 44px 44px 24px;
   display: flex; flex-direction: column; justify-content: center;
@@ -697,8 +697,15 @@ select.isian {
   content: ""; position: absolute;
   right: -80px; bottom: -120px;
   width: 320px; height: 320px; border-radius: 50%;
-  border: 1px solid rgba(255,255,255,.16);
-  box-shadow: 0 0 0 40px rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 0 0 40px rgba(255,255,255,.04);
+}
+.masuk-vespa {
+  position: absolute; z-index: 0; pointer-events: none;
+  right: -18px; bottom: -14px;
+  width: 300px; max-width: 46%; height: auto;
+  filter: drop-shadow(0 14px 22px rgba(0,0,0,.35));
+  opacity: .96;
 }
 .masuk-brand-isi { position: relative; z-index: 1; }
 .masuk-logo {
@@ -759,6 +766,7 @@ select.isian {
   .masuk-nama { font-size: 21px; }
   .masuk-poin, .masuk-kaki-brand { display: none; }
   .masuk-brand::after { display: none; }
+  .masuk-vespa { display: none; }
   .masuk-panel { padding: 26px 22px; align-items: flex-start; }
   .masuk-panel-isi { max-width: none; }
 }
