@@ -9,6 +9,14 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.7.0", tanggal: "Agustus 2026",
+    judul: "Halaman \"Pengajuan Saya\"",
+    butir: [
+      "Menu baru \"Pengajuan Saya\" (grup Inbox) — Sales/Admin sekarang bisa lihat riwayat semua pengajuan yang PERNAH mereka ajukan sendiri (ubah data, cashback, diskon, batal SPK, ubah unit), lengkap status Menunggu/Disetujui/Ditolak, tanpa perlu bergantung pada notifikasi.",
+      "Bisa disaring per status lewat chip Semua/Menunggu/Disetujui/Ditolak.",
+    ],
+  },
+  {
     versi: "2.6.2", tanggal: "Agustus 2026",
     judul: "Notifikasi Unit: Sebut Peran, Konsumen & No. SPK",
     butir: [

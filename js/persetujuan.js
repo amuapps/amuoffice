@@ -292,3 +292,97 @@ export async function halamanPersetujuan(wadah) {
 
   await muat();
 }
+
+// ── Riwayat Pengajuan Saya ─────────────────────────────────────
+// Kebalikan dari halamanPersetujuan di atas: ini buat SIAPA SAJA
+// yang login (Sales/Admin/Owner) lihat riwayat pengajuan yang MEREKA
+// SENDIRI ajukan — menunggu, disetujui, atau ditolak. Read-only,
+// tidak ada tombol Setujui/Tolak (itu cuma tanggung jawab Owner di
+// halamanPersetujuan).
+const TANDA_STATUS = {
+  menunggu: "tanda--uji", disetujui: "tanda--ready", ditolak: "tanda--batal",
+};
+const LABEL_STATUS = {
+  menunggu: "Menunggu", disetujui: "Disetujui", ditolak: "Ditolak",
+};
+
+function kartuPengajuanSaya(p) {
+  const judul = p.spkNo || (p.jenis === "unit_diubah"
+    ? `Unit ${p.dataBaru?.noRangka || "-"}` : "-");
+  return `<article class="kartu">
+    <div class="kartu-atas">
+      <div>
+        <h3 class="kartu-judul mono">${aman(judul)}</h3>
+        <p class="kartu-sub">${aman(LABEL_JENIS[p.jenis] || p.jenis)} ·
+          ${tanggalJam(p.dibuatPada)}</p>
+      </div>
+      <span class="tanda ${TANDA_STATUS[p.status] || ""}">
+        ${LABEL_STATUS[p.status] || p.status}
+      </span>
+    </div>
+    <pre style="white-space:pre-wrap;font-size:12.5px;background:var(--lapis);
+                padding:8px;border-radius:6px;margin:8px 0">${aman(p.catatan)}</pre>
+  </article>`;
+}
+
+export async function halamanPengajuanSaya(wadah) {
+  if (!sesi) {
+    wadah.innerHTML = `<section class="lembar">
+      <div class="hampa"><p>Sesi tidak valid, coba masuk ulang.</p></div>
+    </section>`;
+    return;
+  }
+
+  wadah.innerHTML = `<section class="lembar">
+    <div class="lembar-atas">
+      <h2 class="judul">Pengajuan Saya</h2>
+    </div>
+    <p class="petunjuk">Riwayat semua pengajuan (ubah data, cashback,
+      diskon, batal SPK, ubah unit) yang pernah Anda ajukan — lengkap
+      status terakhirnya.</p>
+    <div class="chip-baris" id="saring-status">
+      <button class="chip aktif" data-status="">Semua</button>
+      <button class="chip" data-status="menunggu">Menunggu</button>
+      <button class="chip" data-status="disetujui">Disetujui</button>
+      <button class="chip" data-status="ditolak">Ditolak</button>
+    </div>
+    <div id="daftar-pengajuan-saya" class="daftar" style="margin-top:10px">
+      <p class="hampa">Memuat…</p>
+    </div>
+  </section>`;
+
+  const daftarEl = wadah.querySelector("#daftar-pengajuan-saya");
+  let semua = [];
+
+  async function muat() {
+    const snap = await getDocs(query(
+      collection(dbase, "pengajuan"), where("diajukanOlehUid", "==", sesi.uid)
+    ));
+    semua = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
+    tampilkan("");
+  }
+
+  function tampilkan(status) {
+    const hasil = status ? semua.filter((p) => p.status === status) : semua;
+    daftarEl.innerHTML = hasil.length
+      ? hasil.map(kartuPengajuanSaya).join("")
+      : `<div class="hampa"><p>Belum ada pengajuan${status ? " dengan status ini" : ""}.</p></div>`;
+  }
+
+  wadah.querySelectorAll("#saring-status .chip").forEach((c) => {
+    c.addEventListener("click", () => {
+      wadah.querySelectorAll("#saring-status .chip").forEach((x) => x.classList.remove("aktif"));
+      c.classList.add("aktif");
+      tampilkan(c.dataset.status);
+    });
+  });
+
+  try {
+    await muat();
+  } catch (err) {
+    daftarEl.innerHTML = `<div class="hampa">
+      <p>Gagal memuat: ${aman(err.message)}</p></div>`;
+  }
+}

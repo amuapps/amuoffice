@@ -29,7 +29,7 @@ import { halamanLaporan } from "./laporan.js";
 import { halamanLabel, muatLabelKustom } from "./label.js";
 import { halamanAkses, muatAksesKustom } from "./akses.js";
 import { halamanLog } from "./log.js";
-import { halamanPersetujuan } from "./persetujuan.js";
+import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js";
 import { halamanAgen } from "./agen.js";
 import { halamanBiro } from "./biro.js";
 import { halamanDashboard } from "./dashboard.js";
@@ -277,6 +277,7 @@ function daftarkanHalaman(profil) {
     "#/dashboard": (w) => halamanDashboard(w),
     "#/tentang": (w) => halamanTentang(w),
     "#/inbox": (w) => halamanInbox(w),
+    "#/pengajuan-saya": (w) => halamanPengajuanSaya(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {

@@ -47,6 +47,7 @@ const DASHBOARD = { grup: "Dashboard", butir: [
 
 const INBOX = { grup: "Inbox", butir: [
   { label: "Inbox", rute: "#/inbox", kode: "IBX-01" },
+  { label: "Pengajuan Saya", rute: "#/pengajuan-saya", kode: "IBX-02" },
 ]};
 
 const SALES = { grup: "Sales", butir: [
