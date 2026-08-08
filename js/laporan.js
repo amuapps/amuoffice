@@ -5,7 +5,8 @@ import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc }
   from "./db.js";
 import { rupiah, aman, tanggal, namaTampilan } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing } from "./cetak.js";
+  cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf } from "./cetak.js";
 import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { bolehAkses, sesi } from "./auth.js";
 import { muatLeasing, leasingDari } from "./leasing.js";
@@ -32,15 +33,22 @@ function hariIni() {
 
 function baris(t) {
   const batal = t.status === "batal";
+  const owner = sesi && sesi.peran === "owner";
+  const admin = sesi && sesi.peran === "admin";
   const namaInput = t.dibuatOlehUid
     ? namaTampilan(t.dibuatOlehPeran, t.dibuatOlehNama)
     : namaTampilan(t.salesPeran, t.salesNama); // SPK lama tanpa jejak input
   const namaSales = namaTampilan(t.salesPeran, t.salesNama);
+  const lunas = !batal && sudahLunas(t);
+  const adaTagihanLeasing = (t.caraBayar || []).includes("kredit") && t.kredit?.leasingId;
+  const adaUlangTerakhir = t.kuitansiTercetak && !lunas;
   return `<tr style="${batal ? "opacity:.55" : ""}">
     <td class="mono">${aman(t.spkNo)}
-      ${bolehAkses("kelola.pengguna") ? `<br>
+      ${owner ? `<br>
         <span class="kunci" style="font-family:inherit">input: ${aman(namaInput)}
           &nbsp;·&nbsp; sales: ${aman(namaSales)}</span>` : ""}
+      ${admin && !owner ? `<br>
+        <span class="kunci" style="font-family:inherit">sales: ${aman(namaSales)}</span>` : ""}
     </td>
     <td>${tanggal(t.dibuatPada)}</td>
     <td>${aman(t.pembeli?.nama)}</td>
@@ -53,18 +61,21 @@ function baris(t) {
           ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}</td>
     <td style="white-space:nowrap">
       ${batal ? aman(t.alasanBatal || "-") : `
+        ${!lunas ? `<button class="tombol tombol--kecil" data-kuitansi="${t.id}">
+            ${labelTombolKuitansi(t)}</button>` : ""}
         ${bolehAkses("cetak.dokumen") ? `
-          <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
-          ${(t.caraBayar || []).includes("kredit") && t.kredit?.leasingId ? `
-          <button class="tombol tombol--kecil" data-tagihan-leasing="${t.id}">
-            Cetak Tagihan Leasing</button>` : ""}
-          <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
-            ${labelTombolKuitansi(t)}</button>
-          ${t.kuitansiTercetak && !sudahLunas(t) ? `<button class="tombol tombol--kecil"
-            data-cetak-ulang="${t.id}">Cetak Ulang Kuitansi Terakhir</button>` : ""}` : ""}
+          <select class="isian isian--kecil" style="width:auto;display:inline-block"
+            data-cetak-menu="${t.id}">
+            <option value="">Cetak ▾</option>
+            <option value="spk">Cetak SPK</option>
+            ${adaTagihanLeasing ? `<option value="tagihan">Cetak Tagihan Leasing</option>` : ""}
+            ${adaUlangTerakhir ? `<option value="ulang-terakhir">
+              Cetak Ulang Kuitansi Terakhir</option>` : ""}
+            ${lunas ? `<option value="ulang-lunas">Cetak Ulang Kuitansi Lunas</option>` : ""}
+          </select>` : ""}
         <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
         <button class="tombol tombol--kecil" data-batalkan="${t.id}">Batalkan</button>
-        ${bolehAkses("kelola.pengguna") ? `<button class="tombol tombol--kecil"
+        ${owner ? `<button class="tombol tombol--kecil"
           data-detail="${t.id}">Detail</button>` : ""}
       `}
     </td>
@@ -170,7 +181,58 @@ export async function halamanLaporan(wadah) {
                value="${hariIni()}">
       </div>
     </div>
-    <button class="tombol tombol--kecil tombol--isi" id="l-terapkan">Terapkan</button>
+    <div class="aksi aksi--rapat" style="margin-top:8px">
+      <button class="tombol tombol--kecil tombol--isi" id="l-terapkan">Terapkan</button>
+      <button class="tombol tombol--kecil" id="l-toggle-filter">Filter ▾</button>
+      <button class="tombol tombol--kecil" id="l-unduh-excel">Unduh Excel</button>
+      <button class="tombol tombol--kecil" id="l-unduh-pdf">Unduh PDF</button>
+    </div>
+
+    <div id="l-panel-filter" class="lembar" style="margin-top:10px" hidden>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="l-f-carabayar">Cara Bayar</label>
+          <select class="isian isian--terang" id="l-f-carabayar">
+            <option value="">— semua —</option>
+            <option value="cash">Cash</option>
+            <option value="kredit">Kredit</option>
+          </select>
+        </div>
+        <div>
+          <label class="label label--gelap" for="l-f-status">Status Bayar</label>
+          <select class="isian isian--terang" id="l-f-status">
+            <option value="">— semua —</option>
+            <option value="lunas">Lunas</option>
+            <option value="belum">Belum Lunas</option>
+            <option value="batal">Batal</option>
+          </select>
+        </div>
+      </div>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap" for="l-f-leasing">Leasing</label>
+          <select class="isian isian--terang" id="l-f-leasing">
+            <option value="">— semua —</option>
+          </select>
+        </div>
+        <div id="l-wadah-f-sales">
+          <label class="label label--gelap" for="l-f-sales">Sales</label>
+          <select class="isian isian--terang" id="l-f-sales">
+            <option value="">— semua —</option>
+          </select>
+        </div>
+      </div>
+      <label class="label label--gelap" for="l-f-nama">Nama Konsumen</label>
+      <input class="isian isian--terang" id="l-f-nama" placeholder="Cari nama…">
+      <div class="aksi aksi--rapat" style="margin-top:8px">
+        <button class="tombol tombol--kecil tombol--isi" id="l-f-terapkan">Terapkan Filter</button>
+        <button class="tombol tombol--kecil" id="l-f-reset">Reset</button>
+      </div>
+      <div id="l-f-tagihan-massal" style="margin-top:8px" hidden>
+        <button class="tombol tombol--kecil" id="l-cetak-tagihan-massal">
+          Cetak Semua Tagihan Leasing (hasil filter ini)</button>
+      </div>
+    </div>
 
     <div id="l-ringkasan" class="tiga" style="margin-top:16px"></div>
 
@@ -193,7 +255,23 @@ export async function halamanLaporan(wadah) {
   const sampaiEl = wadah.querySelector("#l-sampai");
   const ringkasanEl = wadah.querySelector("#l-ringkasan");
   const barisEl = wadah.querySelector("#l-baris");
-  let dataSpk = [];
+  const fCaraBayarEl = wadah.querySelector("#l-f-carabayar");
+  const fStatusEl = wadah.querySelector("#l-f-status");
+  const fLeasingEl = wadah.querySelector("#l-f-leasing");
+  const fSalesEl = wadah.querySelector("#l-f-sales");
+  const fNamaEl = wadah.querySelector("#l-f-nama");
+  const wadahFSales = wadah.querySelector("#l-wadah-f-sales");
+  const wadahTagihanMassal = wadah.querySelector("#l-f-tagihan-massal");
+  let dataSpk = [];   // hasil query rentang tanggal, belum difilter
+  let dataTampil = []; // setelah filter Cara Bayar/Status/Leasing/Sales/Nama
+
+  const salesSaja = sesi && sesi.peran === "sales";
+  wadahFSales.hidden = salesSaja; // Sales cuma lihat datanya sendiri, filter ini percuma
+
+  wadah.querySelector("#l-toggle-filter").addEventListener("click", () => {
+    const p = wadah.querySelector("#l-panel-filter");
+    p.hidden = !p.hidden;
+  });
 
   function kartuRingkas(judul, angka, sub) {
     return `<article class="kartu">
@@ -241,42 +319,105 @@ export async function halamanLaporan(wadah) {
       return;
     }
 
-    const totalNilai = dataSpk.reduce((s, t) => s + (t.hargaOtr || 0), 0);
-    const jmlReady = dataSpk.filter((t) => t.kondisiUnit === "ready").length;
-    const jmlIndent = dataSpk.filter((t) => t.kondisiUnit === "indent").length;
+    // Isi pilihan Leasing & Sales dari data yang benar-benar muncul di
+    // rentang tanggal ini — supaya tidak menampilkan pilihan yang
+    // percuma (leasing yang tidak dipakai siapa pun di rentang ini).
+    await muatLeasing();
+    const leasingTerpakai = [...new Set(dataSpk
+      .map((t) => t.kredit?.leasingId).filter(Boolean))];
+    fLeasingEl.innerHTML = `<option value="">— semua —</option>` +
+      leasingTerpakai.map((id) => {
+        const l = leasingDari(id);
+        return `<option value="${id}">${aman(l ? l.nama : id)}</option>`;
+      }).join("");
+
+    const salesTerpakai = [...new Map(dataSpk.map((t) =>
+      [t.salesUid || t.salesNama, namaTampilan(t.salesPeran, t.salesNama)])).entries()];
+    fSalesEl.innerHTML = `<option value="">— semua —</option>` +
+      salesTerpakai.map(([uid, nama]) =>
+        `<option value="${aman(uid)}">${aman(nama)}</option>`).join("");
+
+    terapkanFilter();
+  }
+
+  // Filter jalan di data yang SUDAH dimuat (client-side) — tidak perlu
+  // baca Firestore lagi tiap ganti filter, cukup query ulang tanggal.
+  function terapkanFilter() {
+    const caraBayar = fCaraBayarEl.value;
+    const status = fStatusEl.value;
+    const leasingId = fLeasingEl.value;
+    const salesUid = fSalesEl.value;
+    const nama = fNamaEl.value.trim().toLowerCase();
+
+    dataTampil = dataSpk.filter((t) => {
+      const batal = t.status === "batal";
+      if (caraBayar === "kredit" && !(t.caraBayar || []).includes("kredit")) return false;
+      if (caraBayar === "cash" && (t.caraBayar || []).includes("kredit")) return false;
+      if (status === "batal" && !batal) return false;
+      if (status === "lunas" && (batal || !sudahLunas(t))) return false;
+      if (status === "belum" && (batal || sudahLunas(t))) return false;
+      if (leasingId && t.kredit?.leasingId !== leasingId) return false;
+      if (salesUid && (t.salesUid || t.salesNama) !== salesUid) return false;
+      if (nama && !(t.pembeli?.nama || "").toLowerCase().includes(nama)) return false;
+      return true;
+    });
+
+    // Tombol cetak tagihan leasing massal cuma masuk akal kalau
+    // filter Cara Bayar = Kredit sedang aktif (jadi jelas isinya
+    // semua SPK kredit yang belum tentu lunas semua).
+    wadahTagihanMassal.hidden = caraBayar !== "kredit" ||
+      !dataTampil.some((t) => t.status !== "batal" &&
+        (t.caraBayar || []).includes("kredit") && t.kredit?.leasingId);
+
+    gambarTabel();
+  }
+
+  wadah.querySelector("#l-f-terapkan").addEventListener("click", terapkanFilter);
+  wadah.querySelector("#l-f-reset").addEventListener("click", () => {
+    fCaraBayarEl.value = ""; fStatusEl.value = ""; fLeasingEl.value = "";
+    fSalesEl.value = ""; fNamaEl.value = "";
+    terapkanFilter();
+  });
+  wadah.querySelector("#l-cetak-tagihan-massal").addEventListener("click", () => {
+    const daftar = dataTampil.filter((t) => t.status !== "batal" &&
+      (t.caraBayar || []).includes("kredit") && t.kredit?.leasingId);
+    cetakTagihanLeasingBatch(daftar);
+  });
+  wadah.querySelector("#l-unduh-excel").addEventListener("click", () => unduhExcel(dataTampil));
+  wadah.querySelector("#l-unduh-pdf").addEventListener("click", () => unduhPdf(dataTampil));
+
+  function gambarTabel() {
+    const totalNilai = dataTampil.reduce((s, t) => s + (t.hargaOtr || 0), 0);
+    const jmlReady = dataTampil.filter((t) => t.kondisiUnit === "ready").length;
+    const jmlIndent = dataTampil.filter((t) => t.kondisiUnit === "indent").length;
 
     ringkasanEl.innerHTML =
-      kartuRingkas("Total SPK", dataSpk.length, rupiah(totalNilai) + " total nilai") +
+      kartuRingkas("Total SPK", dataTampil.length, rupiah(totalNilai) + " total nilai") +
       kartuRingkas("Unit terkunci (Dipesan)", jmlReady, "stok langsung tersedia") +
       kartuRingkas("Indent", jmlIndent, "menunggu unit tiba");
 
-    barisEl.innerHTML = dataSpk.length
-      ? dataSpk.map(baris).join("")
+    barisEl.innerHTML = dataTampil.length
+      ? dataTampil.map(baris).join("")
       : `<tr><td colspan="8" class="hampa">Tidak ada SPK di rentang ini.</td></tr>`;
 
-    barisEl.querySelectorAll("[data-cetak]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.cetak);
-        cetakSpk(t);
-      }));
-    barisEl.querySelectorAll("[data-tagihan-leasing]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.tagihanLeasing);
-        cetakTagihanLeasing(t);
-      }));
     barisEl.querySelectorAll("[data-kuitansi]").forEach((b) =>
       b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.kuitansi);
+        const t = dataTampil.find((x) => x.id === b.dataset.kuitansi);
         mintaCetakKuitansi(t, muat);
       }));
-    barisEl.querySelectorAll("[data-cetak-ulang]").forEach((b) =>
-      b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.cetakUlang);
-        cetakUlangKuitansiTerakhir(t);
+    barisEl.querySelectorAll("[data-cetak-menu]").forEach((sel) =>
+      sel.addEventListener("change", () => {
+        const t = dataTampil.find((x) => x.id === sel.dataset.cetakMenu);
+        const aksi = sel.value;
+        sel.value = "";
+        if (aksi === "spk") cetakSpk(t);
+        else if (aksi === "tagihan") cetakTagihanLeasing(t);
+        else if (aksi === "ulang-terakhir") cetakUlangKuitansiTerakhir(t);
+        else if (aksi === "ulang-lunas") cetakUlangKuitansiTerakhir(t);
       }));
     barisEl.querySelectorAll("[data-ubah]").forEach((b) =>
       b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.ubah);
+        const t = dataTampil.find((x) => x.id === b.dataset.ubah);
         const barisSembunyi = barisEl.querySelector(`[data-baris-edit="${t.id}"]`);
         const target = barisEl.querySelector(`[data-wadah-edit="${t.id}"]`);
         const sedangTerbuka = !barisSembunyi.hidden;
@@ -290,12 +431,12 @@ export async function halamanLaporan(wadah) {
       }));
     barisEl.querySelectorAll("[data-batalkan]").forEach((b) =>
       b.addEventListener("click", () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.batalkan);
+        const t = dataTampil.find((x) => x.id === b.dataset.batalkan);
         mintaBatalkanSpk(t, muat);
       }));
     barisEl.querySelectorAll("[data-detail]").forEach((b) =>
       b.addEventListener("click", async () => {
-        const t = dataSpk.find((x) => x.id === b.dataset.detail);
+        const t = dataTampil.find((x) => x.id === b.dataset.detail);
         const barisSembunyi = barisEl.querySelector(`[data-baris-detail="${t.id}"]`);
         const target = barisEl.querySelector(`[data-wadah-detail="${t.id}"]`);
         const sedangTerbuka = !barisSembunyi.hidden;

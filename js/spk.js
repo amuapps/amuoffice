@@ -19,8 +19,8 @@ import { cariUnitReady, muatSemuaUnitReadyRingkas, kunciUnitKeBatch } from "./st
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
          pasangHurufBesarPelanggan } from "./pelanggan.js";
 import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
-import { muatLeasing, leasingAktif } from "./leasing.js";
-import { muatRekening, rekeningAktif } from "./rekening.js";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js";
 import { muatAgen, agenAktif } from "./agen.js";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar } from "./cetak.js";
@@ -736,20 +736,112 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
   const pemakaiSama = t.pemakaiSamaDenganPembeli !== false;
   const terkunci = t.kuitansiTercetak && owner; // Owner ubah data yang sudah terkunci
 
+  // ── Bagian tambahan KHUSUS Owner: Unit, Cara Bayar, Kredit,
+  // Diskon/Cashback, Catatan. Admin/Sales tetap cuma bisa mengajukan
+  // perubahan data pembeli/pemakai seperti sebelumnya — field lain
+  // (unit, harga, cara bayar) terlalu berdampak (stok & keuangan)
+  // untuk dibuka lewat jalur pengajuan biasa.
+  let daftarTipe = [], daftarLeasingAktif = [], daftarRekeningAktif = [];
+  if (owner) {
+    [daftarTipe] = await Promise.all([muatTipe(), muatLeasing(), muatRekening()]);
+    daftarLeasingAktif = leasingAktif();
+    daftarRekeningAktif = rekeningAktif();
+  }
+  const kredit = t.kredit || {};
+  const caraBayarLama = t.caraBayar || [];
+
+  const panelOwnerLanjutan = !owner ? "" : `
+    <h4 class="judul" style="font-size:14px;margin-top:14px">Unit &amp; Harga</h4>
+    <label class="label">Tipe motor
+      <select id="e-tipe-${t.id}" class="isian">
+        ${daftarTipe.map((tp) => `<option value="${tp.id}"
+          ${tp.id === t.tipeId ? "selected" : ""}>
+          ${aman(tp.merek)} ${aman(tp.tipe)} ${aman(tp.varian || "")}</option>`).join("")}
+      </select>
+    </label>
+    <label class="label">Warna
+      <input class="isian" id="e-warna-${t.id}" value="${aman(t.warna || "")}">
+    </label>
+    <label class="label">Harga OTR
+      <input class="isian" id="e-otr-${t.id}" value="${rupiah(t.hargaOtr || 0)}">
+    </label>
+    <p class="petunjuk">Ganti Tipe/Warna akan mencari unit ready lain secara
+      otomatis (lepas unit lama, kunci unit baru). Kalau tidak ada yang
+      ready, SPK jadi Indent.</p>
+
+    <h4 class="judul" style="font-size:14px;margin-top:14px">Cara Bayar</h4>
+    <label class="pilihan"><input type="checkbox" id="e-tunai-${t.id}"
+      ${caraBayarLama.includes("tunai") ? "checked" : ""}><span>Tunai</span></label>
+    <label class="pilihan"><input type="checkbox" id="e-transfer-${t.id}"
+      ${caraBayarLama.includes("transfer") ? "checked" : ""}><span>Transfer</span></label>
+    <label class="pilihan"><input type="checkbox" id="e-kredit-${t.id}"
+      ${caraBayarLama.includes("kredit") ? "checked" : ""}><span>Kredit (Leasing)</span></label>
+
+    <div id="e-wadah-rekening-${t.id}" ${!caraBayarLama.includes("transfer") ? "hidden" : ""}>
+      <label class="label">Rekening tujuan
+        <select id="e-rekening-${t.id}" class="isian">
+          ${daftarRekeningAktif.map((r) => `<option value="${r.id}"
+            ${r.id === t.rekeningId ? "selected" : ""}>
+            ${aman(r.bank)} ${aman(r.nomor)} a.n ${aman(r.atasNama)}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+
+    <div id="e-wadah-kredit-${t.id}" ${!caraBayarLama.includes("kredit") ? "hidden" : ""}>
+      <label class="label">Leasing
+        <select id="e-leasing-${t.id}" class="isian">
+          ${daftarLeasingAktif.map((l) => `<option value="${l.id}"
+            ${l.id === kredit.leasingId ? "selected" : ""}>${aman(l.nama)}</option>`).join("")}
+        </select>
+      </label>
+      <div class="dua">
+        <label class="label">Cicilan per bulan
+          <input class="isian" id="e-cicilan-${t.id}" value="${rupiah(kredit.cicilan || 0)}">
+        </label>
+        <label class="label">Lama cicilan (bulan)
+          <input class="isian" id="e-tenor-${t.id}" type="number"
+            value="${kredit.tenor || ""}">
+        </label>
+      </div>
+      <label class="label">Tanggal survey
+        <input class="isian" id="e-survey-${t.id}" type="date"
+          value="${kredit.tanggalSurvey ? kredit.tanggalSurvey.toDate?.()
+            .toISOString().slice(0, 10) || "" : ""}">
+      </label>
+    </div>
+
+    <h4 class="judul" style="font-size:14px;margin-top:14px">Diskon, Cashback &amp; Catatan</h4>
+    <div class="dua">
+      <label class="label">Diskon
+        <input class="isian" id="e-diskon-${t.id}" value="${rupiah(t.diskon || 0)}">
+      </label>
+      <label class="label">Cashback
+        <input class="isian" id="e-cashback-${t.id}" value="${rupiah(t.cashback || 0)}">
+      </label>
+    </div>
+    <label class="label">Catatan internal
+      <textarea class="isian" id="e-catatan-${t.id}" rows="2"
+        >${aman(t.catatan || "")}</textarea>
+    </label>`;
+
   kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
     <h3 class="judul" style="font-size:15px">
-      ${owner ? "Ubah" : "Ajukan Perubahan"} Data Pembeli/Pemakai —
+      ${owner ? "Ubah" : "Ajukan Perubahan"} Data —
       <span class="mono">${aman(t.spkNo)}</span>
     </h3>
-    <p class="petunjuk">Cuma data pembeli &amp; pemakai yang bisa diubah di
-      sini. Unit, harga, dan cara bayar tidak bisa diubah lewat form ini.
+    <p class="petunjuk">${owner
+      ? `Sebagai Owner, Anda bisa mengubah SEMUA data SPK ini — termasuk unit, ` +
+        `harga, cara bayar, sampai kredit/cash. `
+      : "Cuma data pembeli &amp; pemakai yang bisa diajukan di sini. Unit, harga, " +
+        "dan cara bayar tidak bisa diubah lewat form ini."}
       ${owner
         ? (terkunci
             ? `<b>Kuitansi SPK ini sudah dicetak (${aman(t.kuitansiNo || "")})</b> — ` +
-              `sebagai Owner Anda tetap bisa mengubahnya, tapi pastikan dulu ` +
-              `memang perlu (mis. salah ketik alamat/telepon). Nomor kuitansi ` +
-              `TIDAK akan berubah.`
-            : "Karena Anda Owner, perubahan langsung tersimpan tanpa perlu persetujuan.")
+              `perubahan yang berdampak ke keuangan/stok akan diminta konfirmasi ` +
+              `password sebelum tersimpan. Nomor kuitansi TIDAK akan berubah.`
+            : "Perubahan yang berdampak ke keuangan/stok (unit, harga, cara bayar, " +
+              "kredit, diskon, cashback) akan diminta konfirmasi password sebelum " +
+              "tersimpan. Perubahan data pembeli saja tidak perlu password.")
         : "Perubahan baru berlaku setelah <b>disetujui Owner</b>."}</p>
     <form id="form-edit-${t.id}" class="form">
       <h4 class="judul" style="font-size:14px">Pembeli</h4>
@@ -763,6 +855,8 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         <h4 class="judul" style="font-size:14px;margin-top:8px">Pemakai</h4>
         ${formPelanggan(t.pemakai || {}, "epemakai", saranKecamatan, saranKota)}
       </div>
+
+      ${panelOwnerLanjutan}
 
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">
@@ -779,6 +873,24 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
   const samaEl = kontainer.querySelector(`#e-sama-${t.id}`);
   const wadahPemakai = kontainer.querySelector(`#e-wadah-pemakai-${t.id}`);
   samaEl.addEventListener("change", () => { wadahPemakai.hidden = samaEl.checked; });
+
+  if (owner) {
+    const otrEl = kontainer.querySelector(`#e-otr-${t.id}`);
+    const diskonEl = kontainer.querySelector(`#e-diskon-${t.id}`);
+    const cashbackEl = kontainer.querySelector(`#e-cashback-${t.id}`);
+    const cicilanEl = kontainer.querySelector(`#e-cicilan-${t.id}`);
+    [otrEl, diskonEl, cashbackEl, cicilanEl].forEach(pasangFormatUang);
+
+    const tunaiEl = kontainer.querySelector(`#e-tunai-${t.id}`);
+    const transferEl = kontainer.querySelector(`#e-transfer-${t.id}`);
+    const kreditEl = kontainer.querySelector(`#e-kredit-${t.id}`);
+    const wadahRekening = kontainer.querySelector(`#e-wadah-rekening-${t.id}`);
+    const wadahKredit = kontainer.querySelector(`#e-wadah-kredit-${t.id}`);
+    [tunaiEl, transferEl, kreditEl].forEach((el) => el.addEventListener("change", () => {
+      wadahRekening.hidden = !transferEl.checked;
+      wadahKredit.hidden = !kreditEl.checked;
+    }));
+  }
 
   kontainer.querySelector(`#batal-edit-${t.id}`)
     .addEventListener("click", () => { kontainer.innerHTML = ""; });
@@ -808,19 +920,124 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const dataBaru = {
       pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
     };
+
+    let unitBaruDipilih = null;
+    let fatal = false; // apa pun di luar pembeli/pemakai dianggap "fatal"
+    if (owner) {
+      const tipeBaru = kontainer.querySelector(`#e-tipe-${t.id}`).value;
+      const warnaBaru = kontainer.querySelector(`#e-warna-${t.id}`).value.trim();
+      const otrBaru = bacaAngka(kontainer.querySelector(`#e-otr-${t.id}`));
+      const caraBayarBaru = ["tunai", "transfer", "kredit"].filter((c) =>
+        kontainer.querySelector(`#e-${c}-${t.id}`).checked);
+      const rekeningBaru = caraBayarBaru.includes("transfer")
+        ? kontainer.querySelector(`#e-rekening-${t.id}`)?.value || null : null;
+      const diskonBaru = bacaAngka(kontainer.querySelector(`#e-diskon-${t.id}`));
+      const cashbackBaru = bacaAngka(kontainer.querySelector(`#e-cashback-${t.id}`));
+      const catatanBaru = kontainer.querySelector(`#e-catatan-${t.id}`).value.trim();
+      const kreditBaru = caraBayarBaru.includes("kredit") ? {
+        leasingId: kontainer.querySelector(`#e-leasing-${t.id}`)?.value || null,
+        cicilan: bacaAngka(kontainer.querySelector(`#e-cicilan-${t.id}`)),
+        tenor: Number(kontainer.querySelector(`#e-tenor-${t.id}`).value) || 0,
+        tanggalSurvey: kontainer.querySelector(`#e-survey-${t.id}`).value || null,
+      } : null;
+
+      if (!caraBayarBaru.length) {
+        kabar("Pilih minimal satu cara bayar.", "rem");
+        tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+        return;
+      }
+
+      const tipeBerubah = tipeBaru !== t.tipeId;
+      const warnaBerubah = warnaBaru !== (t.warna || "");
+      if (tipeBaru !== t.tipeId || warnaBerubah) {
+        // Cari unit ready untuk tipe+warna baru. Kalau tidak ada,
+        // SPK jadi Indent (sama seperti alur bikin SPK baru).
+        const cocok = await cariUnitReady(tipeBaru, warnaBaru);
+        unitBaruDipilih = cocok || null;
+        fatal = true;
+      }
+
+      dataBaru.tipeId = tipeBaru;
+      dataBaru.tipeNama = tipeDari(tipeBaru)
+        ? `${tipeDari(tipeBaru).merek} ${tipeDari(tipeBaru).tipe} ${tipeDari(tipeBaru).varian || ""}`.trim()
+        : t.tipeNama;
+      dataBaru.warna = warnaBaru;
+      dataBaru.hargaOtr = otrBaru;
+      dataBaru.caraBayar = caraBayarBaru;
+      dataBaru.rekeningId = rekeningBaru;
+      dataBaru.kredit = kreditBaru;
+      dataBaru.diskon = diskonBaru;
+      dataBaru.cashback = cashbackBaru;
+      dataBaru.catatan = catatanBaru;
+
+      if (otrBaru !== (t.hargaOtr || 0)) fatal = true;
+      if (JSON.stringify([...caraBayarBaru].sort()) !==
+          JSON.stringify([...caraBayarLama].sort())) fatal = true;
+      if ((kreditBaru?.leasingId || null) !== (kredit.leasingId || null)) fatal = true;
+      if (diskonBaru !== (t.diskon || 0)) fatal = true;
+      if (cashbackBaru !== (t.cashback || 0)) fatal = true;
+      if (tipeBerubah || warnaBerubah) fatal = true;
+    }
+
     const catatanPerubahan = buatCatatanPerubahan(dataLama, dataBaru);
 
     // Owner: langsung terap ke SPK-nya, TANPA pengajuan (dia toh yang
     // akan menyetujui pengajuannya sendiri, jadi diterapkan langsung).
-    // kuitansiNo/Kode/Tercetak SENGAJA tidak disentuh sama sekali di
-    // sini — jadi nomor kuitansi tetap sama persis walau datanya diubah.
+    // Kalau ada perubahan "fatal" (unit/harga/cara bayar/kredit/
+    // diskon/cashback), wajib konfirmasi password dulu — perubahan
+    // data pembeli/pemakai/catatan saja tidak perlu.
     if (owner) {
+      if (fatal) {
+        const password = await tanya({
+          judul: "Konfirmasi Password",
+          pesan: "Perubahan ini berdampak ke keuangan dan/atau stok unit " +
+                 `SPK ${t.spkNo}. Masukkan password untuk konfirmasi.`,
+          petunjuk: "Password", tipeIsian: "password",
+        });
+        if (password === null) {
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+        try {
+          await konfirmasiPassword(password);
+        } catch {
+          kabar("Password salah. Perubahan dibatalkan.", "rem");
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+      }
       try {
-        await updateDoc(doc(dbase, "transaksi", t.id), dataBaru);
-        await catat("perubahan_spk_diterapkan_owner", {
+        const batch = writeBatch(dbase);
+
+        if (unitBaruDipilih !== null || (fatal && (dataBaru.tipeId !== t.tipeId ||
+            dataBaru.warna !== (t.warna || "")))) {
+          // Lepas unit lama (kalau ada & masih terkunci ke SPK ini).
+          if (t.unitId) {
+            try {
+              const snapLama = await getDoc(doc(dbase, "units", t.unitId));
+              if (snapLama.exists() && snapLama.data().status === "booked") {
+                batch.update(doc(dbase, "units", t.unitId), { status: "ready", spkId: null });
+                batch.update(doc(dbase, "tipe_motor", snapLama.data().tipeId),
+                  { jumlahReady: increment(1) });
+              }
+            } catch { /* lanjut walau gagal cek unit lama */ }
+          }
+          if (unitBaruDipilih) {
+            kunciUnitKeBatch(batch, unitBaruDipilih, t.id);
+            dataBaru.unitId = unitBaruDipilih.id;
+            dataBaru.kondisiUnit = "ready";
+          } else {
+            dataBaru.unitId = null;
+            dataBaru.kondisiUnit = "indent";
+          }
+        }
+
+        batch.update(doc(dbase, "transaksi", t.id), dataBaru);
+        sertakanLog(batch, fatal ? "perubahan_spk_fatal_owner" : "perubahan_spk_diterapkan_owner", {
           koleksi: "transaksi", docId: t.id,
           ringkas: `${t.spkNo} · ${catatanPerubahan}`,
         });
+        await batch.commit();
         kabar("Perubahan tersimpan.", "netral");
         kontainer.innerHTML = "";
         if (muatUlang) await muatUlang();

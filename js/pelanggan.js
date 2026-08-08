@@ -254,36 +254,44 @@ function kartuPesanan(t) {
   </article>`;
 }
 
-function kartuPelanggan(p, nomor, peranP) {
+function barisPelanggan(p, nomor, peranP) {
   const labelPeran = peranP === "keduanya" ? "Pembeli &amp; Nama STNK"
     : peranP === "pembeli" ? "Pembeli"
     : peranP === "pemakai" ? "Nama STNK"
-    : "";
-  return `<article class="kartu">
-    <div class="kartu-atas">
-      <div style="display:flex;gap:10px;align-items:baseline">
-        <span class="mono" style="color:var(--abu-2);font-size:12.5px">${nomor}.</span>
-        <div>
-          <h3 class="kartu-judul">${aman(p.nama)}</h3>
-          <p class="kartu-sub mono">${aman(p.telepon || "tanpa nomor")}
-            ${labelPeran ? ` · <span style="font-family:inherit">${labelPeran}</span>` : ""}</p>
-        </div>
-      </div>
-      <div class="aksi aksi--rapat">
-        <button class="tombol tombol--kecil" data-pesanan="${p.id}">Lihat Pesanan</button>
-        <button class="tombol tombol--kecil" data-ubah="${p.id}">Ubah</button>
-      </div>
+    : "-";
+  return `<tr>
+    <td class="mono">${nomor}</td>
+    <td>${aman(p.nama)}${!p.nik ? ` <span class="tanda tanda--batal" style="font-size:9px">
+      NIK belum diisi</span>` : ""}</td>
+    <td class="mono">${aman(p.telepon || "-")}</td>
+    <td>${labelPeran}</td>
+    <td style="white-space:nowrap">
+      <button class="tombol tombol--kecil" data-detail="${p.id}">Detail</button>
+      <button class="tombol tombol--kecil" data-ubah="${p.id}">Ubah</button>
+    </td>
+  </tr>
+  <tr data-baris-detail-pelanggan="${p.id}" hidden>
+    <td colspan="5"><div class="wadah-pesanan" data-wadah-pesanan="${p.id}"></div></td>
+  </tr>`;
+}
+
+// Panel Detail ringkas: nama, unit, cash/kredit, no HP per pesanan —
+// beda dari kartuPesanan (yang lebih lengkap dengan tombol cetak),
+// ini cuma buat lihat sekilas cepat.
+function ringkasDetailPelanggan(p, pesanan) {
+  const baris2 = (label, isi) => `<div class="d-baris">
+    <span class="d-label">${aman(label)}</span><span class="d-isi">${isi}</span></div>`;
+  return `<div class="d-panel">
+    <div class="d-kolom" style="flex-basis:100%">
+      ${baris2("Nama", aman(p.nama))}
+      ${baris2("No. HP", aman(p.telepon || "-"))}
     </div>
-    ${p.alamat ? `<p class="kartu-rinci">${aman(p.alamat)}${
-      [p.kelurahan, p.kecamatan, p.kota, p.provinsi].filter(Boolean).length
-        ? ", " + aman([p.kelurahan, p.kecamatan, p.kota, p.provinsi]
-            .filter(Boolean).join(", "))
-        : ""
-    }</p>` : ""}
-    ${!p.nik ? `<p class="kartu-rinci peringatan">NIK belum diisi</p>` : ""}
-    <p class="kartu-rinci">Terdaftar ${tanggal(p.dibuatPada)}</p>
-    <div class="wadah-pesanan" data-wadah-pesanan="${p.id}"></div>
-  </article>`;
+    ${pesanan.length ? pesanan.map((t) => `<div class="d-kolom">
+      <p class="d-judul">${aman(t.spkNo)}</p>
+      ${baris2("Unit", `${aman(t.tipeNama)} · ${aman(t.warna)}`)}
+      ${baris2("Cara Bayar", (t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash")}
+    </div>`).join("") : `<p class="hampa" style="flex-basis:100%">Belum ada pesanan.</p>`}
+  </div>`;
 }
 
 export async function halamanPelanggan(wadah) {
@@ -312,8 +320,15 @@ export async function halamanPelanggan(wadah) {
     </div>
 
     <div id="form-pelanggan-wadah"></div>
-    <div id="daftar-pelanggan" class="daftar" style="margin-top:14px">
-      <p class="hampa">Memuat…</p>
+    <div style="overflow-x:auto; margin-top:14px">
+      <table class="tabel">
+        <thead>
+          <tr><th>No</th><th>Nama</th><th>No. HP</th><th>Peran</th><th></th></tr>
+        </thead>
+        <tbody id="daftar-pelanggan">
+          <tr><td colspan="5" class="hampa">Memuat…</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>`;
 
@@ -389,36 +404,41 @@ export async function halamanPelanggan(wadah) {
       });
     }
     daftarEl.innerHTML = hasil.length
-      ? hasil.map((p, i) => kartuPelanggan(p, i + 1, peranUntuk(p.id, klasifikasi))).join("")
-      : `<div class="hampa"><p>${
+      ? hasil.map((p, i) => barisPelanggan(p, i + 1, peranUntuk(p.id, klasifikasi))).join("")
+      : `<tr><td colspan="5" class="hampa">${
           q || peran ? "Tidak ada yang cocok." : "Belum ada pelanggan terdaftar."
-        }</p></div>`;
+        }</td></tr>`;
     if (bisaUbah) {
       daftarEl.querySelectorAll("[data-ubah]").forEach((b) =>
         b.addEventListener("click", () => buka(pelangganDari(b.dataset.ubah))));
     }
-    daftarEl.querySelectorAll("[data-pesanan]").forEach((b) =>
-      b.addEventListener("click", () => bukaPesanan(b.dataset.pesanan)));
+    daftarEl.querySelectorAll("[data-detail]").forEach((b) =>
+      b.addEventListener("click", () => bukaPesanan(b.dataset.detail)));
   }
   peranEl.addEventListener("change", () => tapis(daftarUntukSaya || []));
 
   async function bukaPesanan(id) {
+    const barisSembunyi = daftarEl.querySelector(`[data-baris-detail-pelanggan="${id}"]`);
     const wadahPesanan = daftarEl.querySelector(`[data-wadah-pesanan="${id}"]`);
-    if (!wadahPesanan) return;
+    if (!wadahPesanan || !barisSembunyi) return;
     // Toggle: klik lagi untuk menutup.
-    if (wadahPesanan.dataset.terbuka === "1") {
+    if (!barisSembunyi.hidden) {
+      barisSembunyi.hidden = true;
       wadahPesanan.innerHTML = "";
       wadahPesanan.dataset.terbuka = "0";
       return;
     }
+    barisSembunyi.hidden = false;
     wadahPesanan.innerHTML = `<p class="hampa">Memuat pesanan…</p>`;
     wadahPesanan.dataset.terbuka = "1";
     try {
       const pesanan = await muatPesananPelanggan(id);
-      wadahPesanan.innerHTML = pesanan.length
-        ? `<div class="pemisah">Pesanan (${pesanan.length})</div>` +
-          pesanan.map(kartuPesanan).join("")
-        : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`;
+      const p = pelangganDari(id) || { id, nama: "-", telepon: "" };
+      wadahPesanan.innerHTML = ringkasDetailPelanggan(p, pesanan.filter((t) => t.status !== "batal")) +
+        (pesanan.length
+          ? `<div class="pemisah">Riwayat Pesanan (${pesanan.length})</div>` +
+            pesanan.map(kartuPesanan).join("")
+          : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`);
       wadahPesanan.querySelectorAll("[data-cetak-pesanan]").forEach((b) =>
         b.addEventListener("click", () =>
           cetakSpk(pesanan.find((x) => x.id === b.dataset.cetakPesanan))));

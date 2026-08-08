@@ -197,6 +197,17 @@ const CSS_CETAK = `
     .aksi-cetak { display: none; }
     .c-dua, .c-badan { grid-template-columns: 1fr 1fr !important; }
     .c-ttd { grid-template-columns: repeat(3, 1fr) !important; }
+    /* Sama seperti kuitansi — pastikan hitam pekat di atas putih
+       (bukan abu-abu) dan font cukup besar buat dot matrix. */
+    * { color: #000 !important; border-color: #000 !important; }
+    .lembar-cetak::before { opacity: .06 !important; }
+    .c-pt { font-size: 17px; }
+    .c-kecil { font-size: 11px; }
+    .c-judul { font-size: 17px; }
+    .c-label, .c-isi, .c-sub, .c-tabel { font-size: 12px; }
+    .c-syarat { font-size: 10.5px; }
+    .c-ttd { font-size: 11px; }
+    .c-kaki { font-size: 10.5px; }
   }
 `;
 
@@ -272,6 +283,28 @@ const CSS_KUITANSI = `
   @media print {
     body { background: #fff; padding: 0; }
     .aksi-cetak { display: none; }
+    /* Dot matrix TIDAK bisa cetak warna/abu-abu bertingkat dengan
+       bagus (ribbon hitam-putih, resolusi kasar) — jadi waktu cetak,
+       semua warna emas/krem/abu dipaksa jadi hitam pekat di atas
+       putih polos, dan font dibesarkan supaya tetap tajam terbaca
+       walau dot-nya kasar. Watermark TETAP ada (sesuai teks
+       perusahaan, dibuat dari SVG teks — bukan foto/gambar — jadi
+       ringan & tetap tajam meski di-print draft/NLQ). */
+    * { color: #000 !important; border-color: #000 !important; }
+    .k-kuitansi { background: #fff !important; border: 1.5px solid #000; }
+    .k-kuitansi::before { opacity: .08 !important; }
+    .k-pt { font-size: 19px; }
+    .k-kecil { font-size: 10.5px; }
+    .k-jenis-tabel { font-size: 11.5px; }
+    .k-judul { font-size: 21px; }
+    .k-nomor-tgl { font-size: 11.5px; }
+    .k-jumlah-label, .k-terbilang-label, .k-dk-judul { font-size: 11.5px; }
+    .k-kalimat-isi { font-size: 13px; font-weight: 700; }
+    .k-jumlah-besar { font-size: 26px; }
+    .k-terbilang-kotak { font-size: 13px; font-style: normal; font-weight: 600; }
+    .k-tabel { font-size: 12px; }
+    .k-ttd { font-size: 11px; }
+    .k-kaki { font-size: 10px; }
   }
 `;
 
@@ -564,6 +597,184 @@ export async function cetakTagihanLeasing(t) {
   tabBaru.document.body.innerHTML = isi;
 }
 
+// ── Unduh Excel (.xlsx) ──────────────────────────────────────────
+// Pakai SheetJS dari CDN, dimuat sekali saja (bukan bundel dalam
+// aplikasi) — cukup ringan & cuma kepakai kalau tombolnya diklik.
+let sheetJsSiap = null;
+function muatSheetJS() {
+  if (window.XLSX) return Promise.resolve();
+  if (sheetJsSiap) return sheetJsSiap;
+  sheetJsSiap = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = resolve;
+    s.onerror = () => reject(new Error("Gagal memuat pustaka Excel."));
+    document.head.appendChild(s);
+  });
+  return sheetJsSiap;
+}
+
+function barisEkspor(t) {
+  const batal = t.status === "batal";
+  return {
+    "No. SPK": t.spkNo || "", "Tanggal": tanggal(t.dibuatPada),
+    "Pembeli": t.pembeli?.nama || "", "No. HP": t.pembeli?.telepon || "",
+    "Unit": t.tipeNama || "", "Warna": t.warna || "",
+    "Harga OTR": t.hargaOtr || 0,
+    "Cara Bayar": (t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash",
+    "Status": batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas"),
+    "Total Dibayar": hitungTotalDibayar(t),
+    "Sisa Tagihan": Math.max((t.hargaOtr || 0) - hitungTotalDibayar(t), 0),
+    "Sales": t.salesNama || "", "Kondisi": t.kondisiUnit || "",
+    "Alasan Batal": t.alasanBatal || "",
+  };
+}
+
+export async function unduhExcel(daftar) {
+  if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
+  try {
+    await muatSheetJS();
+    const ws = window.XLSX.utils.json_to_sheet(daftar.map(barisEkspor));
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Riwayat SPK");
+    window.XLSX.writeFile(wb, `riwayat-spk-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  } catch (err) {
+    kabar("Gagal membuat Excel: " + err.message, "rem");
+  }
+}
+
+// ── Unduh PDF ─────────────────────────────────────────────────────
+// Sama seperti dokumen cetak lain di modul ini — buka tab baru berisi
+// tabel siap cetak, lalu window.print() (pengguna pilih "Simpan
+// sebagai PDF" di dialog printer). Tidak perlu pustaka tambahan.
+export function unduhPdf(daftar) {
+  if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  const baris = daftar.map((t) => {
+    const batal = t.status === "batal";
+    return `<tr>
+      <td>${aman(t.spkNo)}</td><td>${tanggal(t.dibuatPada)}</td>
+      <td>${aman(t.pembeli?.nama)}</td><td>${aman(t.tipeNama)} ${aman(t.warna)}</td>
+      <td style="text-align:right">${rupiah(t.hargaOtr)}</td>
+      <td>${(t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash"}</td>
+      <td>${batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas")}</td>
+      <td>${aman(t.salesNama)}</td>
+    </tr>`;
+  }).join("");
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Riwayat SPK</title>
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color: #000; }
+      h1 { font-size: 16px; }
+      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+      th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+      th { background: #eee; }
+      .aksi-cetak { text-align: center; margin-top: 14px; }
+      @media print { .aksi-cetak { display: none; } }
+    </style></head>
+    <body>
+      <h1>Riwayat &amp; Laporan SPK — ${aman(SHOWROOM.nama)}</h1>
+      <p style="font-size:10.5px;color:#555">Dicetak ${tanggal(new Date())} · ${daftar.length} SPK</p>
+      <table><thead><tr>
+        <th>No. SPK</th><th>Tanggal</th><th>Pembeli</th><th>Unit</th>
+        <th>Harga OTR</th><th>Cara Bayar</th><th>Status</th><th>Sales</th>
+      </tr></thead><tbody>${baris}</tbody></table>
+      <div class="aksi-cetak">
+        <button onclick="window.print()">Cetak / Simpan PDF</button>
+      </div>
+    </body></html>`);
+  tabBaru.document.close();
+}
+
+// ── Tagihan Leasing, MASSAL ──────────────────────────────────────
+// Dipakai dari filter "Cara Bayar: Kredit" di Riwayat SPK — satu
+// dokumen berisi tagihan SEMUA SPK kredit yang lolos filter,
+// dipisah per halaman cetak (page-break), bukan tab terpisah per
+// SPK (supaya tidak diblokir pop-up blocker kalau jumlahnya banyak).
+export async function cetakTagihanLeasingBatch(daftar) {
+  if (!daftar.length) {
+    kabar("Tidak ada SPK kredit dengan leasing pada hasil filter ini.", "rem");
+    return;
+  }
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Tagihan Leasing (${daftar.length} SPK)</title>
+    <style>${CSS_CETAK}
+      .lembar-cetak { page-break-after: always; }
+    </style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan ${daftar.length} lembar…</p></body></html>`);
+  tabBaru.document.close();
+
+  await muatLeasing();
+  const potongan = [];
+  for (const t of daftar) {
+    let unit = null;
+    if (t.unitId) {
+      try {
+        const snap = await getDoc(doc(dbase, "units", t.unitId));
+        if (snap.exists()) unit = snap.data();
+      } catch { /* unit tidak wajib ada */ }
+    }
+    const namaSalesTampil = await resolveNamaSales(t);
+    const leasing = leasingDari(t.kredit.leasingId);
+    const totalDibayar = hitungTotalDibayar(t);
+    const tagihan = Math.max((t.hargaOtr || 0) - totalDibayar, 0);
+
+    potongan.push(`<div class="lembar-cetak">
+      <header class="c-kop">
+        <div class="c-kop-kiri">
+          <img class="c-kop-logo" src="${location.origin}/logo.png" alt="">
+          <div>
+            <p class="c-pt">${aman(SHOWROOM.nama)}</p>
+            <p class="c-kecil">${aman(SHOWROOM.alamat || "")}</p>
+          </div>
+        </div>
+        <table class="c-nomor">${baris("No. SPK", t.spkNo)}</table>
+      </header>
+      <h1 class="c-judul">Tagihan Pembiayaan ke Leasing</h1>
+      <section class="c-dua">
+        <table class="c-tabel">
+          ${baris("Kepada Yth.", leasing?.nama || "-")}
+        </table>
+        <table class="c-tabel">
+          ${baris("Nama Konsumen", t.pembeli?.nama)}
+          ${baris("Telp / HP", t.pembeli?.telepon)}
+        </table>
+      </section>
+      <section class="c-badan">
+        <div class="c-kiri">
+          <p class="c-sub">UNIT</p>
+          <table class="c-tabel">
+            ${baris("Merk / Tipe", t.tipeNama)}
+            ${baris("No. Rangka", unit?.noRangka || "-")}
+          </table>
+        </div>
+        <div class="c-kanan-kolom">
+          <p class="c-sub">TAGIHAN</p>
+          <table class="c-tabel">
+            ${baris("Harga OTR", rupiah(t.hargaOtr))}
+            ${baris("DP diterima showroom", rupiah(totalDibayar))}
+            ${baris("Ditagihkan ke leasing", rupiah(tagihan))}
+          </table>
+        </div>
+      </section>
+      <p class="c-kaki">${aman(SHOWROOM.nama)} · Dibuat oleh ${aman(namaSalesTampil)}</p>
+    </div>`);
+  }
+
+  tabBaru.document.body.innerHTML = potongan.join("") +
+    `<div class="aksi-cetak"><button type="button" onclick="window.print()">
+      Cetak / Simpan PDF (${daftar.length} lembar)</button></div>`;
+}
+
 // ── Catat Pembayaran & Cetak Kuitansi ───────────────────────────
 // Satu SPK bisa dibayar bertahap: DP dulu, lalu cicilan/pelunasan
 // menyusul — tiap pembayaran dapat kuitansi & nomor sendiri, bukan
@@ -771,6 +982,11 @@ function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
   const labelDiterima = entri.sumber === "leasing"
     ? `DIBAYAR OLEH (${aman(entri.sumberNama).toUpperCase()})`
     : "DIBAYAR OLEH (KONSUMEN)";
+  // "Lunas" dibaca janggal dalam kalimat ("Untuk pembayaran: Lunas 1
+  // unit...") — disebut "Pelunasan" di kalimat ini saja, field
+  // entri.keterangan aslinya TIDAK diubah (tetap "Lunas" di data).
+  const labelPembayaranKalimat = entri.keterangan === "Lunas" ? "Pelunasan" : entri.keterangan;
+  const namaUnitLengkap = `${aman(t.tipeNama)} ${aman(t.warna)}`.trim();
 
   return `
     <div class="k-kuitansi">
@@ -795,10 +1011,18 @@ function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
 
       <div class="k-grid2">
         <div>
-          <p class="k-jumlah-label">Jumlah diterima</p>
+          <p class="k-jumlah-label">Sudah terima dari</p>
+          <p class="k-kalimat-isi">${aman(entri.sumberNama || "-")}</p>
+
+          <p class="k-jumlah-label" style="margin-top:9px">Untuk pembayaran</p>
+          <p class="k-kalimat-isi">${aman(labelPembayaranKalimat)} 1 (satu) unit
+            ${namaUnitLengkap}${unit?.noRangka
+              ? ` — No. Rangka ${aman(unit.noRangka)}` : ""}</p>
+
+          <p class="k-jumlah-label" style="margin-top:9px">Uang sebanyak</p>
           <p class="k-jumlah-besar">${rupiah(entri.jumlah)}</p>
-          <p class="k-terbilang-label">Terbilang</p>
           <p class="k-terbilang-kotak">${aman(terbilang(entri.jumlah || 0))}</p>
+
           ${sisa > 0 ? `<p class="k-kecil" style="margin-top:6px">
             Sisa tagihan: <b>${rupiah(sisa)}</b></p>` : `<p class="k-kecil"
             style="margin-top:6px"><b>LUNAS</b></p>`}
