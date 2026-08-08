@@ -667,6 +667,23 @@ export async function halamanStok(wadah) {
 // ada, SPK bisa langsung mengunci unit itu (jadi tidak ditawarkan
 // ke pembeli lain). Kalau tidak ada, SPK-nya sendiri yang jadi
 // Indent — bukan Data Unit yang dibikin dulu tanpa fisiknya.
+// Sama seperti cariUnitReady, tapi mengembalikan SEMUA unit Ready
+// yang cocok (bukan cuma satu) — dipakai di form SPK supaya sales
+// bisa pilih unit spesifik (rangka/mesin) kalau stoknya lebih dari
+// satu, bukan diambil otomatis begitu saja.
+export async function cariSemuaUnitReady(tipeId, warna) {
+  const snap = await getDocs(query(
+    collection(dbase, "units"),
+    where("tipeId", "==", tipeId),
+    where("warna", "==", warna),
+    where("status", "==", "ready"),
+    limit(50)
+  ));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.tglMasuk?.seconds || 0) - (b.tglMasuk?.seconds || 0));
+}
+
 export async function cariUnitReady(tipeId, warna) {
   const snap = await getDocs(query(
     collection(dbase, "units"),

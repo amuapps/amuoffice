@@ -9,6 +9,14 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.8.0", tanggal: "Agustus 2026",
+    judul: "Pilih Unit Spesifik di SPK",
+    butir: [
+      "Kalau stok Ready untuk Tipe+Warna yang dipilih lebih dari satu, form SPK sekarang menampilkan daftar unitnya (No. Rangka, No. Mesin, No. DO) — bisa dipilih spesifik yang mana, tidak lagi diambilkan otomatis begitu saja.",
+      "Kalau cuma ada satu unit Ready, tetap otomatis terpakai seperti sebelumnya (tidak perlu memilih).",
+    ],
+  },
+  {
     versi: "2.7.1", tanggal: "Agustus 2026",
     judul: "Perbaikan: Riwayat Pengajuan untuk Owner",
     butir: [

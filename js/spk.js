@@ -15,7 +15,7 @@ import {
 import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
 import { batasDiskon } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
-import { cariUnitReady, kunciUnitKeBatch } from "./stok.js";
+import { cariUnitReady, cariSemuaUnitReady, kunciUnitKeBatch } from "./stok.js";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
          pasangHurufBesarPelanggan } from "./pelanggan.js";
 import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
@@ -108,6 +108,7 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
       </div>
     </div>
     <p class="petunjuk" id="cek-stok">&nbsp;</p>
+    <div id="wadah-pilih-unit"></div>
 
     <label class="label label--gelap">Harga OTR</label>
     <input class="isian isian--terang" id="s-otr" value="Rp 0" disabled>
@@ -260,6 +261,8 @@ export async function halamanSpk(wadah) {
   const pilihWarna = wadah.querySelector("#s-warna");
   const otrEl = wadah.querySelector("#s-otr");
   const cekStokEl = wadah.querySelector("#cek-stok");
+  const wadahPilihUnit = wadah.querySelector("#wadah-pilih-unit");
+  let unitDipilihId = null; // diisi kalau stok >1, dipakai saat submit
 
   pilihTipe.addEventListener("change", () => {
     const t = tipeDari(pilihTipe.value);
@@ -268,17 +271,45 @@ export async function halamanSpk(wadah) {
         `<option value="${aman(w)}">${aman(w)}</option>`).join("");
     otrEl.value = t ? rupiah(t.hargaOtr) : "Rp 0";
     cekStokEl.textContent = "";
+    wadahPilihUnit.innerHTML = "";
+    unitDipilihId = null;
   });
 
   pilihWarna.addEventListener("change", async () => {
+    unitDipilihId = null;
+    wadahPilihUnit.innerHTML = "";
     if (!pilihTipe.value || !pilihWarna.value) { cekStokEl.textContent = ""; return; }
     cekStokEl.textContent = "Mengecek stok…";
-    const unit = await cariUnitReady(pilihTipe.value, pilihWarna.value);
-    cekStokEl.innerHTML = unit
-      ? `<span style="color:var(--hijau)">✓ Ready — unit ini akan otomatis dikunci ` +
-        `begitu SPK disimpan.</span>`
-      : `<span style="color:var(--kuning)">Stok kosong — SPK ini akan otomatis ` +
-        `berstatus Indent.</span>`;
+    const daftarUnit = await cariSemuaUnitReady(pilihTipe.value, pilihWarna.value);
+
+    if (!daftarUnit.length) {
+      cekStokEl.innerHTML = `<span style="color:var(--kuning)">Stok kosong — SPK ini ` +
+        `akan otomatis berstatus Indent.</span>`;
+      return;
+    }
+
+    if (daftarUnit.length === 1) {
+      unitDipilihId = daftarUnit[0].id;
+      cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ Ready — rangka ` +
+        `${aman(daftarUnit[0].noRangka)} akan otomatis dikunci begitu SPK disimpan.</span>`;
+      return;
+    }
+
+    // Stok lebih dari satu — biar sales/admin pilih unit spesifiknya
+    // sendiri (rangka/mesin), bukan diambilkan otomatis begitu saja.
+    cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ Ready — ${daftarUnit.length}
+      unit tersedia, pilih salah satu:</span>`;
+    wadahPilihUnit.innerHTML = `
+      <label class="label label--gelap" for="s-unit-spesifik">Pilih unit</label>
+      <select class="isian isian--terang" id="s-unit-spesifik">
+        ${daftarUnit.map((u) => `<option value="${u.id}">
+          Rangka: ${aman(u.noRangka)} · Mesin: ${aman(u.noMesin)}
+          ${u.noDo ? ` · DO: ${aman(u.noDo)}` : ""}
+        </option>`).join("")}
+      </select>`;
+    unitDipilihId = daftarUnit[0].id; // default: unit paling lama masuk
+    wadahPilihUnit.querySelector("#s-unit-spesifik")
+      .addEventListener("change", (e) => { unitDipilihId = e.target.value; });
   });
 
   // ── Payment: cara bayar ────────────────────────────────────────
@@ -348,7 +379,20 @@ export async function halamanSpk(wadah) {
 
     try {
       const t = tipeDari(tipeId);
-      const unit = await cariUnitReady(tipeId, warna);
+      // Pakai unit yang SPESIFIK dipilih di form (kalau stok >1 tadi
+      // sempat dipilih) — dicek ulang statusnya masih "ready" di
+      // Firestore dulu (jaga-jaga kalau keburu diambil transaksi lain
+      // di saat yang hampir bersamaan). Kalau tidak ada yang dipilih
+      // sama sekali (misalnya stok kosong dari awal), fallback ke
+      // cariUnitReady biasa seperti sebelumnya.
+      let unit = null;
+      if (unitDipilihId) {
+        const snapUnitPilihan = await getDoc(doc(dbase, "units", unitDipilihId));
+        if (snapUnitPilihan.exists() && snapUnitPilihan.data().status === "ready") {
+          unit = { id: snapUnitPilihan.id, ...snapUnitPilihan.data() };
+        }
+      }
+      if (!unit) unit = await cariUnitReady(tipeId, warna);
       const kondisiUnit = unit ? "ready" : "indent";
 
       const pembeliId = await simpanPelangganOtomatis(pembeli);
