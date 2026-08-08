@@ -414,6 +414,7 @@ export async function halamanSpk(wadah) {
         agenId: agenTerpilih ? agenTerpilih.id : null,
         agenNama: agenTerpilih ? agenTerpilih.nama : null,
         feeAgen: agenTerpilih ? feeAgen : 0,
+        feeAgenStatus: (agenTerpilih && feeAgen > 0) ? "belum_dibayar" : null,
         // Cashback BELUM berlaku sampai Owner menyetujui — lihat
         // pengajuan yang dibuat setelah batch ini kalau nilainya > 0.
         cashbackDiajukan,

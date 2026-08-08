@@ -9,6 +9,15 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.5.0", tanggal: "Agustus 2026",
+    judul: "Master Agen Lengkap: Data KTP, Rekening & Riwayat Fee",
+    butir: [
+      "Master Agen sekarang punya data lengkap gaya KTP (Tempat/Tanggal Lahir, Alamat) dan rekening bank (Nama Bank, No. Rekening, a.n.) buat transfer fee.",
+      "Tombol \"Lihat Penjualan & Fee\" per agen — menampilkan semua SPK yang membawa agen itu, beserta status fee-nya (Belum/Sudah Dibayar) dan total yang belum dibayar.",
+      "Owner bisa menandai fee sebagai sudah dibayar langsung dari panel ini, lengkap tanggal, bank pengirim, dan catatan referensi transfer.",
+    ],
+  },
+  {
     versi: "2.4.1", tanggal: "Agustus 2026",
     judul: "Sales Bisa Pilih Agen",
     butir: [

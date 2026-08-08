@@ -37,6 +37,7 @@ const LABEL_AKSI = {
   agen_ditambah: "Menambah agen",
   agen_diubah: "Mengubah agen",
   agen_status_diubah: "Mengubah status agen",
+  fee_agen_dibayar: "Menandai fee agen sudah dibayar",
   biro_ditambah: "Menambah biro jasa",
   biro_diubah: "Mengubah biro jasa",
   biro_status_diubah: "Mengubah status biro jasa",
