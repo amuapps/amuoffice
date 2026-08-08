@@ -9,6 +9,21 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.6.2", tanggal: "Agustus 2026",
+    judul: "Notifikasi Unit: Sebut Peran, Konsumen & No. SPK",
+    butir: [
+      "Notifikasi pengajuan ubah unit sekarang berformat: \"[Peran] [Nama] mengajukan perubahan [Field]: X menjadi Y untuk konsumen [Nama] dengan No. SPK [Nomor]\" — kalau unit belum terkait SPK, otomatis sebut nomor unitnya saja.",
+      "Judul kartu di Persetujuan Perubahan untuk pengajuan ubah unit sekarang menampilkan No. SPK (kalau unit itu sedang terkait SPK aktif) atau nomor rangka — dulu kosong.",
+    ],
+  },
+  {
+    versi: "2.6.1", tanggal: "Agustus 2026",
+    judul: "Notifikasi Lebih Detail",
+    butir: [
+      "Notifikasi pengajuan perubahan Unit dan Data Pembeli/Pemakai sekarang menyebutkan RINCIAN field yang berubah (mis. \"No. Mesin: X → Y\"), bukan cuma nomor rangka/nomor SPK-nya saja.",
+    ],
+  },
+  {
     versi: "2.6.0", tanggal: "Agustus 2026",
     judul: "Owner Diberi Tahu Ada Pengajuan Baru",
     butir: [

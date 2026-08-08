@@ -7,6 +7,7 @@ import {
   sertakanLog, tandaBaru, catat,
 } from "./db.js";
 import { bolehAkses, sesi } from "./auth.js";
+import { PERAN } from "./roles.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
 import { beritahu } from "./dialog.js";
@@ -593,10 +594,27 @@ export async function halamanStok(wadah) {
     // Admin: kirim pengajuan saja, tidak langsung berlaku.
     try {
       const ref = doc(collection(dbase, "pengajuan"));
+      const catatanPerubahan = buatCatatanUnit(u, dataBaru);
+
+      // Kalau unit ini sedang terkunci ke SPK yang masih berjalan
+      // (belum batal), sertakan nama konsumen & no SPK-nya di
+      // notifikasi — supaya Owner langsung tahu unit siapa yang
+      // sedang diubah, tanpa perlu buka Data Unit dulu.
+      let spkTerkait = null;
+      try {
+        const snapSpk = await getDocs(query(
+          collection(dbase, "transaksi"),
+          where("unitId", "==", u.id), limit(5)
+        ));
+        spkTerkait = snapSpk.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .find((t) => t.status !== "batal") || null;
+      } catch { /* kalau gagal cek, notifikasi tetap jalan tanpa info SPK */ }
+
       await setDoc(ref, {
         jenis: "unit_diubah",
         unitId: u.id,
-        spkNo: null,
+        spkNo: spkTerkait ? spkTerkait.spkNo : null,
         diajukanOlehUid: sesi ? sesi.uid : null,
         diajukanOlehNama: sesi ? sesi.nama : "-",
         diajukanOlehPeran: sesi ? sesi.peran : null,
@@ -607,15 +625,30 @@ export async function halamanStok(wadah) {
           noDo: u.noDo,
         },
         dataBaru,
-        catatan: buatCatatanUnit(u, dataBaru),
+        catatan: catatanPerubahan,
         ...tandaBaru(),
       });
       await catat("unit_perubahan_diajukan", {
         koleksi: "units", docId: u.id, ringkas: dataBaru.noRangka,
       });
+
+      // Format: "Sales Budi mengajukan perubahan No. Mesin: "X" menjadi
+      // "Y" untuk konsumen Fulan dengan No. SPK SPK/2026/0005." — kalau
+      // tidak ada SPK terkait, kalimatnya berhenti sebelum bagian itu.
+      const labelPeran = sesi ? (PERAN[sesi.peran]?.label || sesi.peran) : "";
+      const daftarPerubahan = catatanPerubahan
+        .split("\n")
+        .map((baris) => baris.replace(" → ", " menjadi "))
+        .join("; ");
+      const infoSpk = spkTerkait
+        ? ` untuk konsumen ${spkTerkait.pembeli?.nama || "-"} ` +
+          `dengan No. SPK ${spkTerkait.spkNo}`
+        : ` untuk unit ${dataBaru.noRangka || u.noRangka}`;
       await beriTahuSemuaOwner("Pengajuan Perubahan Unit",
-        `${sesi.nama} mengajukan perubahan data unit ${dataBaru.noRangka}.`,
-        "#/stok");
+        `${labelPeran} ${sesi.nama} mengajukan perubahan ` +
+        `${daftarPerubahan}${infoSpk}. Klik untuk lihat detailnya.`,
+        "#/persetujuan");
+
       formEl.innerHTML = "";
       kabar("Pengajuan perubahan unit terkirim, menunggu persetujuan Owner.", "netral");
     } catch (err) {

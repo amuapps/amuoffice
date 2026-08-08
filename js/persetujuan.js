@@ -25,10 +25,12 @@ const LABEL_JENIS = {
 };
 
 function kartuPengajuan(p) {
+  const judul = p.spkNo || (p.jenis === "unit_diubah"
+    ? `Unit ${p.dataBaru?.noRangka || "-"}` : "-");
   return `<article class="kartu">
     <div class="kartu-atas">
       <div>
-        <h3 class="kartu-judul mono">${aman(p.spkNo)}</h3>
+        <h3 class="kartu-judul mono">${aman(judul)}</h3>
         <p class="kartu-sub">${aman(LABEL_JENIS[p.jenis] || p.jenis)} ·
           diajukan oleh ${aman(namaTampilan(p.diajukanOlehPeran, p.diajukanOlehNama))}
           · ${tanggalJam(p.dibuatPada)}</p>

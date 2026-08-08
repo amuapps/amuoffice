@@ -648,6 +648,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
       };
       const ref = doc(collection(dbase, "pengajuan"));
+      const catatanPerubahan = buatCatatanPerubahan(dataLama, dataBaru);
       await setDoc(ref, {
         jenis: "pelanggan_spk",
         transaksiId: t.id, spkNo: t.spkNo,
@@ -656,15 +657,15 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         diajukanOlehPeran: sesi ? sesi.peran : null,
         status: "menunggu",
         dataLama, dataBaru,
-        catatan: buatCatatanPerubahan(dataLama, dataBaru),
+        catatan: catatanPerubahan,
         ...tandaBaru(),
       });
       await catat("perubahan_spk_diajukan", {
         koleksi: "transaksi", docId: t.id, ringkas: t.spkNo,
       });
+      // Sebutkan rincian field yang berubah, bukan cuma "ada perubahan".
       await beriTahuSemuaOwner("Pengajuan Perubahan Data",
-        `${sesi.nama} mengajukan perubahan data Pembeli/Pemakai ` +
-        `untuk SPK ${t.spkNo}.`);
+        `${sesi.nama} — SPK ${t.spkNo}: ${catatanPerubahan}`);
 
       kabar("Pengajuan terkirim, menunggu persetujuan Owner.", "netral");
       kontainer.innerHTML = "";
