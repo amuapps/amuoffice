@@ -9,6 +9,13 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.9.2", tanggal: "Agustus 2026",
+    judul: "Koreksi: Owner Bisa Input Atas Nama Karyawan Mana Saja",
+    butir: [
+      "Dropdown \"Atas nama karyawan\" di form SPK (khusus Owner) sekarang menampilkan SEMUA karyawan aktif (Admin, Sales, dst) — bukan cuma Sales seperti sebelumnya. Tiap nama juga disertai label jabatannya.",
+    ],
+  },
+  {
     versi: "2.9.1", tanggal: "Agustus 2026",
     judul: "Koreksi: Pilih Unit Lewat Tabel, Bukan Cari Rangka",
     butir: [

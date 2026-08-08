@@ -13,7 +13,7 @@ import {
   sertakanLog, tandaBaru, nomorBerikutnya,
 } from "./db.js";
 import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
-import { batasDiskon } from "./roles.js";
+import { batasDiskon, PERAN } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
 import { cariUnitReady, muatSemuaUnitReadyRingkas, kunciUnitKeBatch } from "./stok.js";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
@@ -58,17 +58,18 @@ function panelInternal(daftarAgen, daftarSales) {
   const owner = sesi && sesi.peran === "owner";
   return `<div class="tab-panel" data-panel="internal" hidden>
     ${owner ? `
-    <label class="label label--gelap" for="s-sales">Sales
-      <span class="kunci">Owner bisa input atas nama sales lain</span></label>
+    <label class="label label--gelap" for="s-sales">Atas nama karyawan
+      <span class="kunci">Owner bisa input atas nama siapa saja, tidak
+        cuma Sales</span></label>
     <select class="isian isian--terang" id="s-sales">
       <option value="">OWNER (saya sendiri)</option>
       ${daftarSales.map((s) =>
-        `<option value="${s.id}">${aman(s.nama)}</option>`).join("")}
+        `<option value="${s.id}">${aman(s.nama)} — ${aman(PERAN[s.peran]?.label || s.peran)}</option>`).join("")}
     </select>
     <p class="petunjuk">Dipakai buat laporan/komisi penjualan — siapa
       yang SEBENARNYA input SPK ini (Anda, Owner) tetap tercatat
       terpisah di Log Aktivitas &amp; tersimpan di data SPK-nya,
-      berapa pun Sales yang dipilih di atas.</p>
+      berapa pun karyawan yang dipilih di atas.</p>
     ` : `
     <label class="label label--gelap">Sales</label>
     <input class="isian isian--terang" value="${aman(sesi ? namaTampilan(sesi.peran, sesi.nama) : "-")}" disabled>
@@ -201,12 +202,14 @@ export async function halamanSpk(wadah) {
         muatSemuaUnitReadyRingkas(),
       ]);
     if (sesi && sesi.peran === "owner") {
-      const snapSales = await getDocs(query(
-        collection(dbase, "users"), where("peran", "==", "sales")
-      ));
-      daftarSales = snapSales.docs
+      // SEMUA karyawan (Admin, Sales, Kasir, dst — bukan cuma Sales)
+      // ditawarkan sebagai pilihan "atas nama siapa" — Owner yang
+      // paling tahu siapa yang sebenarnya menangani penjualan ini,
+      // apa pun jabatannya.
+      const snapKaryawan = await getDocs(collection(dbase, "users"));
+      daftarSales = snapKaryawan.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((u) => u.aktif !== false)
+        .filter((u) => u.aktif !== false && u.peran !== "owner")
         .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
     }
   } catch (err) {
