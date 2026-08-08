@@ -425,8 +425,7 @@ export async function cetakSpk(t) {
     <p class="c-berlaku">SPK ini berlaku paling lama
       ${MASA_BERLAKU_SPK} hari setelah unit siap.</p>
 
-    <p class="c-kaki">${aman(SHOWROOM.nama)} — dokumen ini diterbitkan
-      oleh sistem dan sah tanpa tanda tangan basah pada salinan arsip.</p>
+    <p class="c-kaki">${aman(SHOWROOM.nama)}</p>
   </div>
 
   <div class="aksi-cetak">

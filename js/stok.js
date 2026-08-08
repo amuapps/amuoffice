@@ -671,6 +671,17 @@ export async function halamanStok(wadah) {
 // yang cocok (bukan cuma satu) — dipakai di form SPK supaya sales
 // bisa pilih unit spesifik (rangka/mesin) kalau stoknya lebih dari
 // satu, bukan diambil otomatis begitu saja.
+// Dipakai form SPK — daftar ringkas SEMUA unit Ready lintas tipe,
+// disaring per tipeId di sisi klien begitu Tipe Motor dipilih,
+// supaya tabelnya langsung muncul tanpa query berulang tiap ganti
+// tipe.
+export async function muatSemuaUnitReadyRingkas() {
+  const snap = await getDocs(query(
+    collection(dbase, "units"), where("status", "==", "ready"), limit(300)
+  ));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function cariSemuaUnitReady(tipeId, warna) {
   const snap = await getDocs(query(
     collection(dbase, "units"),

@@ -15,7 +15,7 @@ import {
 import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
 import { batasDiskon } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
-import { cariUnitReady, cariSemuaUnitReady, kunciUnitKeBatch } from "./stok.js";
+import { cariUnitReady, muatSemuaUnitReadyRingkas, kunciUnitKeBatch } from "./stok.js";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
          pasangHurufBesarPelanggan } from "./pelanggan.js";
 import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
@@ -50,14 +50,29 @@ function panelCustomer(saranKecamatan, saranKota) {
   </div>`;
 }
 
-function panelInternal(daftarAgen) {
+function panelInternal(daftarAgen, daftarSales) {
   // Pilih agen (siapa yang bawa konsumen) boleh siapa saja yang
   // buat SPK — nominal Fee-nya yang dirahasiakan (cuma Owner &
   // Admin, karena mereka yang membayarkan ke rekening agennya).
   const bisaLihatFeeAgen = bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna");
+  const owner = sesi && sesi.peran === "owner";
   return `<div class="tab-panel" data-panel="internal" hidden>
+    ${owner ? `
+    <label class="label label--gelap" for="s-sales">Sales
+      <span class="kunci">Owner bisa input atas nama sales lain</span></label>
+    <select class="isian isian--terang" id="s-sales">
+      <option value="">OWNER (saya sendiri)</option>
+      ${daftarSales.map((s) =>
+        `<option value="${s.id}">${aman(s.nama)}</option>`).join("")}
+    </select>
+    <p class="petunjuk">Dipakai buat laporan/komisi penjualan — siapa
+      yang SEBENARNYA input SPK ini (Anda, Owner) tetap tercatat
+      terpisah di Log Aktivitas &amp; tersimpan di data SPK-nya,
+      berapa pun Sales yang dipilih di atas.</p>
+    ` : `
     <label class="label label--gelap">Sales</label>
     <input class="isian isian--terang" value="${aman(sesi ? namaTampilan(sesi.peran, sesi.nama) : "-")}" disabled>
+    `}
     <label class="label label--gelap" for="s-diskon">Diskon (Rp)</label>
     <input class="isian isian--terang" id="s-diskon" inputmode="numeric"
            value="0">
@@ -93,22 +108,20 @@ function panelInternal(daftarAgen) {
 
 function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
   return `<div class="tab-panel" data-panel="payment" hidden>
-    <div class="dua">
-      <div>
-        <label class="label label--gelap" for="s-tipe">Tipe motor</label>
-        <select class="isian isian--terang" id="s-tipe">
-          <option value="">— pilih tipe —</option>${opsiTipe(daftarTipe)}
-        </select>
-      </div>
-      <div>
-        <label class="label label--gelap" for="s-warna">Warna</label>
-        <select class="isian isian--terang" id="s-warna">
-          <option value="">— pilih tipe dulu —</option>
-        </select>
-      </div>
-    </div>
+    <label class="label label--gelap" for="s-tipe">Tipe motor</label>
+    <select class="isian isian--terang" id="s-tipe">
+      <option value="">— pilih tipe —</option>${opsiTipe(daftarTipe)}
+    </select>
+
     <p class="petunjuk" id="cek-stok">&nbsp;</p>
-    <div id="wadah-pilih-unit"></div>
+    <div id="wadah-tabel-unit"></div>
+
+    <div id="wadah-warna-manual">
+      <label class="label label--gelap" for="s-warna">Warna</label>
+      <select class="isian isian--terang" id="s-warna">
+        <option value="">— pilih tipe dulu —</option>
+      </select>
+    </div>
 
     <label class="label label--gelap">Harga OTR</label>
     <input class="isian isian--terang" id="s-otr" value="Rp 0" disabled>
@@ -177,14 +190,25 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
 export async function halamanSpk(wadah) {
   wadah.innerHTML = `<p class="hampa">Memuat…</p>`;
   let daftarTipe = [], daftarLeasing = [], daftarRekening = [];
-  let daftarAgen = [];
+  let daftarAgen = [], daftarUnitReady = [], daftarSales = [];
   let saranKecamatan = [], saranKota = [];
   try {
-    [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota, daftarAgen] =
+    [daftarTipe, daftarLeasing, daftarRekening, saranKecamatan, saranKota,
+      daftarAgen, daftarUnitReady] =
       await Promise.all([
         muatTipe(), muatLeasing(), muatRekening(),
         muatSaranKecamatan(), muatSaranKota(), muatAgen(),
+        muatSemuaUnitReadyRingkas(),
       ]);
+    if (sesi && sesi.peran === "owner") {
+      const snapSales = await getDocs(query(
+        collection(dbase, "users"), where("peran", "==", "sales")
+      ));
+      daftarSales = snapSales.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((u) => u.aktif !== false)
+        .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
+    }
   } catch (err) {
     wadah.innerHTML = `<div class="hampa">
       <p><b>Gagal memuat data SPK.</b></p>
@@ -219,7 +243,7 @@ export async function halamanSpk(wadah) {
     </div>
     <form id="form-spk" class="form">
       ${panelCustomer(saranKecamatan, saranKota)}
-      ${panelInternal(agenPilihan)}
+      ${panelInternal(agenPilihan, daftarSales)}
       ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan SPK</button>
@@ -256,60 +280,76 @@ export async function halamanSpk(wadah) {
       `diajukan ke Owner untuk disetujui dulu, tidak langsung berlaku.`;
   pasangFormatUang(diskonEl);
 
-  // ── Payment: pilih tipe → isi warna + cek stok ────────────────
+  // ── Payment: pilih tipe → tabel unit + cek stok ────────────────
   const pilihTipe = wadah.querySelector("#s-tipe");
-  const pilihWarna = wadah.querySelector("#s-warna");
   const otrEl = wadah.querySelector("#s-otr");
   const cekStokEl = wadah.querySelector("#cek-stok");
-  const wadahPilihUnit = wadah.querySelector("#wadah-pilih-unit");
-  let unitDipilihId = null; // diisi kalau stok >1, dipakai saat submit
+  const wadahTabelUnit = wadah.querySelector("#wadah-tabel-unit");
+  const wadahWarnaManual = wadah.querySelector("#wadah-warna-manual");
+  let unitDipilihId = null; // diisi dari centang tabel, atau null kalau Indent
+
+  function tabelPilihUnit(daftarUnit) {
+    return `<div style="overflow-x:auto;margin:8px 0">
+      <table class="tabel">
+        <thead><tr>
+          <th></th><th>No.</th><th>Rangka</th><th>Mesin</th>
+          <th>Warna</th><th>Tahun</th>
+        </tr></thead>
+        <tbody>
+          ${daftarUnit.map((u, i) => `<tr>
+            <td><input type="radio" name="s-pilih-unit" value="${u.id}"
+                  id="unit-${u.id}" ${i === 0 ? "checked" : ""}></td>
+            <td>${i + 1}</td>
+            <td class="mono"><label for="unit-${u.id}">${aman(u.noRangka)}</label></td>
+            <td class="mono">${aman(u.noMesin)}</td>
+            <td>${aman(u.warna)}</td>
+            <td>${aman(u.tahun || "-")}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  async function tampilkanUnitUntukTipe(tipeId) {
+    wadahTabelUnit.innerHTML = "";
+    unitDipilihId = null;
+    if (!tipeId) {
+      wadahWarnaManual.hidden = true;
+      cekStokEl.textContent = "";
+      return;
+    }
+    cekStokEl.textContent = "Mengecek stok…";
+    const daftarUnit = daftarUnitReady.filter((u) => u.tipeId === tipeId);
+
+    if (!daftarUnit.length) {
+      // Tidak ada stok Ready sama sekali — biarkan pilih Warna manual,
+      // SPK-nya nanti otomatis berstatus Indent.
+      wadahWarnaManual.hidden = false;
+      const t = tipeDari(tipeId);
+      wadah.querySelector("#s-warna").innerHTML =
+        `<option value="">— pilih warna —</option>` +
+        ((t && t.warna) || []).map((w) =>
+          `<option value="${aman(w)}">${aman(w)}</option>`).join("");
+      cekStokEl.innerHTML = `<span style="color:var(--kuning)">Stok kosong — pilih warna
+        yang diinginkan, SPK ini akan otomatis berstatus Indent.</span>`;
+      return;
+    }
+
+    // Ada stok — tampilkan tabel, sembunyikan pilihan warna manual
+    // (warnanya otomatis ikut baris yang dicentang).
+    wadahWarnaManual.hidden = true;
+    cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ ${daftarUnit.length}
+      unit Ready tersedia — centang salah satu:</span>`;
+    wadahTabelUnit.innerHTML = tabelPilihUnit(daftarUnit);
+    unitDipilihId = daftarUnit[0].id; // default: baris pertama (paling lama masuk)
+    wadahTabelUnit.querySelectorAll('input[name="s-pilih-unit"]').forEach((r) =>
+      r.addEventListener("change", (e) => { unitDipilihId = e.target.value; }));
+  }
 
   pilihTipe.addEventListener("change", () => {
     const t = tipeDari(pilihTipe.value);
-    pilihWarna.innerHTML = `<option value="">— pilih —</option>` +
-      ((t && t.warna) || []).map((w) =>
-        `<option value="${aman(w)}">${aman(w)}</option>`).join("");
     otrEl.value = t ? rupiah(t.hargaOtr) : "Rp 0";
-    cekStokEl.textContent = "";
-    wadahPilihUnit.innerHTML = "";
-    unitDipilihId = null;
-  });
-
-  pilihWarna.addEventListener("change", async () => {
-    unitDipilihId = null;
-    wadahPilihUnit.innerHTML = "";
-    if (!pilihTipe.value || !pilihWarna.value) { cekStokEl.textContent = ""; return; }
-    cekStokEl.textContent = "Mengecek stok…";
-    const daftarUnit = await cariSemuaUnitReady(pilihTipe.value, pilihWarna.value);
-
-    if (!daftarUnit.length) {
-      cekStokEl.innerHTML = `<span style="color:var(--kuning)">Stok kosong — SPK ini ` +
-        `akan otomatis berstatus Indent.</span>`;
-      return;
-    }
-
-    if (daftarUnit.length === 1) {
-      unitDipilihId = daftarUnit[0].id;
-      cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ Ready — rangka ` +
-        `${aman(daftarUnit[0].noRangka)} akan otomatis dikunci begitu SPK disimpan.</span>`;
-      return;
-    }
-
-    // Stok lebih dari satu — biar sales/admin pilih unit spesifiknya
-    // sendiri (rangka/mesin), bukan diambilkan otomatis begitu saja.
-    cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ Ready — ${daftarUnit.length}
-      unit tersedia, pilih salah satu:</span>`;
-    wadahPilihUnit.innerHTML = `
-      <label class="label label--gelap" for="s-unit-spesifik">Pilih unit</label>
-      <select class="isian isian--terang" id="s-unit-spesifik">
-        ${daftarUnit.map((u) => `<option value="${u.id}">
-          Rangka: ${aman(u.noRangka)} · Mesin: ${aman(u.noMesin)}
-          ${u.noDo ? ` · DO: ${aman(u.noDo)}` : ""}
-        </option>`).join("")}
-      </select>`;
-    unitDipilihId = daftarUnit[0].id; // default: unit paling lama masuk
-    wadahPilihUnit.querySelector("#s-unit-spesifik")
-      .addEventListener("change", (e) => { unitDipilihId = e.target.value; });
+    tampilkanUnitUntukTipe(pilihTipe.value);
   });
 
   // ── Payment: cara bayar ────────────────────────────────────────
@@ -351,9 +391,13 @@ export async function halamanSpk(wadah) {
     }
 
     const tipeId = pilihTipe.value;
-    const warna = pilihWarna.value;
+    // Warna ikut unit yang dicentang di tabel (kalau ada stok), atau
+    // dari dropdown manual (kalau Indent/stok kosong).
+    const unitDariTabel = unitDipilihId
+      ? daftarUnitReady.find((u) => u.id === unitDipilihId) : null;
+    const warna = unitDariTabel ? unitDariTabel.warna : wadah.querySelector("#s-warna").value;
     if (!tipeId || !warna) {
-      kabar("Pilih tipe motor dan warna di tab Payment Info.", "rem");
+      kabar("Pilih tipe motor, lalu centang unit atau pilih warna di tab Payment Info.", "rem");
       return;
     }
 
@@ -420,6 +464,17 @@ export async function halamanSpk(wadah) {
       const elFeeAgen = wadah.querySelector("#s-fee-agen");
       const feeAgen = elFeeAgen ? bacaAngka(elFeeAgen) : 0;
 
+      // Kalau Owner input atas nama Sales lain (dropdown #s-sales
+      // cuma ada di DOM buat Owner) — salesUid/Nama/Peran ikut pilihan
+      // itu buat keperluan laporan/komisi. Tapi siapa yang BENAR-BENAR
+      // input tetap direkam terpisah lewat dibuatOlehUid/Nama/Peran,
+      // supaya jejaknya tidak pernah hilang biar dropdown-nya diisi
+      // apa pun.
+      const elSales = wadah.querySelector("#s-sales");
+      const salesIdDipilih = elSales ? elSales.value : "";
+      const salesTerpilih = salesIdDipilih
+        ? daftarSales.find((s) => s.id === salesIdDipilih) : null;
+
       // Diskon yang MELEBIHI batas peran ini butuh persetujuan Owner
       // dulu — tidak langsung berlaku. Kalau masih dalam batas (atau
       // perannya Owner sendiri, batasnya null = tanpa batas), langsung
@@ -433,9 +488,15 @@ export async function halamanSpk(wadah) {
         pembeliId, pembeli,
         pemakaiSamaDenganPembeli: pemakaiSama,
         pemakaiId, pemakai: pemakaiSama ? null : pemakai,
-        salesUid: sesi ? sesi.uid : null,
-        salesNama: sesi ? sesi.nama : "-",
-        salesPeran: sesi ? sesi.peran : null,
+        salesUid: salesTerpilih ? salesTerpilih.id : (sesi ? sesi.uid : null),
+        salesNama: salesTerpilih ? salesTerpilih.nama : (sesi ? sesi.nama : "-"),
+        salesPeran: salesTerpilih ? salesTerpilih.peran : (sesi ? sesi.peran : null),
+        // Siapa yang BENAR-BENAR mengoperasikan sistem saat SPK ini
+        // dibuat — selalu identitas sesi asli, tidak peduli salesUid
+        // di atas diisi siapa. Dipakai buat jejak audit.
+        dibuatOlehUid: sesi ? sesi.uid : null,
+        dibuatOlehNama: sesi ? sesi.nama : "-",
+        dibuatOlehPeran: sesi ? sesi.peran : null,
         diskon: diskonLangsung,
         catatan: wadah.querySelector("#s-catatan").value.trim(),
         tipeId, tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
@@ -589,51 +650,70 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     </div>`;
     return;
   }
-  if (t.kuitansiTercetak) {
+  const owner = sesi && sesi.peran === "owner";
+  // Owner SENGAJA dikecualikan dari kunci ini — Admin/Sales tetap
+  // terkunci begitu kuitansi tercetak. No. kuitansi TIDAK berubah
+  // sama sekali kalau Owner yang mengedit (lihat submit handler di
+  // bawah — field kuitansiNo/Kode/Tercetak tidak pernah disentuh).
+  if (t.kuitansiTercetak && !owner) {
     kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
       <p class="hampa">Kuitansi untuk SPK ini sudah dicetak (${aman(t.kuitansiNo || "")})
         — data pembeli, pemakai, dan unit sudah terkunci, tidak bisa diajukan
-        perubahan lagi lewat sistem.</p>
+        perubahan lagi lewat sistem. Hubungi Owner kalau memang perlu diubah.</p>
     </div>`;
     return;
   }
 
   kontainer.innerHTML = `<p class="hampa">Memeriksa status pengajuan…</p>`;
 
-  // Jangan sampai dobel pengajuan untuk SPK yang sama.
-  try {
-    const sedangMenunggu = await getDocs(query(
-      collection(dbase, "pengajuan"),
-      where("transaksiId", "==", t.id),
-      where("status", "==", "menunggu"),
-      limit(1)
-    ));
-    if (!sedangMenunggu.empty) {
-      kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
-        <p class="hampa">Sudah ada pengajuan perubahan untuk SPK ini yang
-          masih menunggu persetujuan Owner. Tunggu diproses dulu sebelum
-          mengajukan lagi.</p>
-        <button class="tombol tombol--kecil" id="tutup-edit-${t.id}">Tutup</button>
-      </div>`;
-      kontainer.querySelector(`#tutup-edit-${t.id}`)
-        .addEventListener("click", () => (kontainer.innerHTML = ""));
-      return;
-    }
-  } catch { /* kalau gagal cek, tetap lanjut tampilkan form — jangan macet */ }
+  // Owner selalu langsung terap — tidak ada pengajuan yang perlu
+  // dicek dobel (dia toh yang akan menyetujui pengajuannya sendiri
+  // kalau lewat jalur itu, jadi percuma). Cek dobel cuma relevan
+  // buat Admin/Sales yang memang harus lewat persetujuan.
+  if (!owner) {
+    try {
+      const sedangMenunggu = await getDocs(query(
+        collection(dbase, "pengajuan"),
+        where("transaksiId", "==", t.id),
+        where("status", "==", "menunggu"),
+        limit(1)
+      ));
+      if (!sedangMenunggu.empty) {
+        kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
+          <p class="hampa">Sudah ada pengajuan perubahan untuk SPK ini yang
+            masih menunggu persetujuan Owner. Tunggu diproses dulu sebelum
+            mengajukan lagi.</p>
+          <button class="tombol tombol--kecil" id="tutup-edit-${t.id}">Tutup</button>
+        </div>`;
+        kontainer.querySelector(`#tutup-edit-${t.id}`)
+          .addEventListener("click", () => (kontainer.innerHTML = ""));
+        return;
+      }
+    } catch { /* kalau gagal cek, tetap lanjut tampilkan form — jangan macet */ }
+  }
 
   const [saranKecamatan, saranKota] = await Promise.all([
     muatSaranKecamatan(), muatSaranKota(),
   ]).catch(() => [[], []]);
 
   const pemakaiSama = t.pemakaiSamaDenganPembeli !== false;
+  const terkunci = t.kuitansiTercetak && owner; // Owner ubah data yang sudah terkunci
 
   kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
     <h3 class="judul" style="font-size:15px">
-      Ajukan Perubahan Pembeli/Pemakai — <span class="mono">${aman(t.spkNo)}</span>
+      ${owner ? "Ubah" : "Ajukan Perubahan"} Data Pembeli/Pemakai —
+      <span class="mono">${aman(t.spkNo)}</span>
     </h3>
-    <p class="petunjuk">Cuma data pembeli &amp; pemakai yang bisa diajukan di
+    <p class="petunjuk">Cuma data pembeli &amp; pemakai yang bisa diubah di
       sini. Unit, harga, dan cara bayar tidak bisa diubah lewat form ini.
-      Perubahan baru berlaku setelah <b>disetujui Owner</b>.</p>
+      ${owner
+        ? (terkunci
+            ? `<b>Kuitansi SPK ini sudah dicetak (${aman(t.kuitansiNo || "")})</b> — ` +
+              `sebagai Owner Anda tetap bisa mengubahnya, tapi pastikan dulu ` +
+              `memang perlu (mis. salah ketik alamat/telepon). Nomor kuitansi ` +
+              `TIDAK akan berubah.`
+            : "Karena Anda Owner, perubahan langsung tersimpan tanpa perlu persetujuan.")
+        : "Perubahan baru berlaku setelah <b>disetujui Owner</b>."}</p>
     <form id="form-edit-${t.id}" class="form">
       <h4 class="judul" style="font-size:14px">Pembeli</h4>
       ${formPelanggan(t.pembeli || {}, "epembeli", saranKecamatan, saranKota)}
@@ -648,7 +728,8 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       </div>
 
       <div class="aksi">
-        <button class="tombol tombol--utama" type="submit">Kirim Pengajuan</button>
+        <button class="tombol tombol--utama" type="submit">
+          ${owner ? "Simpan Perubahan" : "Kirim Pengajuan"}</button>
         <button class="tombol tombol--sunyi tombol--gelap" type="button"
                 id="batal-edit-${t.id}">Batal</button>
       </div>
@@ -681,18 +762,41 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
 
     const tombol = e.target.querySelector('button[type="submit"]');
     tombol.disabled = true;
-    tombol.textContent = "Mengirim…";
+    tombol.textContent = owner ? "Menyimpan…" : "Mengirim…";
+
+    const dataLama = {
+      pembeli: t.pembeli || null, pemakai: t.pemakai || null,
+      pemakaiSamaDenganPembeli: pemakaiSama,
+    };
+    const dataBaru = {
+      pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
+    };
+    const catatanPerubahan = buatCatatanPerubahan(dataLama, dataBaru);
+
+    // Owner: langsung terap ke SPK-nya, TANPA pengajuan (dia toh yang
+    // akan menyetujui pengajuannya sendiri, jadi diterapkan langsung).
+    // kuitansiNo/Kode/Tercetak SENGAJA tidak disentuh sama sekali di
+    // sini — jadi nomor kuitansi tetap sama persis walau datanya diubah.
+    if (owner) {
+      try {
+        await updateDoc(doc(dbase, "transaksi", t.id), dataBaru);
+        await catat("perubahan_spk_diterapkan_owner", {
+          koleksi: "transaksi", docId: t.id,
+          ringkas: `${t.spkNo} · ${catatanPerubahan}`,
+        });
+        kabar("Perubahan tersimpan.", "netral");
+        kontainer.innerHTML = "";
+        if (muatUlang) await muatUlang();
+      } catch (err) {
+        kabar("Gagal menyimpan: " + err.message, "rem");
+        tombol.disabled = false;
+        tombol.textContent = "Simpan Perubahan";
+      }
+      return;
+    }
 
     try {
-      const dataLama = {
-        pembeli: t.pembeli || null, pemakai: t.pemakai || null,
-        pemakaiSamaDenganPembeli: pemakaiSama,
-      };
-      const dataBaru = {
-        pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
-      };
       const ref = doc(collection(dbase, "pengajuan"));
-      const catatanPerubahan = buatCatatanPerubahan(dataLama, dataBaru);
       await setDoc(ref, {
         jenis: "pelanggan_spk",
         transaksiId: t.id, spkNo: t.spkNo,

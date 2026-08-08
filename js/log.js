@@ -50,6 +50,7 @@ const LABEL_AKSI = {
   batal_spk_diajukan: "Mengajukan pembatalan SPK",
   batal_spk_ditolak: "Menolak pembatalan SPK",
   spk_dibatalkan: "Membatalkan SPK",
+  perubahan_spk_diterapkan_owner: "Mengubah data SPK langsung (Owner)",
   pembayaran_dicatat: "Mencatat pembayaran SPK",
   label_diubah: "Mengubah nama menu",
   akses_diubah: "Mengubah hak akses peran",

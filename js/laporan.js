@@ -3,7 +3,7 @@
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
-import { rupiah, aman, tanggal } from "./ui.js";
+import { rupiah, aman, tanggal, namaTampilan } from "./ui.js";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
 import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { bolehAkses, sesi } from "./auth.js";
@@ -20,8 +20,13 @@ function hariIni() {
 
 function baris(t) {
   const batal = t.status === "batal";
+  const diinputOrangLain = t.dibuatOlehUid && t.dibuatOlehUid !== t.salesUid;
   return `<tr style="${batal ? "opacity:.55" : ""}">
-    <td class="mono">${aman(t.spkNo)}</td>
+    <td class="mono">${aman(t.spkNo)}
+      ${diinputOrangLain && bolehAkses("kelola.pengguna") ? `<br>
+        <span class="kunci" style="font-family:inherit">input:
+          ${aman(namaTampilan(t.dibuatOlehPeran, t.dibuatOlehNama))}</span>` : ""}
+    </td>
     <td>${tanggal(t.dibuatPada)}</td>
     <td>${aman(t.pembeli?.nama)}</td>
     <td>${aman(t.tipeNama)} · ${aman(t.warna)}</td>

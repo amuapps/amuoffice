@@ -9,6 +9,31 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.9.1", tanggal: "Agustus 2026",
+    judul: "Koreksi: Pilih Unit Lewat Tabel, Bukan Cari Rangka",
+    butir: [
+      "Cara pilih unit di form SPK diubah lagi — sekarang cukup pilih Tipe Motor, tabel unit Ready (No, Rangka, Mesin, Warna, Tahun) langsung muncul di bawahnya. Tinggal centang satu baris (cuma bisa pilih 1), Warna & unitnya otomatis terpilih ke SPK.",
+      "Fitur \"Cari No. Rangka\" dari pembaruan sebelumnya dihapus — digantikan tabel ini.",
+      "Kalau stok kosong untuk tipe itu, otomatis muncul dropdown Warna manual (buat SPK Indent).",
+    ],
+  },
+  {
+    versi: "2.9.0", tanggal: "Agustus 2026",
+    judul: "Pilih Unit via Rangka, Owner Input Atas Nama Sales, Owner Bisa Ubah Data Terkunci",
+    butir: [
+      "Form SPK: bisa langsung cari/pilih No. Rangka duluan — Tipe Motor, Warna, dan Harga OTR otomatis mengikuti (sebelumnya harus pilih Tipe/Warna dulu baru sistem carikan unit).",
+      "Owner sekarang bisa membuat SPK atas nama Sales lain (dropdown \"Sales\" di tab Internal) — buat keperluan laporan/komisi. Siapa yang BENAR-BENAR input tetap tercatat terpisah (field dibuatOlehUid/Nama/Peran) dan tampil sebagai catatan kecil di Riwayat SPK untuk Owner/Admin.",
+      "Owner sekarang bisa mengubah data Pembeli/Pemakai walau kuitansi sudah dicetak (Admin/Sales tetap terkunci seperti biasa) — langsung tersimpan tanpa perlu proses persetujuan, dan No. Kuitansi tidak berubah sama sekali.",
+    ],
+  },
+  {
+    versi: "2.8.1", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Kalimat Membingungkan di Cetakan SPK",
+    butir: [
+      "Kalimat \"sah tanpa tanda tangan basah\" di bagian bawah cetakan SPK dihapus — terlihat kontradiktif karena ditaruh persis di bawah kolom tanda tangan, bisa disalahpahami konsumen jadi mengira SPK tidak perlu ditandatangani.",
+    ],
+  },
+  {
     versi: "2.8.0", tanggal: "Agustus 2026",
     judul: "Pilih Unit Spesifik di SPK",
     butir: [
