@@ -36,7 +36,7 @@ export function hitungTotalDibayar(t) {
   }
   return t.jumlahBayar || 0;
 }
-function sudahLunas(t) {
+export function sudahLunas(t) {
   const total = hitungTotalDibayar(t);
   return (t.hargaOtr || 0) > 0 && total >= (t.hargaOtr || 0);
 }
@@ -385,7 +385,7 @@ export async function cetakSpk(t) {
           <tr><td>Cara bayar</td>
               <td class="c-kanan">${aman((t.caraBayar || [])
                 .map((c) => LABEL_CARA_BAYAR[c] || c).join(" + "))}</td></tr>
-          <tr><td>Dibayar sekarang</td>
+          <tr><td>${kredit ? "DP (Uang Muka)" : "Dibayar sekarang"}</td>
               <td class="c-kanan">${rupiah(t.jumlahBayar)}</td></tr>
           ${t.jumlahTunai ? `<tr><td>&nbsp;&nbsp;— Tunai</td>
               <td class="c-kanan">${rupiah(t.jumlahTunai)}</td></tr>` : ""}
@@ -394,6 +394,8 @@ export async function cetakSpk(t) {
           ${kredit ? `
           <tr><td>Leasing</td>
               <td class="c-kanan">${aman(leasing?.nama || "-")}</td></tr>
+          <tr><td>Sisa Dibiayai Leasing</td>
+              <td class="c-kanan">${rupiah(Math.max(0, (t.hargaOtr || 0) - (t.jumlahBayar || 0)))}</td></tr>
           <tr><td>Cicilan / bulan</td>
               <td class="c-kanan">${rupiah(t.kredit?.cicilan)}</td></tr>
           <tr><td>Lama cicilan</td>
@@ -739,4 +741,27 @@ export async function cetakKuitansi(t, entri, totalSetelah) {
   </div>`;
 
   tabBaru.document.body.innerHTML = isi;
+}
+
+// Cetak ULANG kuitansi TERAKHIR yang sudah tercetak — tanpa mencatat
+// pembayaran baru sama sekali. Dipakai kalau kuitansi DP/cicilan
+// sebelumnya perlu dicetak lagi (mis. hilang, atau printer sempat
+// bermasalah), beda dari mintaCetakKuitansi yang selalu menawarkan
+// mencatat pembayaran BARU untuk SPK yang belum lunas.
+export async function cetakUlangKuitansiTerakhir(t) {
+  if (!t || !t.kuitansiTercetak) {
+    kabar("Belum ada kuitansi yang tercetak untuk SPK ini.", "rem");
+    return;
+  }
+  const riwayat = Array.isArray(t.riwayatBayar) ? t.riwayatBayar : [];
+  const terakhir = riwayat.length ? riwayat[riwayat.length - 1] : {
+    // SPK lama yang dicetak sebelum fitur riwayatBayar ada.
+    kuitansiNo: t.kuitansiNo,
+    kodeAman: t.kuitansiKode || (t.kuitansiNo ? t.kuitansiNo.replace(/\//g, "-") : ""),
+    jumlah: t.jumlahBayar || 0, sumber: "konsumen",
+    sumberNama: t.pembeli?.nama || "-",
+    keterangan: sudahLunas(t) ? "Lunas" : "DP",
+    tanggal: t.dibuatPada || new Date(),
+  };
+  await cetakKuitansi(t, terakhir, hitungTotalDibayar(t));
 }

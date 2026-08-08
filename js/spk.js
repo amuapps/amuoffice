@@ -445,14 +445,20 @@ export async function halamanSpk(wadah) {
       const pembeliId = await simpanPelangganOtomatis(pembeli);
       const pemakaiId = pemakaiSama ? pembeliId : await simpanPelangganOtomatis(pemakai);
 
-      const jumlahBayar = bacaAngka(wadah.querySelector("#s-bayar"));
       const bayarTunaiTransferSama = !wadahTT.hidden;
       const jumlahTunai = bayarTunaiTransferSama
         ? bacaAngka(wadah.querySelector("#s-jml-tunai"))
-        : (tunaiEl.checked ? jumlahBayar : 0);
+        : (tunaiEl.checked ? bacaAngka(wadah.querySelector("#s-bayar")) : 0);
       const jumlahTransfer = bayarTunaiTransferSama
         ? bacaAngka(wadah.querySelector("#s-jml-transfer"))
-        : (transferEl.checked ? jumlahBayar : 0);
+        : (transferEl.checked ? bacaAngka(wadah.querySelector("#s-bayar")) : 0);
+      // Kalau mode Tunai+Transfer sekaligus, "Dibayar sekarang" WAJIB
+      // dijumlah dari dua kotak itu — jangan dibaca dari kotak #s-bayar
+      // yang di mode ini memang tidak pernah diisi (bug lama: nilainya
+      // kebawa 0, padahal Tunai/Transfer-nya sudah benar keisi).
+      const jumlahBayar = bayarTunaiTransferSama
+        ? jumlahTunai + jumlahTransfer
+        : bacaAngka(wadah.querySelector("#s-bayar"));
 
       const spkNo = await nomorBerikutnya("spk", "SPK");
       const ref = doc(collection(dbase, "transaksi"));

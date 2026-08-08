@@ -9,6 +9,29 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.0.4", tanggal: "Agustus 2026",
+    judul: "Perbaikan Bug: \"Dibayar Sekarang\" Rp 0 Padahal Tunai+Transfer Terisi",
+    butir: [
+      "PERBAIKAN BUG PENTING: waktu SPK dibuat dengan cara bayar Tunai + Transfer SEKALIGUS, field \"Dibayar sekarang\" (jumlahBayar) tersimpan Rp 0 — padahal jumlah Tunai & Transfer-nya sendiri sudah benar tersimpan. Sekarang jumlahnya otomatis dijumlah dari Tunai + Transfer.",
+      "Dampak bug ini: SPK yang dibuat SEBELUM perbaikan ini dengan cara bayar Tunai+Transfer kemungkinan tersimpan seolah belum ada pembayaran sama sekali (statusBayar salah). Perlu dicek & dikoreksi manual lewat Firestore kalau ada SPK seperti ini.",
+    ],
+  },
+  {
+    versi: "3.0.3", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Label \"DP\" Jelas di Cetakan SPK Kredit",
+    butir: [
+      "SPK dengan cara bayar Kredit — baris \"Dibayar sekarang\" diganti jadi \"DP (Uang Muka)\" supaya tidak ambigu (sebelumnya labelnya sama generik dengan cara bayar tunai/transfer, jadi ada yang bingung apakah itu DP atau total kredit).",
+      "Baris baru \"Sisa Dibiayai Leasing\" ditambahkan — langsung menunjukkan berapa yang ditanggung leasing (Harga OTR dikurangi DP), tidak perlu dihitung manual.",
+    ],
+  },
+  {
+    versi: "3.0.2", tanggal: "Agustus 2026",
+    judul: "Tombol \"Cetak Ulang\" Kuitansi (Tanpa Catat Pembayaran Baru)",
+    butir: [
+      "Tombol baru \"Cetak Ulang\" di Riwayat SPK & Lihat Pesanan — mencetak ulang kuitansi TERAKHIR (mis. DP) yang sudah tercetak, tanpa mencatat pembayaran baru. Dulu satu-satunya cara buka lagi kuitansi lama (untuk SPK yang belum lunas) adalah \"Catat Pembayaran\", yang malah selalu meminta jumlah pembayaran baru.",
+    ],
+  },
+  {
     versi: "3.0.1", tanggal: "Agustus 2026",
     judul: "Kuitansi Jadi 1 Lembar (Kertas NCR)",
     butir: [

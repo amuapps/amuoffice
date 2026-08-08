@@ -9,7 +9,8 @@ import {
 } from "./db.js";
 import { bolehAkses, sesi } from "./auth.js";
 import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js";
-import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
+  cetakUlangKuitansiTerakhir } from "./cetak.js";
 import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
   from "./referensi.js";
@@ -233,7 +234,9 @@ function kartuPesanan(t) {
       ${bolehAkses("cetak.dokumen") ? `
         <button class="tombol tombol--kecil" data-cetak-pesanan="${t.id}">Cetak SPK</button>
         <button class="tombol tombol--kecil" data-kuitansi-pesanan="${t.id}">
-          ${labelTombolKuitansi(t)}</button>` : ""}
+          ${labelTombolKuitansi(t)}</button>
+        ${t.kuitansiTercetak && !sudahLunas(t) ? `<button class="tombol tombol--kecil"
+          data-cetak-ulang-pesanan="${t.id}">Cetak Ulang</button>` : ""}` : ""}
       <button class="tombol tombol--kecil" data-ubah-pesanan="${t.id}">Ubah Pembeli/Pemakai</button>
       <button class="tombol tombol--kecil" data-batalkan-pesanan="${t.id}">Batalkan SPK</button>
       <div data-wadah-edit-pesanan="${t.id}"></div>
@@ -416,6 +419,11 @@ export async function halamanPelanggan(wadah) {
             wadahPesanan.dataset.terbuka = "0";
             return bukaPesanan(id);
           });
+        }));
+      wadahPesanan.querySelectorAll("[data-cetak-ulang-pesanan]").forEach((b) =>
+        b.addEventListener("click", () => {
+          const t = pesanan.find((x) => x.id === b.dataset.cetakUlangPesanan);
+          cetakUlangKuitansiTerakhir(t);
         }));
       wadahPesanan.querySelectorAll("[data-ubah-pesanan]").forEach((b) =>
         b.addEventListener("click", () => {

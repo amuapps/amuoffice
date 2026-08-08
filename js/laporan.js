@@ -4,7 +4,8 @@
 import { dbase, collection, getDocs, query, where, orderBy, limit }
   from "./db.js";
 import { rupiah, aman, tanggal, namaTampilan } from "./ui.js";
-import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi } from "./cetak.js";
+import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
+  cetakUlangKuitansiTerakhir } from "./cetak.js";
 import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js";
 import { bolehAkses, sesi } from "./auth.js";
 
@@ -40,7 +41,9 @@ function baris(t) {
         ${bolehAkses("cetak.dokumen") ? `
           <button class="tombol tombol--kecil" data-cetak="${t.id}">Cetak SPK</button>
           <button class="tombol tombol--kecil" data-kuitansi="${t.id}">
-            ${labelTombolKuitansi(t)}</button>` : ""}
+            ${labelTombolKuitansi(t)}</button>
+          ${t.kuitansiTercetak && !sudahLunas(t) ? `<button class="tombol tombol--kecil"
+            data-cetak-ulang="${t.id}">Cetak Ulang</button>` : ""}` : ""}
         <button class="tombol tombol--kecil" data-ubah="${t.id}">Ubah</button>
         <button class="tombol tombol--kecil" data-batalkan="${t.id}">Batalkan</button>
       `}
@@ -160,6 +163,11 @@ export async function halamanLaporan(wadah) {
       b.addEventListener("click", () => {
         const t = dataSpk.find((x) => x.id === b.dataset.kuitansi);
         mintaCetakKuitansi(t, muat);
+      }));
+    barisEl.querySelectorAll("[data-cetak-ulang]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = dataSpk.find((x) => x.id === b.dataset.cetakUlang);
+        cetakUlangKuitansiTerakhir(t);
       }));
     barisEl.querySelectorAll("[data-ubah]").forEach((b) =>
       b.addEventListener("click", () => {
