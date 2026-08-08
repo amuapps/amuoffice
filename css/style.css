@@ -951,3 +951,10 @@ select.isian {
 .baris-status--ready:hover,
 .baris-status--booked:hover,
 .baris-status--terjual:hover { filter: brightness(0.97); }
+
+/* Kartu KPI Dashboard yang bisa diklik untuk lihat detail */
+.kartu--klik { transition: transform .12s ease, box-shadow .12s ease; }
+.kartu--klik:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,.08);
+}
