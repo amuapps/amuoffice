@@ -11,6 +11,7 @@ import { PERAN } from "./roles.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
 import { beritahu } from "./dialog.js";
+import { muatSupplier, supplierAktif } from "./supplier.js";
 import { beriTahuSemuaOwner } from "./notifikasi.js";
 import { hitungTotalDibayar } from "./cetak.js";
 import {
@@ -57,7 +58,7 @@ function tabelUnit(daftar, bisaUbah) {
   </div>`;
 }
 
-function formUnit(daftarTipe, bisaLihatHarga) {
+function formUnit(daftarTipe, bisaLihatHarga, daftarSupplier) {
   const opsi = daftarTipe
     .map((t) => `<option value="${t.id}">${aman(t.merek)} ${aman(t.tipe)} ${
       aman(t.varian || "")}</option>`)
@@ -103,6 +104,13 @@ function formUnit(daftarTipe, bisaLihatHarga) {
         <input class="isian isian--terang" id="u-tgl" type="date">
       </div>
     </div>
+
+    <label class="label label--gelap" for="u-supplier">Supplier</label>
+    <select class="isian isian--terang" id="u-supplier">
+      <option value="">— tidak diisi —</option>
+      ${daftarSupplier.map((s) =>
+        `<option value="${s.id}">${aman(s.nama)}</option>`).join("")}
+    </select>
 
     ${
       bisaLihatHarga
@@ -368,7 +376,8 @@ export async function halamanStok(wadah) {
       kabar("Tambahkan tipe motor dulu di menu Kelola.", "rem");
       return;
     }
-    formEl.innerHTML = formUnit(daftarTipe, bisaLihatHarga);
+    const daftarSupplier = await muatSupplier();
+    formEl.innerHTML = formUnit(daftarTipe, bisaLihatHarga, supplierAktif().length ? supplierAktif() : daftarSupplier);
     const pilihTipe = formEl.querySelector("#u-tipe");
     const pilihWarna = formEl.querySelector("#u-warna");
     formEl.querySelector("#u-tgl").value =
@@ -405,6 +414,9 @@ export async function halamanStok(wadah) {
       await pakaiNilaiUnik("indeks_rangka", noRangka, ref.id);
 
       const batch = writeBatch(dbase);
+      const elSupplier = formEl.querySelector("#u-supplier");
+      const supplierTerpilih = elSupplier && elSupplier.value
+        ? supplierAktif().find((s) => s.id === elSupplier.value) : null;
       batch.set(ref, {
         tipeId,
         tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
@@ -413,6 +425,8 @@ export async function halamanStok(wadah) {
         noRangka,
         noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
         noDo: formEl.querySelector("#u-do").value.trim(),
+        supplierId: supplierTerpilih ? supplierTerpilih.id : null,
+        supplierNama: supplierTerpilih ? supplierTerpilih.nama : null,
         tglMasuk: new Date(formEl.querySelector("#u-tgl").value),
         status: "ready",
         ...tandaBaru(),
@@ -490,7 +504,8 @@ export async function halamanStok(wadah) {
     }
 
     const daftarTipe = await muatTipe();
-    formEl.innerHTML = formUnit(daftarTipe, bisaLihatHarga);
+    const daftarSupplier = await muatSupplier();
+    formEl.innerHTML = formUnit(daftarTipe, bisaLihatHarga, supplierAktif().length ? supplierAktif() : daftarSupplier);
     formEl.querySelector('button[type="submit"]').textContent =
       owner ? "Simpan Perubahan" : "Ajukan Perubahan";
     if (!owner) {
@@ -511,6 +526,7 @@ export async function halamanStok(wadah) {
     formEl.querySelector("#u-rangka").value = u.noRangka || "";
     formEl.querySelector("#u-mesin").value = u.noMesin || "";
     formEl.querySelector("#u-do").value = u.noDo || "";
+    formEl.querySelector("#u-supplier").value = u.supplierId || "";
     formEl.querySelector("#u-tgl").value = u.tglMasuk?.toDate
       ? u.tglMasuk.toDate().toISOString().slice(0, 10)
       : new Date().toISOString().slice(0, 10);
@@ -549,6 +565,9 @@ export async function halamanStok(wadah) {
     if (!noRangkaBaru) { kabar("Nomor rangka wajib diisi.", "rem"); return; }
 
     const t = tipeDari(tipeId);
+    const elSupplierUbah = formEl.querySelector("#u-supplier");
+    const supplierTerpilihUbah = elSupplierUbah && elSupplierUbah.value
+      ? supplierAktif().find((s) => s.id === elSupplierUbah.value) : null;
     const dataBaru = {
       tipeId,
       tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
@@ -557,6 +576,8 @@ export async function halamanStok(wadah) {
       noRangka: noRangkaBaru,
       noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
       noDo: formEl.querySelector("#u-do").value.trim(),
+      supplierId: supplierTerpilihUbah ? supplierTerpilihUbah.id : null,
+      supplierNama: supplierTerpilihUbah ? supplierTerpilihUbah.nama : null,
       tglMasuk: new Date(formEl.querySelector("#u-tgl").value),
     };
 
@@ -622,7 +643,7 @@ export async function halamanStok(wadah) {
         dataLama: {
           tipeId: u.tipeId, tipeNama: u.tipeNama, warna: u.warna,
           tahun: u.tahun, noRangka: u.noRangka, noMesin: u.noMesin,
-          noDo: u.noDo,
+          noDo: u.noDo, supplierNama: u.supplierNama || null,
         },
         dataBaru,
         catatan: catatanPerubahan,
@@ -768,6 +789,7 @@ export async function terapkanPerubahanUnit(u, dataBaru) {
 const LABEL_FIELD_UNIT = {
   tipeNama: "Tipe Motor", warna: "Warna", tahun: "Tahun",
   noRangka: "No. Rangka", noMesin: "No. Mesin", noDo: "No. DO",
+  supplierNama: "Supplier",
 };
 export function buatCatatanUnit(u, dataBaru) {
   const baris = [];

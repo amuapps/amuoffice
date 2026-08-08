@@ -32,6 +32,7 @@ import { halamanLog } from "./log.js";
 import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js";
 import { halamanAgen } from "./agen.js";
 import { halamanBiro } from "./biro.js";
+import { halamanSupplier } from "./supplier.js";
 import { halamanDashboard } from "./dashboard.js";
 import { halamanTentang } from "./tentang.js";
 import { halamanInbox, pasangLencana } from "./notifikasi.js";
@@ -274,6 +275,7 @@ function daftarkanHalaman(profil) {
     "#/persetujuan": (w) => halamanPersetujuan(w),
     "#/agen": (w) => halamanAgen(w),
     "#/biro": (w) => halamanBiro(w),
+    "#/supplier": (w) => halamanSupplier(w),
     "#/dashboard": (w) => halamanDashboard(w),
     "#/tentang": (w) => halamanTentang(w),
     "#/inbox": (w) => halamanInbox(w),

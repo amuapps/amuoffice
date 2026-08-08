@@ -9,6 +9,14 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.0.0", tanggal: "Agustus 2026",
+    judul: "Master Supplier & Dashboard Interaktif",
+    butir: [
+      "Master Supplier baru (Master Data) — data vendor pemasok unit, dipakai sebagai pilihan \"Supplier\" saat menambah/mengubah Data Unit.",
+      "Dashboard sekarang interaktif — klik kartu KPI, batang \"Unit Terjual per Tipe\", titik di grafik tren bulanan, atau kartu peringkat Sales, langsung muncul tabel detail lengkap (No. SPK, Tanggal, Sales, Input Oleh, Pembeli, Unit, Agen, Cara Bayar, Harga OTR, Status).",
+    ],
+  },
+  {
     versi: "2.9.2", tanggal: "Agustus 2026",
     judul: "Koreksi: Owner Bisa Input Atas Nama Karyawan Mana Saja",
     butir: [

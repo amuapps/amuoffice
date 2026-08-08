@@ -16,7 +16,8 @@ const IKON_KPI = ["📄", "💰", "✅", "📈"];
 const WARNA_KPI = ["#5B8DEF", "#7C5CFC", "#22B07D", "#F5A623"];
 
 function kartuKpi(judul, nilai, sub, idx) {
-  return `<article class="kartu" style="border-top:3px solid ${WARNA_KPI[idx]}">
+  return `<article class="kartu kartu--klik" data-kpi="${idx}"
+              style="border-top:3px solid ${WARNA_KPI[idx]};cursor:pointer">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
       <div style="width:34px;height:34px;border-radius:9px;
                   background:${WARNA_KPI[idx]}22;color:${WARNA_KPI[idx]};
@@ -26,6 +27,7 @@ function kartuKpi(judul, nilai, sub, idx) {
     </div>
     <p class="angka-besar" style="color:${WARNA_KPI[idx]}">${nilai}</p>
     ${sub ? `<p class="kartu-rinci">${aman(sub)}</p>` : ""}
+    <p class="kunci" style="margin:4px 0 0">Klik untuk lihat detail →</p>
   </article>`;
 }
 
@@ -33,7 +35,8 @@ function kartuKpi(judul, nilai, sub, idx) {
 // ringan dan tidak nambah dependensi eksternal cuma buat ini.
 function barisBar(label, nilai, maks, warna) {
   const persen = maks > 0 ? Math.round((nilai / maks) * 100) : 0;
-  return `<div style="margin-bottom:10px">
+  return `<div class="baris-klik" data-bar-tipe="${aman(label)}"
+              style="margin-bottom:10px;cursor:pointer">
     <div style="display:flex;justify-content:space-between;font-size:12.5px;
                 margin-bottom:3px">
       <span>${aman(label)}</span><span style="font-weight:600">${nilai}</span>
@@ -69,8 +72,10 @@ function grafikTren(perBulan) {
     <polygon points="${area}" fill="url(#gTren)"/>
     <polyline points="${garis}" fill="none" stroke="#7C5CFC" stroke-width="2.5"
       stroke-linecap="round" stroke-linejoin="round"/>
-    ${titik.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#7C5CFC">
-      <title>${NAMA_BULAN[i]}: ${perBulan[i]}</title></circle>`).join("")}
+    ${titik.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="7" fill="transparent"
+        style="cursor:pointer" data-bar-bulan="${i}">
+      <title>${NAMA_BULAN[i]}: ${perBulan[i]} — klik untuk detail</title></circle>
+      <circle cx="${x}" cy="${y}" r="3.2" fill="#7C5CFC" style="pointer-events:none"/>`).join("")}
   </svg>
   <div style="display:flex;justify-content:space-between;font-size:10px;
               color:var(--abu-2);margin-top:2px">
@@ -80,10 +85,55 @@ function grafikTren(perBulan) {
 
 const WARNA_PERINGKAT = ["#22B07D", "#5B8DEF", "#C0392B"];
 
+// Tabel detail lengkap — dipakai bareng oleh SEMUA titik interaktif
+// di dashboard (klik KPI, klik bar tipe, klik titik tren, klik
+// kartu peringkat) supaya konsisten satu bentuk tabel saja.
+function tabelDetailSpk(daftar) {
+  if (!daftar.length) return `<p class="hampa">Tidak ada data untuk ini.</p>`;
+  return `<div style="overflow-x:auto">
+    <table class="tabel">
+      <thead><tr>
+        <th>No. SPK</th><th>Tanggal</th><th>Sales</th><th>Input Oleh</th>
+        <th>Pembeli</th><th>Unit</th><th>Rangka/Mesin</th><th>Agen</th>
+        <th>Cara Bayar</th><th>Harga OTR</th><th>Status</th>
+      </tr></thead>
+      <tbody>
+        ${daftar.map((t) => {
+          const diinputOrangLain = t.dibuatOlehUid && t.dibuatOlehUid !== t.salesUid;
+          return `<tr>
+            <td class="mono">${aman(t.spkNo)}</td>
+            <td>${t.dibuatPada?.toDate
+              ? t.dibuatPada.toDate().toLocaleDateString("id-ID") : "-"}</td>
+            <td>${aman(t.salesNamaTampil || t.salesNama || "-")}</td>
+            <td>${diinputOrangLain
+              ? aman(namaTampilan(t.dibuatOlehPeran, t.dibuatOlehNama))
+              : `<span class="kunci">sama</span>`}</td>
+            <td>${aman(t.pembeli?.nama || "-")}</td>
+            <td>${aman(t.tipeNama)} · ${aman(t.warna)}</td>
+            <td class="mono" style="font-size:11px">
+              ${aman(t.unitId ? "terkunci" : "indent")}</td>
+            <td>${aman(t.agenNama || "-")}</td>
+            <td>${aman((t.caraBayar || []).join(", ") || "-")}</td>
+            <td>${rupiah(t.hargaOtr)}</td>
+            <td><span class="tanda ${
+              t.status === "batal" ? "tanda--batal"
+              : t.statusBayar === "lunas" ? "tanda--ready" : "tanda--uji"
+            }">${t.status === "batal" ? "Batal"
+              : t.statusBayar === "lunas" ? "Lunas"
+              : t.statusBayar === "dp" ? "DP" : (t.kondisiUnit === "ready" ? "Ready" : "Indent")}
+            </span></td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
 function kartuPeringkat(nama, jumlah, posisi) {
   const warna = WARNA_PERINGKAT[posisi - 1] || "var(--abu-2)";
   const inisial = (nama || "-").trim().charAt(0).toUpperCase() || "-";
-  return `<article class="kartu" style="text-align:center;flex:1;
+  return `<article class="kartu" data-peringkat-sales="${aman(nama)}"
+              style="text-align:center;flex:1;cursor:pointer;
               background:${warna}; color:#fff; position:relative; overflow:hidden">
     <span style="position:absolute;top:8px;right:10px;font-size:18px">★</span>
     <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);
@@ -181,12 +231,33 @@ export async function halamanDashboard(wadah) {
         <p class="hampa">Memuat…</p>
       </div>
     </div>
+
+    <div class="lembar" id="d-detail-wadah" style="margin-top:16px" hidden>
+      <div class="lembar-atas">
+        <h3 class="judul" style="font-size:15px" id="d-detail-judul">Detail</h3>
+        <button class="tombol tombol--kecil" id="d-detail-tutup">Tutup</button>
+      </div>
+      <div id="d-detail-isi" style="margin-top:10px"></div>
+    </div>
   </section>`;
 
   wadah.querySelector("#toggle-filter").addEventListener("click", () => {
     const p = wadah.querySelector("#panel-filter");
     p.hidden = !p.hidden;
   });
+
+  const detailWadah = wadah.querySelector("#d-detail-wadah");
+  const detailJudul = wadah.querySelector("#d-detail-judul");
+  const detailIsi = wadah.querySelector("#d-detail-isi");
+
+  function tampilkanDetail(judul, daftar) {
+    detailJudul.textContent = `${judul} (${daftar.length})`;
+    detailIsi.innerHTML = tabelDetailSpk(daftar);
+    detailWadah.hidden = false;
+    detailWadah.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  wadah.querySelector("#d-detail-tutup")
+    .addEventListener("click", () => { detailWadah.hidden = true; });
 
   let dataSpk = [];
 
@@ -257,6 +328,17 @@ export async function halamanDashboard(wadah) {
       kartuKpi("Unit Lunas", lunas, `dari ${terpilih.length} SPK`, 2) +
       kartuKpi("Rata-rata / SPK", rupiah(rata), null, 3);
 
+    wadah.querySelectorAll("[data-kpi]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const idx = el.dataset.kpi;
+        if (idx === "2") {
+          tampilkanDetail("Unit Lunas", terpilih.filter((t) => t.statusBayar === "lunas"));
+        } else {
+          tampilkanDetail("Semua SPK (sesuai filter)", terpilih);
+        }
+      });
+    });
+
     // Per tipe
     const perTipe = {};
     terpilih.forEach((t) => {
@@ -267,6 +349,13 @@ export async function halamanDashboard(wadah) {
     wadah.querySelector("#d-bar-tipe").innerHTML = listTipe.length
       ? listTipe.map(([nama, n]) => barisBar(nama, n, maksTipe, "#5B8DEF")).join("")
       : `<p class="hampa">Belum ada data.</p>`;
+    wadah.querySelectorAll("[data-bar-tipe]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const namaTipe = el.dataset.barTipe;
+        tampilkanDetail(`Unit Terjual — ${namaTipe}`,
+          terpilih.filter((t) => t.tipeNama === namaTipe));
+      });
+    });
 
     // Per bulan
     const perBulan = new Array(12).fill(0);
@@ -274,6 +363,13 @@ export async function halamanDashboard(wadah) {
       if (t.dibuatPada?.toDate) perBulan[t.dibuatPada.toDate().getMonth()]++;
     });
     wadah.querySelector("#d-bar-bulan").innerHTML = grafikTren(perBulan);
+    wadah.querySelectorAll("[data-bar-bulan]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const bulanIdx = Number(el.dataset.barBulan);
+        tampilkanDetail(`SPK — ${NAMA_BULAN[bulanIdx]}`, terpilih.filter((t) =>
+          t.dibuatPada?.toDate && t.dibuatPada.toDate().getMonth() === bulanIdx));
+      });
+    });
 
     // Peringkat sales
     const perSales = {};
@@ -286,6 +382,15 @@ export async function halamanDashboard(wadah) {
     wadah.querySelector("#d-peringkat").innerHTML = top3.length
       ? top3.map(([nama, n], i) => kartuPeringkat(nama, n, i + 1)).join("")
       : `<p class="hampa">Belum ada data.</p>`;
+    wadah.querySelectorAll("[data-peringkat-sales]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const namaSales = el.dataset.peringkatSales;
+        tampilkanDetail(`SPK — ${namaSales}`, terpilih.filter((t) =>
+          (t.salesNamaTampil || t.salesNama || "-") === namaSales));
+      });
+    });
+
+    detailWadah.hidden = true; // reset tiap kali filter/tahun berganti
   }
 
   wadah.querySelector("#d-terapkan").addEventListener("click", async () => {
