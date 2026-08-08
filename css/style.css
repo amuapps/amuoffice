@@ -351,6 +351,8 @@ button, input, select { font: inherit; }
 .tanda--habis, .tanda--terjual, .tanda--diajukan, .tanda--batal {
   background: var(--lapis); color: var(--abu);
 }
+.tanda--kredit { background: var(--biru-muda); color: var(--biru); border-color: #CFE4F5; }
+.tanda--cash { background: var(--hijau-mu); color: var(--hijau); border-color: #C9E7C9; }
 .kartu--sorot { border-left: 3px solid var(--biru); }
 .kartu--batal { opacity: .55; }
 .kartu--kas .kartu-judul { font-size: 14px; }
@@ -395,6 +397,15 @@ select.isian {
 .pilihan input { margin-top: 2px; width: 17px; height: 17px;
                  accent-color: var(--biru); }
 .kunci { font-size: 11px; color: var(--biru); margin-left: 6px; }
+
+.d-panel { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px;
+  background: var(--abu-terang, #f5f5f5); border-radius: 8px; }
+.d-kolom { flex: 1 1 200px; min-width: 180px; }
+.d-judul { font-weight: 600; font-size: 13px; margin: 0 0 6px; }
+.d-baris { display: flex; justify-content: space-between; gap: 8px;
+  font-size: 13px; padding: 2px 0; border-bottom: 1px dashed #ddd; }
+.d-label { color: #666; }
+.d-isi { text-align: right; font-weight: 500; }
 .aksi { display: flex; gap: 8px; margin-top: 4px; }
 .aksi .tombol { flex: 1; margin-top: 12px; }
 .aksi--rapat { margin-top: 12px; }
