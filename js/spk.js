@@ -25,7 +25,7 @@ import { muatAgen, agenAktif } from "./agen.js";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar } from "./cetak.js";
 import { konfirmasi, tanya, beritahu } from "./dialog.js";
-import { buatNotifikasi } from "./notifikasi.js";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
 
 function opsiTipe(daftarTipe) {
@@ -473,6 +473,16 @@ export async function halamanSpk(wadah) {
         });
       }
       await batch.commit();
+      if (cashbackDiajukan > 0) {
+        await beriTahuSemuaOwner("Pengajuan Cashback",
+          `${sesi.nama} mengajukan cashback ${rupiah(cashbackDiajukan)} ` +
+          `untuk SPK ${spkNo} (${pembeli.nama}).`);
+      }
+      if (perluPersetujuanDiskon) {
+        await beriTahuSemuaOwner("Pengajuan Diskon Melebihi Batas",
+          `${sesi.nama} mengajukan diskon ${rupiah(diskonDiisi)} ` +
+          `untuk SPK ${spkNo} (${pembeli.nama}) — melebihi batas.`);
+      }
 
       wadah.innerHTML = `<section class="lembar">
         <div class="lembar-atas"><h2 class="judul">SPK Tersimpan</h2></div>
@@ -652,6 +662,9 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       await catat("perubahan_spk_diajukan", {
         koleksi: "transaksi", docId: t.id, ringkas: t.spkNo,
       });
+      await beriTahuSemuaOwner("Pengajuan Perubahan Data",
+        `${sesi.nama} mengajukan perubahan data Pembeli/Pemakai ` +
+        `untuk SPK ${t.spkNo}.`);
 
       kabar("Pengajuan terkirim, menunggu persetujuan Owner.", "netral");
       kontainer.innerHTML = "";
@@ -829,6 +842,9 @@ export async function mintaBatalkanSpk(t, muatUlang) {
       await catat("batal_spk_diajukan", {
         koleksi: "transaksi", docId: t.id, ringkas: t.spkNo,
       });
+      await beriTahuSemuaOwner("Pengajuan Pembatalan SPK",
+        `${sesi.nama} mengajukan pembatalan SPK ${t.spkNo} ` +
+        `(${t.pembeli?.nama || "-"}). Alasan: ${alasan.trim()}`);
       kabar("Pengajuan pembatalan terkirim, menunggu persetujuan Owner.", "netral");
     }
     if (muatUlang) await muatUlang();

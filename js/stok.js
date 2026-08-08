@@ -10,6 +10,7 @@ import { bolehAkses, sesi } from "./auth.js";
 import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
 import { pecahHarga } from "./config.js";
 import { beritahu } from "./dialog.js";
+import { beriTahuSemuaOwner } from "./notifikasi.js";
 import { hitungTotalDibayar } from "./cetak.js";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
@@ -612,6 +613,9 @@ export async function halamanStok(wadah) {
       await catat("unit_perubahan_diajukan", {
         koleksi: "units", docId: u.id, ringkas: dataBaru.noRangka,
       });
+      await beriTahuSemuaOwner("Pengajuan Perubahan Unit",
+        `${sesi.nama} mengajukan perubahan data unit ${dataBaru.noRangka}.`,
+        "#/stok");
       formEl.innerHTML = "";
       kabar("Pengajuan perubahan unit terkirim, menunggu persetujuan Owner.", "netral");
     } catch (err) {

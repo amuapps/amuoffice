@@ -9,7 +9,7 @@
 // setiap orang cuma boleh baca notifikasi buat dirinya sendiri.
 
 import {
-  dbase, doc, collection, addDoc, getDocs, updateDoc, query, where,
+  dbase, doc, collection, addDoc, getDoc, getDocs, updateDoc, query, where,
   limit, serverTimestamp, onSnapshot,
 } from "./db.js";
 import { sesi } from "./auth.js";
@@ -26,6 +26,20 @@ export async function buatNotifikasi(untukUid, judul, pesan, link = "") {
       untukUid, judul, pesan, link, dibaca: false, dibuatPada: serverTimestamp(),
     });
   } catch { /* diam-diam saja, ini bukan bagian penting alur utama */ }
+}
+
+// Dipanggil begitu ada PENGAJUAN BARU (cashback, diskon, batal SPK,
+// ubah data pembeli/pemakai, ubah unit) — supaya Owner tahu ada yang
+// menunggu keputusannya, tanpa perlu bolak-balik cek halaman
+// Persetujuan Perubahan sendiri. Daftar UID Owner diambil dari
+// pengaturan/pemilik (lihat sinkronDaftarOwner di pengaturan.js) —
+// bukan query langsung ke koleksi "users" yang memang dibatasi.
+export async function beriTahuSemuaOwner(judul, pesan, link = "#/persetujuan") {
+  try {
+    const snap = await getDoc(doc(dbase, "pengaturan", "pemilik"));
+    const uids = snap.exists() ? (snap.data().uids || []) : [];
+    await Promise.all(uids.map((uid) => buatNotifikasi(uid, judul, pesan, link)));
+  } catch { /* diam-diam saja, sama seperti buatNotifikasi */ }
 }
 
 let lepasPantau = null;

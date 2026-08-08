@@ -121,6 +121,14 @@ function opsiPeran(terpilih) {
       }</option>`).join("");
 }
 
+// Daftar UID Owner disimpan di dokumen tersendiri yang boleh dibaca
+// SIAPA SAJA yang login (lihat firestore.rules: koleksi "pengaturan"
+// terbuka untuk dibaca siapa saja aktif) — supaya Admin/Sales bisa
+// tahu SIAPA yang perlu diberi notifikasi saat mereka mengajukan
+// sesuatu, tanpa perlu izin membaca koleksi "users" secara luas
+// (yang isinya data karyawan lain, semestinya rahasia). Disinkron
+// otomatis tiap kali halaman ini dibuka — lihat gambar() di bawah.
+
 export async function halamanPengguna(wadah) {
   if (!bolehAkses("kelola.pengguna")) {
     wadah.innerHTML = `<div class="hampa">
@@ -157,6 +165,15 @@ export async function halamanPengguna(wadah) {
       b.addEventListener("click", () => ubahStatus(b.dataset.status)));
     daftarEl.querySelectorAll("[data-sandi]").forEach((b) =>
       b.addEventListener("click", () => kirimReset(b.dataset.sandi)));
+
+    // Auto-sync tiap kali halaman ini dibuka (bukan cuma pas
+    // simpan/ubah) — supaya akun Owner yang sudah ada dari SEBELUM
+    // fitur ini dibuat pun otomatis ikut tersinkron ke
+    // pengaturan/pemilik, tanpa perlu disimpan ulang manual dulu.
+    const uidOwnerSekarang = isi.filter((u) => u.peran === "owner").map((u) => u.id);
+    setDoc(doc(dbase, "pengaturan", "pemilik"), {
+      uids: uidOwnerSekarang, diperbarui: serverTimestamp(),
+    }).catch(() => {});
   }
 
   function buka() {

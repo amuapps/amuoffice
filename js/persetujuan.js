@@ -214,6 +214,14 @@ export async function halamanPersetujuan(wadah) {
         : (p.jenis === "cashback_spk" ? "#/laporan" : "#/laporan");
       await buatNotifikasi(p.diajukanOlehUid, "Pengajuan Disetujui",
         `Pengajuan Anda untuk ${label} sudah disetujui Owner.`, linkNotif);
+      // Riwayat buat Owner sendiri juga — supaya keputusan yang sudah
+      // diambil tetap tercatat & terlihat di Inbox-nya sendiri, tidak
+      // cuma satu arah ke pemohon.
+      if (sesi.uid !== p.diajukanOlehUid) {
+        await buatNotifikasi(sesi.uid, "Anda Menyetujui Pengajuan",
+          `${p.diajukanOlehNama} — ${LABEL_JENIS[p.jenis] || p.jenis} ` +
+          `untuk ${label}. Sudah Anda setujui.`, linkNotif);
+      }
       await muat();
     } catch (err) {
       kabar("Gagal menyetujui: " + err.message, "rem");
@@ -266,9 +274,14 @@ export async function halamanPersetujuan(wadah) {
       }
       await batch.commit();
       kabar("Pengajuan ditolak.", "netral");
+      const linkTolak = p.jenis === "unit_diubah" ? "#/stok" : "#/laporan";
       await buatNotifikasi(p.diajukanOlehUid, "Pengajuan Ditolak",
-        `Pengajuan Anda untuk ${label} ditolak Owner.`,
-        p.jenis === "unit_diubah" ? "#/stok" : "#/laporan");
+        `Pengajuan Anda untuk ${label} ditolak Owner.`, linkTolak);
+      if (sesi.uid !== p.diajukanOlehUid) {
+        await buatNotifikasi(sesi.uid, "Anda Menolak Pengajuan",
+          `${p.diajukanOlehNama} — ${LABEL_JENIS[p.jenis] || p.jenis} ` +
+          `untuk ${label}. Sudah Anda tolak.`, linkTolak);
+      }
       await muat();
     } catch (err) {
       kabar("Gagal menolak: " + err.message, "rem");

@@ -9,6 +9,15 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.6.0", tanggal: "Agustus 2026",
+    judul: "Owner Diberi Tahu Ada Pengajuan Baru",
+    butir: [
+      "PERBAIKAN PENTING: sebelumnya Owner TIDAK pernah diberi tahu saat ada pengajuan baru (cashback, diskon, batal SPK, ubah data, ubah unit) — cuma tahu kalau buka halaman Persetujuan Perubahan sendiri. Sekarang notifikasi otomatis masuk Inbox Owner begitu ada pengajuan baru.",
+      "Riwayat keputusan Owner sendiri (Setujui/Tolak) juga ikut tercatat di Inbox-nya sendiri, bukan cuma dikirim ke pemohon.",
+      "Auto-sync daftar Owner tiap buka Data Karyawan — supaya akun Owner yang sudah ada dari sebelumnya ikut ke-detect tanpa perlu disimpan ulang.",
+    ],
+  },
+  {
     versi: "2.5.0", tanggal: "Agustus 2026",
     judul: "Master Agen Lengkap: Data KTP, Rekening & Riwayat Fee",
     butir: [
