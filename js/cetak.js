@@ -202,25 +202,21 @@ const CSS_CETAK = `
 // yang diberikan: krem-emas, QR code di kanan atas tiap lembar.
 const CSS_KUITANSI = `
   * { box-sizing: border-box; }
-  @page { size: A4 portrait; margin: 10mm; }
+  /* Ukuran kertas NCR continuous form (2 ply) — 9½" x 11" —
+     BUKAN A4. Kertasnya sendiri yang menghasilkan salinan kedua
+     otomatis (karbon bawaan kertas), jadi cukup CETAK SATU KALI,
+     tidak perlu 3 lembar berlapis seperti sebelumnya. */
+  @page { size: 9.5in 11in; margin: 8mm 10mm; }
   body {
     margin: 0; padding: 16px; background: #ECECEC;
     font-family: "Segoe UI", Inter, system-ui, -apple-system, Roboto, sans-serif;
     color: #2b2210;
   }
-  .k-lembar-luar { max-width: 780px; margin: 0 auto 16px; }
-  .k-potong {
-    display: flex; align-items: center; gap: 8px; margin: 4px 0;
-    color: #9a9a9a; font-size: 9px; text-transform: uppercase;
-    letter-spacing: .08em;
-  }
-  .k-potong::before, .k-potong::after {
-    content: ""; flex: 1; border-top: 1px dashed #aaa;
-  }
+  .k-lembar-luar { max-width: 860px; margin: 0 auto 16px; }
   .k-kuitansi {
     background: #FBF7EC; position: relative; overflow: hidden;
-    border: 1.5px solid #C9A227; border-radius: 6px; padding: 14px 16px;
-    font-size: 10px; line-height: 1.4;
+    border: 1.5px solid #C9A227; border-radius: 6px; padding: 18px 22px;
+    font-size: 12px; line-height: 1.5;
   }
   .k-kuitansi::before {
     content: ""; position: absolute; inset: 0;
@@ -233,39 +229,39 @@ const CSS_KUITANSI = `
   .k-kuitansi > * { position: relative; z-index: 1; }
   .k-atas { display: flex; justify-content: space-between; gap: 10px; }
   .k-kop { display: flex; align-items: flex-start; gap: 8px; }
-  .k-kop-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
-  .k-pt { font-size: 14px; font-weight: 800; margin: 0; letter-spacing: .01em; }
-  .k-kecil { font-size: 8px; color: #6b5f3f; margin: 1px 0 0; max-width: 260px; }
-  .k-jenis-tabel { font-size: 9px; text-align: right; }
+  .k-kop-logo { width: 42px; height: 42px; object-fit: contain; flex: none; }
+  .k-pt { font-size: 17px; font-weight: 800; margin: 0; letter-spacing: .01em; }
+  .k-kecil { font-size: 9.5px; color: #6b5f3f; margin: 1px 0 0; max-width: 320px; }
+  .k-jenis-tabel { font-size: 10.5px; text-align: right; }
   .k-jenis-tabel td:first-child { color: #6b5f3f; padding-right: 8px; }
   .k-jenis-tabel td:last-child { font-weight: 700; }
-  .k-qr { width: 74px; height: 74px; margin-left: 10px; flex: none; }
-  .k-judul { font-size: 15px; font-weight: 800; margin: 10px 0 2px;
+  .k-qr { width: 88px; height: 88px; margin-left: 10px; flex: none; }
+  .k-judul { font-size: 19px; font-weight: 800; margin: 14px 0 3px;
     color: #2b2210; }
-  .k-nomor-tgl { font-size: 9px; color: #6b5f3f; margin: 0 0 8px; }
-  .k-jumlah-label { font-size: 9px; font-weight: 700; color: #6b5f3f;
-    text-transform: uppercase; letter-spacing: .04em; margin: 8px 0 0; }
-  .k-jumlah-besar { font-size: 22px; font-weight: 800; color: #9C7A1E;
-    margin: 1px 0 6px; }
-  .k-terbilang-label { font-size: 9px; font-weight: 700; color: #6b5f3f;
-    text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 2px; }
-  .k-terbilang-kotak { border-bottom: 1px dashed #b7a15c; padding: 3px 0 4px;
-    font-style: italic; font-size: 10px; color: #4a3d17; }
-  .k-grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px;
-    margin-top: 10px; }
-  .k-dk-judul { font-size: 9px; font-weight: 700; color: #6b5f3f;
-    text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px; }
-  .k-tabel { width: 100%; border-collapse: collapse; font-size: 9px; }
-  .k-tabel td { padding: 1px 0; vertical-align: top; }
+  .k-nomor-tgl { font-size: 10.5px; color: #6b5f3f; margin: 0 0 10px; }
+  .k-jumlah-label { font-size: 10.5px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 10px 0 0; }
+  .k-jumlah-besar { font-size: 28px; font-weight: 800; color: #9C7A1E;
+    margin: 2px 0 8px; }
+  .k-terbilang-label { font-size: 10.5px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 3px; }
+  .k-terbilang-kotak { border-bottom: 1px dashed #b7a15c; padding: 4px 0 6px;
+    font-style: italic; font-size: 12.5px; color: #4a3d17; }
+  .k-grid2 { display: grid; grid-template-columns: 1.1fr 1fr; gap: 20px;
+    margin-top: 14px; }
+  .k-dk-judul { font-size: 10.5px; font-weight: 700; color: #6b5f3f;
+    text-transform: uppercase; letter-spacing: .04em; margin: 0 0 5px; }
+  .k-tabel { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .k-tabel td { padding: 2px 0; vertical-align: top; }
   .k-label { width: 34%; color: #6b5f3f; }
   .k-isi { font-weight: 600; }
-  .k-ttd { display: flex; justify-content: space-between; margin-top: 16px;
-    font-size: 8.5px; color: #6b5f3f; }
+  .k-ttd { display: flex; justify-content: space-between; margin-top: 34px;
+    font-size: 10px; color: #6b5f3f; }
   .k-ttd > div { width: 46%; }
-  .k-garis { display: block; border-top: 1px solid #7a6a35; margin: 26px 0 4px; }
-  .k-kaki { font-size: 8px; color: #8a7c50; margin-top: 10px;
+  .k-garis { display: block; border-top: 1px solid #7a6a35; margin: 42px 0 5px; }
+  .k-kaki { font-size: 9px; color: #8a7c50; margin-top: 16px;
     display: flex; justify-content: space-between; }
-  .aksi-cetak { max-width: 780px; margin: 0 auto; text-align: center; }
+  .aksi-cetak { max-width: 860px; margin: 0 auto; text-align: center; }
   .aksi-cetak button {
     padding: 10px 22px; border-radius: 8px; border: 0; cursor: pointer;
     background: #0067C0; color: #fff; font-size: 14px; font-weight: 600;
@@ -273,7 +269,6 @@ const CSS_KUITANSI = `
   @media print {
     body { background: #fff; padding: 0; }
     .aksi-cetak { display: none; }
-    .k-potong { color: #ccc; }
   }
 `;
 
@@ -635,7 +630,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   }
 }
 
-function satuKuitansi(t, unit, entri, totalSetelah, nomorLembar, labelLembar, namaSalesTampil) {
+function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
   const urlValidasi = `${location.origin}${location.pathname}#/cek/${entri.kodeAman || ""}`;
   const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
     encodeURIComponent(urlValidasi);
@@ -645,7 +640,6 @@ function satuKuitansi(t, unit, entri, totalSetelah, nomorLembar, labelLembar, na
     : "DIBAYAR OLEH (KONSUMEN)";
 
   return `
-    ${nomorLembar > 1 ? `<div class="k-potong">GUNTING DI SINI</div>` : ""}
     <div class="k-kuitansi">
       <div class="k-atas">
         <div class="k-kop">
@@ -707,7 +701,6 @@ function satuKuitansi(t, unit, entri, totalSetelah, nomorLembar, labelLembar, na
 
       <p class="k-kaki">
         <span>Terima kasih atas kepercayaan Anda kepada ${aman(SHOWROOM.nama)}.</span>
-        <span>${aman(labelLembar)}</span>
       </p>
     </div>`;
 }
@@ -735,12 +728,11 @@ export async function cetakKuitansi(t, entri, totalSetelah) {
   }
   const namaSalesTampil = await resolveNamaSales(t);
 
-  const label = ["LAMPIRAN 1 — KONSUMEN", "LAMPIRAN 2 — SHOWROOM",
-    "LAMPIRAN 3 — CADANGAN"];
-
+  // Cuma SATU lembar — kertas NCR yang dipakai sudah otomatis
+  // menghasilkan salinan kedua (karbon bawaan kertas), jadi tidak
+  // perlu lagi 3 salinan berlapis lewat sistem seperti sebelumnya.
   const isi = `<div class="k-lembar-luar">
-    ${label.map((l, i) =>
-      satuKuitansi(t, unit, entri, totalSetelah, i + 1, l, namaSalesTampil)).join("")}
+    ${satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil)}
   </div>
   <div class="aksi-cetak">
     <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>

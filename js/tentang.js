@@ -9,6 +9,14 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.0.1", tanggal: "Agustus 2026",
+    judul: "Kuitansi Jadi 1 Lembar (Kertas NCR)",
+    butir: [
+      "Cetakan kuitansi diubah dari rangkap 3 (satu halaman berisi 3 salinan) jadi CUMA 1 LEMBAR — menyesuaikan pemakaian kertas NCR continuous form (karbon otomatis bawaan kertas, tidak perlu lagi salinan dicetak manual lewat sistem).",
+      "Ukuran halaman cetak disesuaikan ke 9½\" x 11\" (ukuran kertas NCR yang dipakai), bukan A4 seperti sebelumnya.",
+    ],
+  },
+  {
     versi: "3.0.0", tanggal: "Agustus 2026",
     judul: "Master Supplier & Dashboard Interaktif",
     butir: [
