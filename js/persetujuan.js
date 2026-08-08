@@ -306,15 +306,17 @@ const LABEL_STATUS = {
   menunggu: "Menunggu", disetujui: "Disetujui", ditolak: "Ditolak",
 };
 
-function kartuPengajuanSaya(p) {
+function kartuPengajuanSaya(p, tampilkanPemohon) {
   const judul = p.spkNo || (p.jenis === "unit_diubah"
     ? `Unit ${p.dataBaru?.noRangka || "-"}` : "-");
   return `<article class="kartu">
     <div class="kartu-atas">
       <div>
         <h3 class="kartu-judul mono">${aman(judul)}</h3>
-        <p class="kartu-sub">${aman(LABEL_JENIS[p.jenis] || p.jenis)} ·
-          ${tanggalJam(p.dibuatPada)}</p>
+        <p class="kartu-sub">${aman(LABEL_JENIS[p.jenis] || p.jenis)}
+          ${tampilkanPemohon ? ` · diajukan oleh
+            ${aman(namaTampilan(p.diajukanOlehPeran, p.diajukanOlehNama))}` : ""}
+          · ${tanggalJam(p.dibuatPada)}</p>
       </div>
       <span class="tanda ${TANDA_STATUS[p.status] || ""}">
         ${LABEL_STATUS[p.status] || p.status}
@@ -333,13 +335,26 @@ export async function halamanPengajuanSaya(wadah) {
     return;
   }
 
+  // Owner jarang (kalau pernah) mengajukan sesuatu ke dirinya sendiri
+  // — dia yang MEMUTUSKAN, bukan yang mengajukan. Jadi buat Owner,
+  // halaman ini menampilkan SEMUA pengajuan dari siapa pun (jadi
+  // riwayat keputusannya sendiri juga kelihatan, termasuk yang sudah
+  // Disetujui/Ditolak — karena halaman Persetujuan Perubahan CUMA
+  // menampilkan yang masih Menunggu, begitu diputuskan datanya hilang
+  // dari sana). Buat Sales/Admin, tetap cuma pengajuan milik sendiri.
+  const untukOwner = sesi.peran === "owner";
+
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
-      <h2 class="judul">Pengajuan Saya</h2>
+      <h2 class="judul">${untukOwner ? "Riwayat Semua Pengajuan" : "Pengajuan Saya"}</h2>
     </div>
-    <p class="petunjuk">Riwayat semua pengajuan (ubah data, cashback,
-      diskon, batal SPK, ubah unit) yang pernah Anda ajukan — lengkap
-      status terakhirnya.</p>
+    <p class="petunjuk">${untukOwner
+      ? "Riwayat lengkap semua pengajuan dari siapa pun — termasuk yang " +
+        "sudah Disetujui/Ditolak (yang sudah tidak tampil lagi di " +
+        "halaman Persetujuan Perubahan)."
+      : "Riwayat semua pengajuan (ubah data, cashback, diskon, batal SPK, " +
+        "ubah unit) yang pernah Anda ajukan — lengkap status terakhirnya."
+    }</p>
     <div class="chip-baris" id="saring-status">
       <button class="chip aktif" data-status="">Semua</button>
       <button class="chip" data-status="menunggu">Menunggu</button>
@@ -355,9 +370,11 @@ export async function halamanPengajuanSaya(wadah) {
   let semua = [];
 
   async function muat() {
-    const snap = await getDocs(query(
-      collection(dbase, "pengajuan"), where("diajukanOlehUid", "==", sesi.uid)
-    ));
+    const snap = untukOwner
+      ? await getDocs(collection(dbase, "pengajuan"))
+      : await getDocs(query(
+          collection(dbase, "pengajuan"), where("diajukanOlehUid", "==", sesi.uid)
+        ));
     semua = snap.docs
       .map((d) => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
@@ -367,7 +384,7 @@ export async function halamanPengajuanSaya(wadah) {
   function tampilkan(status) {
     const hasil = status ? semua.filter((p) => p.status === status) : semua;
     daftarEl.innerHTML = hasil.length
-      ? hasil.map(kartuPengajuanSaya).join("")
+      ? hasil.map((p) => kartuPengajuanSaya(p, untukOwner)).join("")
       : `<div class="hampa"><p>Belum ada pengajuan${status ? " dengan status ini" : ""}.</p></div>`;
   }
 

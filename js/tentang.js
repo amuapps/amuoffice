@@ -9,6 +9,14 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "2.7.1", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Riwayat Pengajuan untuk Owner",
+    butir: [
+      "Halaman \"Pengajuan Saya\" sekarang cerdas soal Owner — karena Owner jarang mengajukan sesuatu ke dirinya sendiri, judulnya berubah jadi \"Riwayat Semua Pengajuan\" dan menampilkan SEMUA pengajuan dari siapa pun (termasuk yang sudah Disetujui/Ditolak, yang sebelumnya menghilang begitu diputuskan di halaman Persetujuan Perubahan).",
+      "Sales/Admin tetap cuma lihat pengajuan milik mereka sendiri, seperti semula.",
+    ],
+  },
+  {
     versi: "2.7.0", tanggal: "Agustus 2026",
     judul: "Halaman \"Pengajuan Saya\"",
     butir: [
