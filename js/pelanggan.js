@@ -210,6 +210,13 @@ export async function muatPesananPelanggan(pelangganId) {
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
+function badgeCaraBayar(t) {
+  const kredit = (t.caraBayar || []).includes("kredit");
+  return kredit
+    ? `<span class="tanda tanda--kredit">Kredit</span>`
+    : `<span class="tanda tanda--cash">Cash</span>`;
+}
+
 function kartuPesanan(t) {
   const batal = t.status === "batal";
   return `<article class="kartu" style="${batal ? "opacity:.55" : ""}">
@@ -218,10 +225,13 @@ function kartuPesanan(t) {
         <h3 class="kartu-judul mono">${aman(t.spkNo)}</h3>
         <p class="kartu-sub">${aman(t.tipeNama)} · ${aman(t.warna)}</p>
       </div>
-      ${batal
-        ? `<span class="tanda tanda--batal">Batal</span>`
-        : `<span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
-            ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}
+      <div style="display:flex;gap:6px;align-items:flex-start">
+        ${!batal ? badgeCaraBayar(t) : ""}
+        ${batal
+          ? `<span class="tanda tanda--batal">Batal</span>`
+          : `<span class="tanda ${t.kondisiUnit === "ready" ? "tanda--ready" : "tanda--uji"}">
+              ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}
+      </div>
     </div>
     <dl class="rinci">
       <div><dt>Harga OTR</dt><dd>${rupiah(t.hargaOtr)}</dd></div>

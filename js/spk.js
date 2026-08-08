@@ -169,8 +169,14 @@ function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
         ${daftarLeasing.map((l) =>
           `<option value="${l.id}">${aman(l.nama)}</option>`).join("")}
       </select>
-      <p class="petunjuk">"Jumlah dibayar sekarang" di atas dipakai sebagai
-        Uang Muka (DP) ke leasing.</p>
+      <p class="petunjuk">"Jumlah dibayar sekarang" di atas diterima
+        showroom sebagai Uang Muka (DP), lalu dilaporkan ke leasing
+        sebagai dasar hitung plafon kredit.</p>
+
+      <label class="label label--gelap">Tagihan ke Leasing
+        <span class="kunci">OTR &minus; jumlah dibayar sekarang</span></label>
+      <input class="isian isian--terang" id="s-tagihan-leasing" value="Rp 0" disabled>
+
       <div class="dua">
         <div>
           <label class="label label--gelap" for="s-cicilan">Cicilan per bulan</label>
@@ -349,10 +355,13 @@ export async function halamanSpk(wadah) {
       r.addEventListener("change", (e) => { unitDipilihId = e.target.value; }));
   }
 
+  let hargaOtrTerpilih = 0;
   pilihTipe.addEventListener("change", () => {
     const t = tipeDari(pilihTipe.value);
+    hargaOtrTerpilih = t ? (t.hargaOtr || 0) : 0;
     otrEl.value = t ? rupiah(t.hargaOtr) : "Rp 0";
     tampilkanUnitUntukTipe(pilihTipe.value);
+    perbaruiTagihanLeasing();
   });
 
   // ── Payment: cara bayar ────────────────────────────────────────
@@ -362,19 +371,38 @@ export async function halamanSpk(wadah) {
   const wadahTT = wadah.querySelector("#wadah-tunai-transfer");
   const wadahRekening = wadah.querySelector("#wadah-rekening");
   const wadahKredit = wadah.querySelector("#wadah-kredit");
+  const bayarEl = wadah.querySelector("#s-bayar");
+  const jmlTunaiEl = wadah.querySelector("#s-jml-tunai");
+  const jmlTransferEl = wadah.querySelector("#s-jml-transfer");
+  const tagihanLeasingEl = wadah.querySelector("#s-tagihan-leasing");
+
+  // "Tagihan ke Leasing" = OTR − jumlah dibayar sekarang (DP). Hitung
+  // ulang otomatis tiap kali OTR atau jumlah DP berubah, supaya sales
+  // tidak perlu hitung manual (mis. OTR 10jt, DP 3jt → tagihan 7jt).
+  function perbaruiTagihanLeasing() {
+    if (!kreditEl.checked) return;
+    const bayarTunaiTransferSama = !wadahTT.hidden;
+    const jumlahBayarSaatIni = bayarTunaiTransferSama
+      ? bacaAngka(jmlTunaiEl) + bacaAngka(jmlTransferEl)
+      : bacaAngka(bayarEl);
+    const tagihan = Math.max(hargaOtrTerpilih - jumlahBayarSaatIni, 0);
+    tagihanLeasingEl.value = rupiah(tagihan);
+  }
 
   function perbaruiCaraBayar() {
     const tunai = tunaiEl.checked, transfer = transferEl.checked;
     wadahTT.hidden = !(tunai && transfer); // cuma perlu dipecah kalau dua-duanya
     wadahRekening.hidden = !transfer;
     wadahKredit.hidden = !kreditEl.checked;
+    perbaruiTagihanLeasing();
   }
   [tunaiEl, transferEl, kreditEl].forEach((el) =>
     el.addEventListener("change", perbaruiCaraBayar));
 
-  [wadah.querySelector("#s-bayar"), wadah.querySelector("#s-jml-tunai"),
-   wadah.querySelector("#s-jml-transfer"), wadah.querySelector("#s-cicilan"),
+  [bayarEl, jmlTunaiEl, jmlTransferEl, wadah.querySelector("#s-cicilan"),
   ].forEach(pasangFormatUang);
+  [bayarEl, jmlTunaiEl, jmlTransferEl].forEach((el) =>
+    el.addEventListener("input", perbaruiTagihanLeasing));
 
   // ── Simpan ──────────────────────────────────────────────────
   wadah.querySelector("#form-spk").addEventListener("submit", async (e) => {

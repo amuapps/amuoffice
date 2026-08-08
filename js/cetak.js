@@ -45,8 +45,11 @@ export function sudahLunas(t) {
 // Pesanan, layar konfirmasi SPK baru) — supaya jelas tahap mana
 // yang sedang berlangsung tanpa perlu buka detailnya dulu.
 export function labelTombolKuitansi(t) {
-  if (!t.kuitansiTercetak) return "Catat Pembayaran & Cetak Kuitansi";
-  return sudahLunas(t) ? "Cetak Ulang Kuitansi" : "Catat Pembayaran";
+  // Generik sengaja — hasil sebenarnya (Lunas kalau cash penuh, DP
+  // kalau kredit/cicilan) baru diketahui SETELAH sistem hitung
+  // jumlahnya, jadi nama tombol tidak menjanjikan salah satu.
+  if (!t.kuitansiTercetak) return "Terima Pembayaran & Cetak Kuitansi";
+  return sudahLunas(t) ? "Cetak Ulang Kuitansi Lunas" : "Terima Pembayaran";
 }
 // Sumber pelunasan/cicilan SETELAH pembayaran pertama otomatis
 // mengikuti data yang SUDAH ada di SPK sejak awal — tidak perlu
@@ -430,6 +433,134 @@ export async function cetakSpk(t) {
   </div>`;
 
   // Timpa seluruh isi <body> tab barunya dengan lembar yang sudah jadi.
+  tabBaru.document.body.innerHTML = isi;
+}
+
+// ── Tagihan ke Leasing ──────────────────────────────────────────
+// Dokumen terpisah dari kuitansi (yang untuk konsumen) — ini yang
+// diserahkan/dikirim ke pihak LEASING supaya mereka cairkan sisa
+// pembiayaan ke showroom. Modelnya sengaja dibuat mirip SPK (kop,
+// tata letak, tanda tangan) supaya konsisten, isinya disesuaikan.
+// Placeholder sampai ada contoh format baku dari leasing/showroom.
+export async function cetakTagihanLeasing(t) {
+  if (!t) return;
+  if (!(t.caraBayar || []).includes("kredit") || !t.kredit?.leasingId) {
+    kabar("SPK ini bukan transaksi kredit / belum pilih leasing.", "rem");
+    return;
+  }
+
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Tagihan Leasing — ${aman(t.spkNo || "")}</title>
+    <style>${CSS_CETAK}</style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  let unit = null;
+  if (t.unitId) {
+    try {
+      const snap = await getDoc(doc(dbase, "units", t.unitId));
+      if (snap.exists()) unit = snap.data();
+    } catch { /* unit tidak wajib ada */ }
+  }
+
+  await muatLeasing();
+  const namaSalesTampil = await resolveNamaSales(t);
+  const leasing = leasingDari(t.kredit.leasingId);
+  const totalDibayar = hitungTotalDibayar(t);
+  const tagihan = Math.max((t.hargaOtr || 0) - totalDibayar, 0);
+
+  const isi = `<div class="lembar-cetak" id="lembar-tagihan-leasing">
+
+    <header class="c-kop">
+      <div class="c-kop-kiri">
+        <img class="c-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div>
+          <p class="c-pt">${aman(SHOWROOM.nama)}</p>
+          <p class="c-kecil">${aman(SHOWROOM.alamat || "")}</p>
+          <p class="c-kecil">${aman(SHOWROOM.telepon || "")}
+            ${SHOWROOM.npwp ? " · NPWP " + aman(SHOWROOM.npwp) : ""}</p>
+        </div>
+      </div>
+      <div class="c-nomor">
+        <table>
+          ${baris("No. SPK", t.spkNo)}
+          ${baris("Tanggal", tanggal(new Date()))}
+        </table>
+      </div>
+    </header>
+
+    <h1 class="c-judul">Tagihan Pembiayaan ke Leasing</h1>
+
+    <section class="c-dua">
+      <table class="c-tabel">
+        ${baris("Kepada Yth.", aman(leasing?.nama || "-"))}
+        ${baris("Perihal", "Pencairan pembiayaan kendaraan konsumen berikut")}
+      </table>
+      <table class="c-tabel">
+        ${baris("Nama Konsumen", t.pembeli?.nama)}
+        ${baris("Alamat", [t.pembeli?.alamat, t.pembeli?.kelurahan,
+                            t.pembeli?.kecamatan, t.pembeli?.kota]
+                            .filter(Boolean).join(", "))}
+        ${baris("Telp / HP", t.pembeli?.telepon)}
+        ${baris("NIK", t.pembeli?.nik)}
+      </table>
+    </section>
+
+    <section class="c-badan">
+      <div class="c-kiri">
+        <p class="c-sub">KETERANGAN UNIT</p>
+        <table class="c-tabel">
+          ${baris("Merk / Tipe", t.tipeNama)}
+          ${baris("Warna / Tahun", `${t.warna || "-"} / ${unit?.tahun || "-"}`)}
+          ${baris("Nomor Rangka", unit?.noRangka || "-")}
+          ${baris("Nomor Mesin", unit?.noMesin || "-")}
+        </table>
+      </div>
+      <div class="c-kanan-kolom">
+        <p class="c-sub">RINCIAN KREDIT</p>
+        <table class="c-tabel">
+          ${baris("Cicilan / bulan", rupiah(t.kredit?.cicilan))}
+          ${baris("Lama cicilan", `${t.kredit?.tenor || 0} bulan`)}
+          ${baris("Tanggal survey", t.kredit?.tanggalSurvey ? tanggal(t.kredit.tanggalSurvey) : "-")}
+        </table>
+      </div>
+    </section>
+
+    <section class="c-badan">
+      <div class="c-kiri" style="grid-column: 1 / -1">
+        <p class="c-sub">RINCIAN TAGIHAN</p>
+        <table class="c-harga c-total">
+          <tr><td>Harga OTR</td><td class="c-kanan">${rupiah(t.hargaOtr)}</td></tr>
+          <tr><td>DP diterima showroom</td>
+              <td class="c-kanan">− ${rupiah(totalDibayar)}</td></tr>
+          <tr><td><b>Ditagihkan ke ${aman(leasing?.nama || "Leasing")}</b></td>
+              <td class="c-kanan"><b>${rupiah(tagihan)}</b></td></tr>
+        </table>
+        <p class="c-terbilang">${aman(terbilang(tagihan))}</p>
+      </div>
+    </section>
+
+    <section class="c-ttd">
+      <div><span class="c-garis"></span>Tanda Tangan &amp; Nama Jelas
+        <br><span class="c-kecil">Salesman</span></div>
+      <div><span class="c-garis"></span>Tanda Tangan, Nama Jelas &amp; Cap
+        <br><span class="c-kecil">SPV / Owner</span></div>
+      <div><span class="c-garis"></span>Tanda Tangan &amp; Cap
+        <br><span class="c-kecil">Pihak Leasing</span></div>
+    </section>
+
+    <p class="c-kaki">${aman(SHOWROOM.nama)} · Dibuat oleh ${aman(namaSalesTampil)}</p>
+  </div>
+
+  <div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>`;
+
   tabBaru.document.body.innerHTML = isi;
 }
 
