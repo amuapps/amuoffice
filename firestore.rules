@@ -57,7 +57,14 @@ service cloud.firestore {
     // ── Master tipe motor ───────────────────────────────────
     match /tipe_motor/{id} {
       allow read:  if aktif();
-      allow write: if salahSatu(['owner', 'admin']);
+      // Owner/Admin: bebas (halaman Master Tipe Motor — nama, harga,
+      // dst). Sales: HANYA boleh ubah jumlahReady — itu efek samping
+      // sah dari mengunci/melepas unit saat bikin/ubah/batalkan SPK
+      // (lihat kunciUnitTransaksi/lepasUnitTransaksi di stok.js).
+      allow write: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['sales']) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['jumlahReady']));
     }
 
     // ── Referensi: daftar saran Tipe & Warna (dulu statis di
@@ -68,14 +75,19 @@ service cloud.firestore {
     }
 
     // ── Unit fisik ──────────────────────────────────────────
-    // 'sales' ikut diberi izin tulis di sini KHUSUS supaya SPK bisa
-    // mengunci unit (ready → booked) saat transaksi dibuat. Ini
-    // longgar dibanding idealnya (rules tidak bisa membatasi field
-    // mana saja yang boleh diubah sales tanpa jadi rumit) — kalau
-    // nanti terasa perlu, bisa diperketat pakai Cloud Function.
     match /units/{id} {
       allow read:  if aktif();
-      allow write: if salahSatu(['owner', 'admin', 'sales']);
+      // Owner/Admin: bebas ubah field apa pun (input stok baru,
+      // koreksi No. Rangka/Mesin, dst — halaman Data Unit).
+      // Sales: HANYA boleh mengubah status & spkId — itu satu-
+      // satunya alasan sah sales pernah menyentuh koleksi ini sama
+      // sekali (mengunci unit saat bikin SPK / melepasnya saat
+      // ganti unit di form edit). Field lain (noRangka, noMesin,
+      // hargaOtr, tipeId, dst) TERTUTUP buat sales di level server.
+      allow write: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['sales']) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'spkId']));
 
       match /rahasia/{doc} {
         allow read, write: if salahSatu(['owner', 'admin']);
@@ -107,6 +119,14 @@ service cloud.firestore {
       allow write: if salahSatu(['owner', 'admin']);
     }
 
+    // ── Master Supplier ──────────────────────────────────────
+    // Sama seperti Leasing/Rekening — bukan data rahasia, semua
+    // yang login boleh baca (dipakai sebagai pilihan di Data Unit).
+    match /supplier/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
     // ── Master Agen ─────────────────────────────────────────
     // SELURUHNYA cuma Owner — konsisten dengan aturan Fee Agen
     // yang juga cuma boleh dilihat Owner.
@@ -129,8 +149,33 @@ service cloud.firestore {
     match /transaksi/{id} {
       allow read: if aktif() &&
         (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid);
-      allow create: if salahSatu(['owner', 'admin', 'sales']);
-      allow update: if salahSatu(['owner', 'admin', 'sales']);
+      // Cuma Owner yang boleh input SPK "atas nama" karyawan lain
+      // (salesUid beda dari dirinya sendiri). Admin & Sales cuma
+      // boleh salesUid = dirinya sendiri. Ini SEBELUMNYA cuma
+      // ditegakkan di tampilan (dropdown disembunyikan kalau bukan
+      // Owner) — jadi bisa dilewati lewat DevTools/API langsung.
+      // dibuatOlehUid juga wajib sama dengan uid yang benar-benar
+      // login, supaya jejak audit tidak bisa dipalsukan.
+      allow create: if salahSatu(['owner', 'admin', 'sales']) &&
+        request.resource.data.dibuatOlehUid == request.auth.uid &&
+        (peranSaya() == 'owner' ||
+         request.resource.data.salesUid == request.auth.uid);
+      // Owner boleh ubah field APA PUN (unit, harga, cara bayar,
+      // kredit, diskon, cashback, dst — lewat form "Ubah" khusus
+      // Owner). Admin/Sales HANYA boleh menyentuh field pencatatan
+      // pembayaran/kuitansi (satu-satunya alur updateDoc yang mereka
+      // pakai secara sah — lihat mintaCetakKuitansi di cetak.js).
+      // Field lain (unitId, hargaOtr, caraBayar, kredit, diskon,
+      // cashback, salesUid, pembeli, dst) TERTUTUP buat mereka di
+      // level server, bukan cuma disembunyikan di form.
+      allow update: if salahSatu(['owner']) ||
+        (salahSatu(['admin', 'sales']) &&
+         (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+           'riwayatBayar', 'totalDibayar', 'statusBayar',
+           'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
+           'kuitansiTercetakPada',
+         ]));
       allow delete: if false; // dibatalkan lewat status, bukan dihapus
     }
 
