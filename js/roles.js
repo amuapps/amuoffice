@@ -2,8 +2,8 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.2.5";
-import { daftarKodeUntuk } from "./akses.js?v=3.2.5";
+import { labelItem, labelGrup } from "./label.js?v=3.2.6";
+import { daftarKodeUntuk } from "./akses.js?v=3.2.6";
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah

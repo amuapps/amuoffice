@@ -3,11 +3,20 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.2.5";
-import { VERSI } from "./config.js?v=3.2.5";
-import { aman } from "./ui.js?v=3.2.5";
+import { sesi } from "./auth.js?v=3.2.6";
+import { VERSI } from "./config.js?v=3.2.6";
+import { aman } from "./ui.js?v=3.2.6";
 
 const RIWAYAT = [
+  {
+    versi: "3.2.6", tanggal: "Agustus 2026",
+    judul: "Form Ubah: Pilih Unit Sekarang Persis Seperti SPK Baru",
+    butir: [
+      "Bagian \"Unit & Harga\" di form Ubah (Owner) dirombak supaya alurnya BENAR-BENAR sama seperti SPK Baru: pilih Tipe motor → tabel unit ready langsung muncul di bawahnya, tinggal centang salah satu. Sebelumnya ada dua mekanisme terpisah yang membingungkan (kotak Warna manual di atas, dan tabel \"ganti unit fisik tertentu\" terpisah jauh di bawah) — sekarang jadi satu alur saja.",
+      "Kalau stok kosong untuk tipe yang dipilih, otomatis muncul dropdown Warna manual (persis seperti SPK Baru) — SPK jadi Indent.",
+      "\"Tampilkan semua tipe\" tetap ada untuk cari unit di tipe lain, dan \"Lepas unit ini\" tetap terpisah sebagai aksi sendiri.",
+    ],
+  },
   {
     versi: "3.2.5", tanggal: "Agustus 2026",
     judul: "PERBAIKAN BUG SERIUS: Tata Letak Form Ubah/Detail Berantakan di Dalam Tabel",

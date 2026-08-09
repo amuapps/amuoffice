@@ -11,24 +11,24 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.2.5";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.2.5";
-import { batasDiskon, PERAN } from "./roles.js?v=3.2.5";
-import { DP_MINIMUM } from "./config.js?v=3.2.5";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.2.5";
+} from "./db.js?v=3.2.6";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.2.6";
+import { batasDiskon, PERAN } from "./roles.js?v=3.2.6";
+import { DP_MINIMUM } from "./config.js?v=3.2.6";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.2.6";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.2.5";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.2.6";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.2.5";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.2.5";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.2.5";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.2.5";
-import { muatAgen, agenAktif } from "./agen.js?v=3.2.5";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.2.6";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.2.6";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.2.6";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.2.6";
+import { muatAgen, agenAktif } from "./agen.js?v=3.2.6";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi } from "./cetak.js?v=3.2.5";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.2.5";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.2.5";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.2.5";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi } from "./cetak.js?v=3.2.6";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.2.6";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.2.6";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.2.6";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -885,15 +885,33 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           ${aman(tp.merek)} ${aman(tp.tipe)} ${aman(tp.varian || "")}</option>`).join("")}
       </select>
     </label>
-    <label class="label">Warna
-      <input class="isian" id="e-warna-${t.id}" value="${aman(t.warna || "")}">
-    </label>
     <label class="label">Harga OTR
       <input class="isian" id="e-otr-${t.id}" value="${rupiah(t.hargaOtr || 0)}">
     </label>
-    <p class="petunjuk">Kalau Tipe/Warna di atas diganti TAPI tidak pilih unit
-      spesifik di tabel bawah, sistem otomatis carikan unit ready pertama yang
-      cocok. Kalau tidak ada yang ready, SPK jadi Indent.</p>
+
+    <p class="label label--gelap" style="margin-top:10px">Ganti unit fisik
+      <span class="kunci">sama seperti SPK Baru — pilih tipe, tabel unit
+        ready langsung muncul, tinggal pilih</span></p>
+    <label class="pilihan">
+      <input type="checkbox" id="e-unit-semua-tipe-${t.id}">
+      <span>Tampilkan semua tipe (bukan cuma tipe yang dipilih di atas)</span>
+    </label>
+    <div id="e-tabel-unit-${t.id}" style="max-height:260px; overflow:auto;
+      border:1px solid #ddd; border-radius:6px; margin-top:6px">
+      <p class="hampa" style="margin:10px">Memuat unit ready…</p>
+    </div>
+    <div id="e-wadah-warna-manual-${t.id}" hidden style="margin-top:8px">
+      <label class="label">Warna
+        <span class="kunci">stok kosong untuk tipe ini — SPK akan jadi Indent</span>
+        <select id="e-warna-manual-${t.id}" class="isian">
+          <option value="">— pilih warna —</option>
+        </select>
+      </label>
+    </div>
+    <p class="petunjuk">Pilih SATU unit di tabel untuk mengunci SPK ini
+      langsung ke unit fisik itu. Kalau tidak pilih apa pun dan stok kosong
+      untuk tipe ini, pilih Warna manual di atas — SPK ini otomatis jadi
+      Indent (menunggu unit datang).</p>
 
     <label class="pilihan" style="margin-top:6px">
       <input type="checkbox" id="e-lepas-unit-${t.id}">
@@ -903,17 +921,6 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       dan riwayatnya tetap tersimpan apa adanya. Yang berubah cuma status
       unit fisiknya: kembali jadi <b>Ready</b> (bisa dipakai SPK lain), dan
       SPK ini berubah status jadi <b>Indent</b> (menunggu unit lain masuk).</p>
-
-    <p class="label label--gelap" style="margin-top:10px">
-      Atau ganti ke unit fisik tertentu</p>
-    <label class="pilihan">
-      <input type="checkbox" id="e-unit-semua-tipe-${t.id}">
-      <span>Tampilkan semua tipe (bukan cuma tipe yang dipilih di atas)</span>
-    </label>
-    <div id="e-tabel-unit-${t.id}" style="max-height:220px; overflow:auto;
-      border:1px solid #ddd; border-radius:6px; margin-top:6px">
-      <p class="hampa" style="margin:10px">Memuat unit ready…</p>
-    </div>
 
     <h4 class="judul" style="font-size:14px;margin-top:14px">Cara Bayar</h4>
     <label class="pilihan"><input type="checkbox" id="e-tunai-${t.id}"
@@ -1059,29 +1066,42 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       wadahKredit.hidden = !kreditEl.checked;
     }));
 
-    // ── Tabel pilih unit fisik lain ────────────────────────────
+    // ── Tabel pilih unit fisik (persis pola SPK Baru: pilih tipe →
+    // tabel unit ready muncul otomatis, tinggal pilih; kalau stok
+    // kosong untuk tipe itu, jatuh ke dropdown Warna manual → Indent) ──
     const tipeSelEl = kontainer.querySelector(`#e-tipe-${t.id}`);
-    const warnaSelEl = kontainer.querySelector(`#e-warna-${t.id}`);
     const semuaTipeEl = kontainer.querySelector(`#e-unit-semua-tipe-${t.id}`);
     const lepasUnitEl = kontainer.querySelector(`#e-lepas-unit-${t.id}`);
     const tabelUnitEl = kontainer.querySelector(`#e-tabel-unit-${t.id}`);
+    const wadahWarnaManual = kontainer.querySelector(`#e-wadah-warna-manual-${t.id}`);
+    const warnaManualEl = kontainer.querySelector(`#e-warna-manual-${t.id}`);
 
     function gambarTabelUnit() {
       const semuaTipe = semuaTipeEl.checked;
       const tipeAktif = tipeSelEl.value;
-      const warnaAktif = warnaSelEl.value.trim().toLowerCase();
       let daftar = daftarUnitReady.filter((u) => u.id !== t.unitId); // unit sekarang tidak usah dipilih ulang
-      if (!semuaTipe) {
-        daftar = daftar.filter((u) => u.tipeId === tipeAktif &&
-          (u.warna || "").toLowerCase() === warnaAktif);
-      }
+      if (!semuaTipe) daftar = daftar.filter((u) => u.tipeId === tipeAktif);
+
       if (!daftar.length) {
+        // Sama seperti SPK Baru: stok kosong → tampilkan dropdown
+        // Warna manual dari daftar warna Tipe ini, SPK jadi Indent
+        // kalau Tipe/Warna ini yang dipakai.
         tabelUnitEl.innerHTML = `<p class="hampa" style="margin:10px">
           ${semuaTipe ? "Tidak ada unit ready lain sama sekali."
-            : "Tidak ada unit ready lain untuk Tipe/Warna ini — coba centang \"semua tipe\"."}
+            : "Stok kosong untuk tipe ini — pilih Warna manual di bawah."}
         </p>`;
+        if (!semuaTipe) {
+          const tp = tipeDari(tipeAktif);
+          warnaManualEl.innerHTML = `<option value="">— pilih warna —</option>` +
+            ((tp && tp.warna) || []).map((w) => `<option value="${aman(w)}"
+              ${w === t.warna ? "selected" : ""}>${aman(w)}</option>`).join("");
+          wadahWarnaManual.hidden = false;
+        } else {
+          wadahWarnaManual.hidden = true;
+        }
         return;
       }
+      wadahWarnaManual.hidden = true;
       tabelUnitEl.innerHTML = `<table class="tabel" style="font-size:11.5px">
         <thead><tr><th></th><th>Tipe</th><th>Warna</th>
           <th>No. Rangka</th><th>Tahun</th></tr></thead>
@@ -1100,9 +1120,8 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       </table>`;
     }
     gambarTabelUnit();
-    [tipeSelEl, warnaSelEl, semuaTipeEl].forEach((el) =>
+    [tipeSelEl, semuaTipeEl].forEach((el) =>
       el.addEventListener("change", gambarTabelUnit));
-    warnaSelEl.addEventListener("input", gambarTabelUnit);
 
     // Lepas Unit & pilih-unit-di-tabel itu dua cara berbeda buat
     // "ganti apa yang terjadi ke unit" — tidak masuk akal aktif
@@ -1166,7 +1185,14 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       const feeAgenBaru = bacaAngka(kontainer.querySelector(`#e-fee-agen-${t.id}`));
 
       let tipeBaru = kontainer.querySelector(`#e-tipe-${t.id}`).value;
-      let warnaBaru = kontainer.querySelector(`#e-warna-${t.id}`).value.trim();
+      // Warna sekarang ikut tabel pilih unit (radio) — kalau tidak ada
+      // yang dipilih di tabel, jatuh ke dropdown Warna manual (cuma
+      // ada kalau stok kosong untuk tipe ini), atau tetap warna lama
+      // kalau Tipe tidak diganti sama sekali.
+      const warnaManualElCek = kontainer.querySelector(`#e-warna-manual-${t.id}`);
+      const wadahWarnaManualCek = kontainer.querySelector(`#e-wadah-warna-manual-${t.id}`);
+      let warnaBaru = (wadahWarnaManualCek && !wadahWarnaManualCek.hidden)
+        ? warnaManualElCek.value : (t.warna || "");
       const otrBaru = bacaAngka(kontainer.querySelector(`#e-otr-${t.id}`));
       const caraBayarBaru = ["tunai", "transfer", "kredit"].filter((c) =>
         kontainer.querySelector(`#e-${c}-${t.id}`).checked);
