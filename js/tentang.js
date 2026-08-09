@@ -3,11 +3,18 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.3.0";
-import { VERSI } from "./config.js?v=3.3.0";
-import { aman } from "./ui.js?v=3.3.0";
+import { sesi } from "./auth.js?v=3.3.1";
+import { VERSI } from "./config.js?v=3.3.1";
+import { aman } from "./ui.js?v=3.3.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.3.1", tanggal: "Agustus 2026",
+    judul: "Tema Kemerdekaan Diperbesar — Isi Penuh Panel Login",
+    butir: [
+      "Tema Kemerdekaan di layar Masuk diperbesar — sebelumnya cuma pita tipis di atas, sekarang mengisi seluruh panel kanan: pita judul lebih besar & tebal, garis diagonal merah-putih sangat halus di seluruh latar, dan watermark besar \"MERDEKA\" di tengah panel. Tetap redup supaya form login tidak terganggu keterbacaannya.",
+    ],
+  },
   {
     versi: "3.3.0", tanggal: "Agustus 2026",
     judul: "Auto-Logout, Dashboard Peringkat Sales Dirombak, Tema Kemerdekaan",
