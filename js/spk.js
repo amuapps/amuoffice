@@ -15,7 +15,8 @@ import {
 import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
 import { batasDiskon, PERAN } from "./roles.js";
 import { muatTipe, tipeDari } from "./tipe.js";
-import { cariUnitReady, muatSemuaUnitReadyRingkas, kunciUnitKeBatch } from "./stok.js";
+import { cariUnitReady, muatSemuaUnitReadyRingkas,
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
          pasangHurufBesarPelanggan } from "./pelanggan.js";
 import { muatSaranKecamatan, muatSaranKota } from "./referensi.js";
@@ -23,7 +24,7 @@ import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js";
 import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js";
 import { muatAgen, agenAktif } from "./agen.js";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar } from "./cetak.js";
+  hitungTotalDibayar, resolveNamaSales } from "./cetak.js";
 import { konfirmasi, tanya, beritahu } from "./dialog.js";
 import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
@@ -454,20 +455,41 @@ export async function halamanSpk(wadah) {
 
     try {
       const t = tipeDari(tipeId);
-      // Pakai unit yang SPESIFIK dipilih di form (kalau stok >1 tadi
-      // sempat dipilih) — dicek ulang statusnya masih "ready" di
-      // Firestore dulu (jaga-jaga kalau keburu diambil transaksi lain
-      // di saat yang hampir bersamaan). Kalau tidak ada yang dipilih
-      // sama sekali (misalnya stok kosong dari awal), fallback ke
-      // cariUnitReady biasa seperti sebelumnya.
-      let unit = null;
+      const spkNo = await nomorBerikutnya("spk", "SPK");
+      const ref = doc(collection(dbase, "transaksi")); // ID-nya dipakai buat kunci unit di bawah
+
+      // ── Cari & KUNCI unit ready SECARA ATOMIK ──────────────────
+      // Sebelumnya: unit dicari (baca), baru BELAKANGAN dikunci
+      // (tulis) bareng batch SPK — ada JEDA di antara baca & tulis
+      // yang bisa membuat DUA sales lolos mengunci unit yang SAMA
+      // kalau kebetulan pilih di detik yang hampir bersamaan.
+      // Sekarang: kunciUnitTransaksi baca ULANG + tulis dalam SATU
+      // runTransaction, jadi kalau ada yang "menang" duluan, yang
+      // kalah otomatis gagal (bukan dua-duanya berhasil) — lalu di
+      // sini kita coba cari unit ready LAIN sampai 3x sebelum
+      // menyerah dan menjadikan SPK ini Indent.
+      let kandidat = null;
       if (unitDipilihId) {
         const snapUnitPilihan = await getDoc(doc(dbase, "units", unitDipilihId));
         if (snapUnitPilihan.exists() && snapUnitPilihan.data().status === "ready") {
-          unit = { id: snapUnitPilihan.id, ...snapUnitPilihan.data() };
+          kandidat = { id: snapUnitPilihan.id, ...snapUnitPilihan.data() };
         }
       }
-      if (!unit) unit = await cariUnitReady(tipeId, warna);
+      if (!kandidat) kandidat = await cariUnitReady(tipeId, warna);
+
+      let unit = null;
+      for (let sisaCoba = 3; kandidat && sisaCoba > 0; sisaCoba--) {
+        try {
+          await kunciUnitTransaksi(kandidat.id, kandidat.tipeId, ref.id);
+          unit = kandidat;
+          break;
+        } catch {
+          // Unit ini baru saja "direbut" transaksi lain — cari unit
+          // ready lain untuk tipe/warna yang sama (query otomatis
+          // sudah tidak menyertakan yang barusan berubah status).
+          kandidat = await cariUnitReady(tipeId, warna);
+        }
+      }
       const kondisiUnit = unit ? "ready" : "indent";
 
       const pembeliId = await simpanPelangganOtomatis(pembeli);
@@ -487,9 +509,6 @@ export async function halamanSpk(wadah) {
       const jumlahBayar = bayarTunaiTransferSama
         ? jumlahTunai + jumlahTransfer
         : bacaAngka(wadah.querySelector("#s-bayar"));
-
-      const spkNo = await nomorBerikutnya("spk", "SPK");
-      const ref = doc(collection(dbase, "transaksi"));
 
       const cashbackDiajukan = bacaAngka(wadah.querySelector("#s-cashback"));
       const elAgen = wadah.querySelector("#s-agen");
@@ -572,7 +591,9 @@ export async function halamanSpk(wadah) {
 
       const batch = writeBatch(dbase);
       batch.set(ref, data);
-      if (unit) kunciUnitKeBatch(batch, unit, ref.id);
+      // TIDAK ada kunciUnitKeBatch di sini lagi — unit (kalau ada)
+      // SUDAH dikunci lewat kunciUnitTransaksi di atas. Menguncinya
+      // lagi di sini akan mengurangi jumlahReady DUA KALI.
       sertakanLog(batch, "spk_dibuat", {
         koleksi: "transaksi", docId: ref.id,
         ringkas: `${spkNo} · ${pembeli.nama} · ${kondisiUnit}`,
@@ -662,6 +683,14 @@ export async function halamanSpk(wadah) {
         .addEventListener("click", () => halamanSpk(wadah));
       kabar(`SPK ${spkNo} tersimpan.`, "netral");
     } catch (err) {
+      // Kalau unit SUDAH terlanjur dikunci (kunciUnitTransaksi
+      // berhasil) tapi batch SPK-nya gagal karena sebab lain
+      // (mis. jaringan putus di tengah), lepas lagi kuncinya —
+      // supaya unit itu tidak "menggantung" terkunci ke SPK yang
+      // sebenarnya gagal tersimpan.
+      if (typeof unit !== "undefined" && unit) {
+        try { await lepasUnitTransaksi(unit.id); } catch { /* biarkan, tidak fatal */ }
+      }
       kabar(err.message || "Gagal menyimpan SPK.", "rem");
       tombol.disabled = false;
       tombol.textContent = "Simpan SPK";
@@ -742,16 +771,27 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
   // (unit, harga, cara bayar) terlalu berdampak (stok & keuangan)
   // untuk dibuka lewat jalur pengajuan biasa.
   let daftarTipe = [], daftarLeasingAktif = [], daftarRekeningAktif = [];
+  let unitSekarangNoRangka = "";
+  let daftarUnitReady = [];
   if (owner) {
-    [daftarTipe] = await Promise.all([muatTipe(), muatLeasing(), muatRekening()]);
+    const [, , , unitSnap, unitReadySnap] = await Promise.all([
+      muatTipe().then((d) => { daftarTipe = d; }),
+      muatLeasing(), muatRekening(),
+      t.unitId ? getDoc(doc(dbase, "units", t.unitId)) : Promise.resolve(null),
+      muatSemuaUnitReadyRingkas(),
+    ]);
     daftarLeasingAktif = leasingAktif();
     daftarRekeningAktif = rekeningAktif();
+    if (unitSnap && unitSnap.exists()) unitSekarangNoRangka = unitSnap.data().noRangka || "";
+    daftarUnitReady = unitReadySnap;
   }
   const kredit = t.kredit || {};
   const caraBayarLama = t.caraBayar || [];
 
   const panelOwnerLanjutan = !owner ? "" : `
     <h4 class="judul" style="font-size:14px;margin-top:14px">Unit &amp; Harga</h4>
+    <p class="petunjuk">Unit sekarang: <b>${aman(t.tipeNama)} ${aman(t.warna)}</b>
+      ${unitSekarangNoRangka ? ` — No. Rangka ${aman(unitSekarangNoRangka)}` : ""}</p>
     <label class="label">Tipe motor
       <select id="e-tipe-${t.id}" class="isian">
         ${daftarTipe.map((tp) => `<option value="${tp.id}"
@@ -765,9 +805,36 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     <label class="label">Harga OTR
       <input class="isian" id="e-otr-${t.id}" value="${rupiah(t.hargaOtr || 0)}">
     </label>
-    <p class="petunjuk">Ganti Tipe/Warna akan mencari unit ready lain secara
-      otomatis (lepas unit lama, kunci unit baru). Kalau tidak ada yang
-      ready, SPK jadi Indent.</p>
+    <p class="petunjuk">Kalau Tipe/Warna di atas diganti TAPI tidak pilih unit
+      spesifik di tabel bawah, sistem otomatis carikan unit ready pertama yang
+      cocok. Kalau tidak ada yang ready, SPK jadi Indent.</p>
+
+    <label class="pilihan" style="margin-top:6px">
+      <input type="checkbox" id="e-lepas-unit-${t.id}">
+      <span>Lepas unit ini kembali ke stok (SPK jadi Indent)</span>
+    </label>
+    <p class="petunjuk">SPK ini <b>TIDAK dibatalkan</b> — pembeli, pembayaran,
+      dan riwayatnya tetap tersimpan apa adanya. Yang berubah cuma status
+      unit fisiknya: kembali jadi <b>Ready</b> (bisa dipakai SPK lain), dan
+      SPK ini berubah status jadi <b>Indent</b> (menunggu unit lain masuk).
+      Pilihan ini cocok kalau unitnya "direbut" untuk alasan di luar sistem
+      (mis. sudah dijanjikan ke pembeli lain secara langsung).</p>
+
+    <p class="label label--gelap" style="margin-top:10px">
+      Atau ganti ke unit fisik tertentu</p>
+    <p class="petunjuk">Pilih SATU unit di tabel bawah untuk mengunci SPK ini
+      KHUSUS ke unit fisik itu (bisa tipe/warna sama — misal cuma tukar
+      nomor rangka — atau tipe/warna lain kalau dicentang "semua tipe").
+      Kalau tidak pilih apa pun di sini, sistem pakai pencarian otomatis
+      di atas (berdasar field Tipe/Warna).</p>
+    <label class="pilihan">
+      <input type="checkbox" id="e-unit-semua-tipe-${t.id}">
+      <span>Tampilkan semua tipe (bukan cuma tipe yang dipilih di atas)</span>
+    </label>
+    <div id="e-tabel-unit-${t.id}" style="max-height:220px; overflow:auto;
+      border:1px solid #ddd; border-radius:6px; margin-top:6px">
+      <p class="hampa" style="margin:10px">Memuat unit ready…</p>
+    </div>
 
     <h4 class="judul" style="font-size:14px;margin-top:14px">Cara Bayar</h4>
     <label class="pilihan"><input type="checkbox" id="e-tunai-${t.id}"
@@ -890,6 +957,67 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       wadahRekening.hidden = !transferEl.checked;
       wadahKredit.hidden = !kreditEl.checked;
     }));
+
+    // ── Tabel pilih unit fisik lain ────────────────────────────
+    const tipeSelEl = kontainer.querySelector(`#e-tipe-${t.id}`);
+    const warnaSelEl = kontainer.querySelector(`#e-warna-${t.id}`);
+    const semuaTipeEl = kontainer.querySelector(`#e-unit-semua-tipe-${t.id}`);
+    const lepasUnitEl = kontainer.querySelector(`#e-lepas-unit-${t.id}`);
+    const tabelUnitEl = kontainer.querySelector(`#e-tabel-unit-${t.id}`);
+
+    function gambarTabelUnit() {
+      const semuaTipe = semuaTipeEl.checked;
+      const tipeAktif = tipeSelEl.value;
+      const warnaAktif = warnaSelEl.value.trim().toLowerCase();
+      let daftar = daftarUnitReady.filter((u) => u.id !== t.unitId); // unit sekarang tidak usah dipilih ulang
+      if (!semuaTipe) {
+        daftar = daftar.filter((u) => u.tipeId === tipeAktif &&
+          (u.warna || "").toLowerCase() === warnaAktif);
+      }
+      if (!daftar.length) {
+        tabelUnitEl.innerHTML = `<p class="hampa" style="margin:10px">
+          ${semuaTipe ? "Tidak ada unit ready lain sama sekali."
+            : "Tidak ada unit ready lain untuk Tipe/Warna ini — coba centang \"semua tipe\"."}
+        </p>`;
+        return;
+      }
+      tabelUnitEl.innerHTML = `<table class="tabel" style="font-size:11.5px">
+        <thead><tr><th></th><th>Tipe</th><th>Warna</th>
+          <th>No. Rangka</th><th>Tahun</th></tr></thead>
+        <tbody>${daftar.map((u) => {
+          const tp = tipeDari(u.tipeId);
+          const namaTipe = tp ? `${tp.merek} ${tp.tipe} ${tp.varian || ""}`.trim() : u.tipeId;
+          return `<tr>
+            <td><input type="radio" name="e-unit-pilihan-${t.id}" value="${u.id}"
+              data-tipe-id="${u.tipeId}" data-tipe-nama="${aman(namaTipe)}"
+              data-warna="${aman(u.warna || "")}"></td>
+            <td>${aman(namaTipe)}</td><td>${aman(u.warna || "-")}</td>
+            <td class="mono">${aman(u.noRangka || "-")}</td>
+            <td>${aman(u.tahun || "-")}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>`;
+    }
+    gambarTabelUnit();
+    [tipeSelEl, warnaSelEl, semuaTipeEl].forEach((el) =>
+      el.addEventListener("change", gambarTabelUnit));
+    warnaSelEl.addEventListener("input", gambarTabelUnit);
+
+    // Lepas Unit & pilih-unit-di-tabel itu dua cara berbeda buat
+    // "ganti apa yang terjadi ke unit" — tidak masuk akal aktif
+    // dua-duanya sekaligus, jadi saling menonaktifkan otomatis.
+    lepasUnitEl.addEventListener("change", () => {
+      tabelUnitEl.closest("div").style.opacity = "";
+      if (lepasUnitEl.checked) {
+        kontainer.querySelectorAll(`input[name="e-unit-pilihan-${t.id}"]`)
+          .forEach((r) => { r.checked = false; });
+      }
+    });
+    tabelUnitEl.addEventListener("change", (ev) => {
+      if (ev.target.matches(`input[name="e-unit-pilihan-${t.id}"]`) && ev.target.checked) {
+        lepasUnitEl.checked = false;
+      }
+    });
   }
 
   kontainer.querySelector(`#batal-edit-${t.id}`)
@@ -921,11 +1049,11 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       pembeli, pemakai: sama ? null : pemakai, pemakaiSamaDenganPembeli: sama,
     };
 
-    let unitBaruDipilih = null;
     let fatal = false; // apa pun di luar pembeli/pemakai dianggap "fatal"
+    let perluGantiUnit = false, lepasUnitDiminta = false, unitIdDipilihManual = null;
     if (owner) {
-      const tipeBaru = kontainer.querySelector(`#e-tipe-${t.id}`).value;
-      const warnaBaru = kontainer.querySelector(`#e-warna-${t.id}`).value.trim();
+      let tipeBaru = kontainer.querySelector(`#e-tipe-${t.id}`).value;
+      let warnaBaru = kontainer.querySelector(`#e-warna-${t.id}`).value.trim();
       const otrBaru = bacaAngka(kontainer.querySelector(`#e-otr-${t.id}`));
       const caraBayarBaru = ["tunai", "transfer", "kredit"].filter((c) =>
         kontainer.querySelector(`#e-${c}-${t.id}`).checked);
@@ -949,12 +1077,26 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
 
       const tipeBerubah = tipeBaru !== t.tipeId;
       const warnaBerubah = warnaBaru !== (t.warna || "");
-      if (tipeBaru !== t.tipeId || warnaBerubah) {
-        // Cari unit ready untuk tipe+warna baru. Kalau tidak ada,
-        // SPK jadi Indent (sama seperti alur bikin SPK baru).
-        const cocok = await cariUnitReady(tipeBaru, warnaBaru);
-        unitBaruDipilih = cocok || null;
-        fatal = true;
+
+      const lepasUnitCek = kontainer.querySelector(`#e-lepas-unit-${t.id}`).checked;
+      const radioUnitCek = kontainer.querySelector(
+        `input[name="e-unit-pilihan-${t.id}"]:checked`);
+      // Prioritas aksi unit: (1) Lepas unit eksplisit → (2) pilih unit
+      // spesifik di tabel → (3) fallback lama: auto-cari berdasar
+      // field Tipe/Warna kalau salah satunya diganti.
+      lepasUnitDiminta = lepasUnitCek;
+      unitIdDipilihManual = radioUnitCek ? radioUnitCek.value : null;
+      perluGantiUnit = lepasUnitDiminta || !!unitIdDipilihManual ||
+        tipeBerubah || warnaBerubah;
+      if (perluGantiUnit) fatal = true;
+
+      // Kalau pilih unit SPESIFIK yang tipe/warnanya beda dari field
+      // Tipe/Warna di atas (mis. pakai "semua tipe"), field Tipe/Warna
+      // SPK ini ikut disesuaikan ke unit yang benar-benar dipilih —
+      // supaya data SPK tidak pernah menyimpang dari unit fisiknya.
+      if (radioUnitCek) {
+        tipeBaru = radioUnitCek.dataset.tipeId;
+        warnaBaru = radioUnitCek.dataset.warna;
       }
 
       dataBaru.tipeId = tipeBaru;
@@ -987,11 +1129,44 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     // diskon/cashback), wajib konfirmasi password dulu — perubahan
     // data pembeli/pemakai/catatan saja tidak perlu.
     if (owner) {
+      if (perluGantiUnit) {
+        const namaSalesInput = await resolveNamaSales(t);
+        let judulKonteks, pesanKonteks;
+        if (lepasUnitDiminta) {
+          judulKonteks = "Lepas Unit — SPK Jadi Indent?";
+          pesanKonteks = `SPK ${t.spkNo} — pembeli ${aman(pembeli.nama)}, ` +
+            `di-input oleh ${aman(namaSalesInput)}, unit ${aman(t.tipeNama)} ` +
+            `${aman(t.warna)}. SPK ini TIDAK dibatalkan — pembeli, pembayaran, ` +
+            `dan riwayatnya tetap tersimpan. Unit fisiknya kembali jadi Ready ` +
+            `(bisa dipakai SPK lain), dan SPK ini jadi status Indent.`;
+        } else if (unitIdDipilihManual) {
+          judulKonteks = "Ganti Unit Fisik?";
+          pesanKonteks = `SPK ${t.spkNo} — pembeli ${aman(pembeli.nama)}, ` +
+            `di-input oleh ${aman(namaSalesInput)}. Unit lama (${aman(t.tipeNama)} ` +
+            `${aman(t.warna)}) akan dilepas ke stok Ready, digantikan unit baru ` +
+            `yang Anda pilih di tabel.`;
+        } else {
+          judulKonteks = "Ganti Tipe/Warna Unit?";
+          pesanKonteks = `SPK ${t.spkNo} — pembeli ${aman(pembeli.nama)}, ` +
+            `di-input oleh ${aman(namaSalesInput)}. Unit lama (${aman(t.tipeNama)} ` +
+            `${aman(t.warna)}) akan dilepas, sistem akan mencari unit ready lain ` +
+            `otomatis untuk tipe/warna baru. Kalau tidak ada, SPK ini jadi Indent.`;
+        }
+        const lanjutUnit = await konfirmasi({
+          judul: judulKonteks, pesan: pesanKonteks,
+          oke: "Lanjutkan", bahaya: true,
+        });
+        if (!lanjutUnit) {
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+      }
       if (fatal) {
         const password = await tanya({
           judul: "Konfirmasi Password",
-          pesan: "Perubahan ini berdampak ke keuangan dan/atau stok unit " +
-                 `SPK ${t.spkNo}. Masukkan password untuk konfirmasi.`,
+          pesan: `Perubahan pada SPK ${t.spkNo} (${aman(pembeli.nama)}) ini ` +
+                 `berdampak ke keuangan dan/atau stok unit. Masukkan password ` +
+                 `untuk konfirmasi.`,
           petunjuk: "Password", tipeIsian: "password",
         });
         if (password === null) {
@@ -1007,37 +1182,78 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         }
       }
       try {
-        const batch = writeBatch(dbase);
-
-        if (unitBaruDipilih !== null || (fatal && (dataBaru.tipeId !== t.tipeId ||
-            dataBaru.warna !== (t.warna || "")))) {
-          // Lepas unit lama (kalau ada & masih terkunci ke SPK ini).
+        // ── Ganti unit (kalau tipe/warna berubah) — SECARA ATOMIK,
+        // sama seperti perbaikan di alur bikin SPK baru. Dilakukan
+        // di LUAR writeBatch (Firestore tidak bisa baca-ulang di
+        // tengah batch), pakai kunciUnitTransaksi/lepasUnitTransaksi
+        // yang masing-masing sudah baca-ulang + tulis dalam satu
+        // runTransaction sendiri.
+        let unitLamaDilepas = false;
+        let unitBaruDikunci = null;
+        if (perluGantiUnit) {
           if (t.unitId) {
-            try {
-              const snapLama = await getDoc(doc(dbase, "units", t.unitId));
-              if (snapLama.exists() && snapLama.data().status === "booked") {
-                batch.update(doc(dbase, "units", t.unitId), { status: "ready", spkId: null });
-                batch.update(doc(dbase, "tipe_motor", snapLama.data().tipeId),
-                  { jumlahReady: increment(1) });
-              }
-            } catch { /* lanjut walau gagal cek unit lama */ }
+            try { await lepasUnitTransaksi(t.unitId); unitLamaDilepas = true; }
+            catch { /* unit lama sudah bukan booked, abaikan */ }
           }
-          if (unitBaruDipilih) {
-            kunciUnitKeBatch(batch, unitBaruDipilih, t.id);
-            dataBaru.unitId = unitBaruDipilih.id;
-            dataBaru.kondisiUnit = "ready";
-          } else {
+          if (lepasUnitDiminta) {
+            // (1) Lepas eksplisit — SPK jadi Indent, TIDAK cari unit
+            // pengganti sama sekali (itu maksudnya "lepas").
             dataBaru.unitId = null;
             dataBaru.kondisiUnit = "indent";
+          } else if (unitIdDipilihManual) {
+            // (2) Unit SPESIFIK dipilih Owner di tabel — kunci PERSIS
+            // unit itu (bukan cari yang lain), supaya sesuai pilihan
+            // Owner. Kalau ternyata baru saja direbut proses lain,
+            // SPK ini jatuh ke Indent (tidak diam-diam ganti ke unit
+            // lain yang tidak dipilih Owner).
+            try {
+              await kunciUnitTransaksi(unitIdDipilihManual, dataBaru.tipeId, t.id);
+              unitBaruDikunci = { id: unitIdDipilihManual };
+              dataBaru.unitId = unitIdDipilihManual;
+              dataBaru.kondisiUnit = "ready";
+            } catch {
+              kabar("Unit pilihan Anda baru saja terpakai proses lain — " +
+                "SPK ini jadi Indent, silakan pilih unit lain.", "rem");
+              dataBaru.unitId = null;
+              dataBaru.kondisiUnit = "indent";
+            }
+          } else {
+            // (3) Fallback lama — Tipe/Warna diganti tanpa pilih unit
+            // spesifik: cari unit ready pertama yang cocok, retry 3x.
+            let kandidat = await cariUnitReady(dataBaru.tipeId, dataBaru.warna);
+            for (let sisaCoba = 3; kandidat && sisaCoba > 0; sisaCoba--) {
+              try {
+                await kunciUnitTransaksi(kandidat.id, kandidat.tipeId, t.id);
+                unitBaruDikunci = kandidat;
+                break;
+              } catch {
+                kandidat = await cariUnitReady(dataBaru.tipeId, dataBaru.warna);
+              }
+            }
+            dataBaru.unitId = unitBaruDikunci ? unitBaruDikunci.id : null;
+            dataBaru.kondisiUnit = unitBaruDikunci ? "ready" : "indent";
           }
         }
 
-        batch.update(doc(dbase, "transaksi", t.id), dataBaru);
-        sertakanLog(batch, fatal ? "perubahan_spk_fatal_owner" : "perubahan_spk_diterapkan_owner", {
-          koleksi: "transaksi", docId: t.id,
-          ringkas: `${t.spkNo} · ${catatanPerubahan}`,
-        });
-        await batch.commit();
+        try {
+          const batch = writeBatch(dbase);
+          batch.update(doc(dbase, "transaksi", t.id), dataBaru);
+          sertakanLog(batch, fatal ? "perubahan_spk_fatal_owner" : "perubahan_spk_diterapkan_owner", {
+            koleksi: "transaksi", docId: t.id,
+            ringkas: `${t.spkNo} · ${catatanPerubahan}`,
+          });
+          await batch.commit();
+        } catch (errBatch) {
+          // Batch gagal SETELAH unit sempat diubah — balikkan lagi
+          // supaya tidak ada unit menggantung salah status.
+          if (unitBaruDikunci) {
+            try { await lepasUnitTransaksi(unitBaruDikunci.id); } catch { /* biarkan */ }
+          }
+          if (unitLamaDilepas && t.unitId) {
+            try { await kunciUnitTransaksi(t.unitId, t.tipeId, t.id); } catch { /* biarkan */ }
+          }
+          throw errBatch;
+        }
         kabar("Perubahan tersimpan.", "netral");
         kontainer.innerHTML = "";
         if (muatUlang) await muatUlang();
@@ -1143,6 +1359,9 @@ export async function mintaBatalkanSpk(t, muatUlang) {
   }
 
   const owner = sesi && sesi.peran === "owner";
+  const namaSalesInput = await resolveNamaSales(t);
+  const konteksSpk = `SPK ${t.spkNo} — pembeli ${aman(t.pembeli?.nama || "-")}, ` +
+    `di-input oleh ${aman(namaSalesInput)}, unit ${aman(t.tipeNama)} ${aman(t.warna)}.`;
 
   const alasan = await tanya({
     judul: owner ? "Batalkan SPK" : "Ajukan Pembatalan SPK",
@@ -1158,17 +1377,22 @@ export async function mintaBatalkanSpk(t, muatUlang) {
   if (totalDibayar > 0) {
     const lanjut = await konfirmasi({
       judul: "Sudah Ada Pembayaran Diterima",
-      pesan: `SPK ini sudah menerima ${rupiah(totalDibayar)}. Pastikan ` +
+      pesan: `${konteksSpk} Sudah menerima ${rupiah(totalDibayar)}. Pastikan ` +
              `pengembaliannya sudah/akan diurus di luar sistem sebelum ` +
-             `lanjut membatalkan. Lanjutkan?`,
+             `lanjut membatalkan. Kalau dilanjutkan: unit kembali jadi ` +
+             `Ready (bisa dipakai SPK lain), SPK ini pindah ke daftar ` +
+             `SPK Batal — riwayatnya tetap bisa dilihat tapi tidak bisa ` +
+             `diaktifkan lagi. Lanjutkan?`,
       oke: "Tetap Lanjutkan", bahaya: true,
     });
     if (!lanjut) return;
   } else {
     const lanjut = await konfirmasi({
       judul: owner ? "Batalkan SPK ini?" : "Ajukan pembatalan SPK ini?",
-      pesan: `SPK ${t.spkNo} (${t.pembeli?.nama || "-"}) akan ` +
-             `${owner ? "dibatalkan" : "diajukan pembatalannya ke Owner"}.`,
+      pesan: `${konteksSpk} Kalau ${owner ? "dibatalkan" : "disetujui pembatalannya"}: ` +
+             `unit kembali jadi Ready (bisa dipakai SPK lain), SPK ini pindah ` +
+             `ke daftar SPK Batal — riwayatnya tetap bisa dilihat tapi tidak ` +
+             `bisa diaktifkan lagi.`,
       oke: owner ? "Batalkan" : "Ajukan", bahaya: true,
     });
     if (!lanjut) return;
@@ -1177,7 +1401,7 @@ export async function mintaBatalkanSpk(t, muatUlang) {
   if (owner && t.kuitansiTercetak) {
     const password = await tanya({
       judul: "Konfirmasi Password",
-      pesan: `Data SPK ${t.spkNo} sudah terkunci (kuitansi pernah ` +
+      pesan: `${konteksSpk} Data SPK ini sudah terkunci (kuitansi pernah ` +
              `dicetak). Masukkan password untuk konfirmasi pembatalan.`,
       petunjuk: "Password", tipeIsian: "password",
     });

@@ -4,7 +4,7 @@
 import {
   dbase, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
-  sertakanLog, tandaBaru, catat,
+  sertakanLog, tandaBaru, catat, runTransaction,
 } from "./db.js";
 import { bolehAkses, sesi } from "./auth.js";
 import { PERAN } from "./roles.js";
@@ -740,6 +740,42 @@ export function kunciUnitKeBatch(batch, unit, spkId) {
   });
   batch.update(doc(dbase, "tipe_motor", unit.tipeId), {
     jumlahReady: increment(-1),
+  });
+}
+
+// ── Kunci unit, VERSI ANTI-REBUTAN ───────────────────────────────
+// Masalah kunciUnitKeBatch di atas: unit dicari lewat QUERY (baca)
+// lalu belakangan baru ditulis lewat writeBatch — ada JEDA di antara
+// keduanya. Kalau dua sales sama-sama pilih unit yang sama persis di
+// jeda itu, DUA-DUANYA bisa lolos mengunci unit yang sama (Firestore
+// batch tidak mengecek ulang kondisi terkini saat commit).
+//
+// Fungsi ini menutup celah itu: baca ULANG status unit dan menulis
+// kuncinya dalam SATU runTransaction — Firestore menjamin cuma SATU
+// pemanggil yang bisa berhasil kalau dua-duanya coba unit yang sama
+// di saat bersamaan, yang kalah otomatis dilempar error dan harus
+// coba unit lain (lihat kunciUnitReadyDenganRetry di spk.js).
+export async function kunciUnitTransaksi(unitId, tipeId, spkId) {
+  await runTransaction(dbase, async (trx) => {
+    const refUnit = doc(dbase, "units", unitId);
+    const snap = await trx.get(refUnit);
+    if (!snap.exists() || snap.data().status !== "ready") {
+      throw new Error("UNIT_SUDAH_TERKUNCI");
+    }
+    trx.update(refUnit, { status: "booked", spkId });
+    trx.update(doc(dbase, "tipe_motor", tipeId), { jumlahReady: increment(-1) });
+  });
+}
+
+// Lepas kunci unit (dipakai saat Owner ganti unit di form Ubah, atau
+// batalkan SPK) — juga lewat transaksi, konsisten dengan penguncian.
+export async function lepasUnitTransaksi(unitId) {
+  await runTransaction(dbase, async (trx) => {
+    const refUnit = doc(dbase, "units", unitId);
+    const snap = await trx.get(refUnit);
+    if (!snap.exists() || snap.data().status !== "booked") return; // sudah bukan booked, abaikan
+    trx.update(refUnit, { status: "ready", spkId: null });
+    trx.update(doc(dbase, "tipe_motor", snap.data().tipeId), { jumlahReady: increment(1) });
   });
 }
 

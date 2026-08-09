@@ -13,6 +13,7 @@ import { muatLeasing, leasingDari } from "./leasing.js";
 import { muatRekening, rekeningDari } from "./rekening.js";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
+const BATAS_LAPORAN_DEFAULT = 500;
 
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
 
@@ -235,6 +236,7 @@ export async function halamanLaporan(wadah) {
     </div>
 
     <div id="l-ringkasan" class="tiga" style="margin-top:16px"></div>
+    <div id="l-peringatan-terpotong" hidden style="margin-top:10px"></div>
 
     <div style="overflow-x:auto; margin-top:16px">
       <table class="tabel">
@@ -254,6 +256,7 @@ export async function halamanLaporan(wadah) {
   const dariEl = wadah.querySelector("#l-dari");
   const sampaiEl = wadah.querySelector("#l-sampai");
   const ringkasanEl = wadah.querySelector("#l-ringkasan");
+  const peringatanEl = wadah.querySelector("#l-peringatan-terpotong");
   const barisEl = wadah.querySelector("#l-baris");
   const fCaraBayarEl = wadah.querySelector("#l-f-carabayar");
   const fStatusEl = wadah.querySelector("#l-f-status");
@@ -264,6 +267,7 @@ export async function halamanLaporan(wadah) {
   const wadahTagihanMassal = wadah.querySelector("#l-f-tagihan-massal");
   let dataSpk = [];   // hasil query rentang tanggal, belum difilter
   let dataTampil = []; // setelah filter Cara Bayar/Status/Leasing/Sales/Nama
+  let kemungkinanTerpotong = false;
 
   const salesSaja = sesi && sesi.peran === "sales";
   wadahFSales.hidden = salesSaja; // Sales cuma lihat datanya sendiri, filter ini percuma
@@ -281,11 +285,17 @@ export async function halamanLaporan(wadah) {
     </article>`;
   }
 
-  async function muat() {
+  async function muat(ambilSemua = false) {
     barisEl.innerHTML = `<tr><td colspan="8" class="hampa">Memuat…</td></tr>`;
     const dari = new Date(dariEl.value + "T00:00:00");
     const sampai = new Date(sampaiEl.value + "T23:59:59");
     const sales = sesi && sesi.peran === "sales";
+    // Default 500 (irit biaya baca Firestore & tetap ringan di HP).
+    // Kalau pengguna klik "Ambil Semua" karena curiga datanya
+    // terpotong, batas dinaikkan jauh (10.000) — bukan tanpa batas
+    // sama sekali, supaya tidak ada yang bisa tidak sengaja menarik
+    // jutaan dokumen sekaligus dan bikin tagihan membengkak.
+    const batas = ambilSemua ? 10000 : BATAS_LAPORAN_DEFAULT;
 
     try {
       if (sales) {
@@ -295,7 +305,7 @@ export async function halamanLaporan(wadah) {
         const snap = await getDocs(query(
           collection(dbase, "transaksi"),
           where("salesUid", "==", sesi.uid),
-          limit(500)
+          limit(batas)
         ));
         dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
           .filter((t) => {
@@ -309,10 +319,15 @@ export async function halamanLaporan(wadah) {
           where("dibuatPada", ">=", dari),
           where("dibuatPada", "<=", sampai),
           orderBy("dibuatPada", "desc"),
-          limit(500)
+          limit(batas)
         ));
         dataSpk = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       }
+      // Kalau jumlah yang kembali PERSIS sama dengan batas yang
+      // diminta, kemungkinan besar ada lagi yang terpotong (bukan
+      // kebetulan pas). Peringatan ini yang tadinya TIDAK ADA sama
+      // sekali — orang bisa mengira tabel sudah berisi semuanya.
+      kemungkinanTerpotong = dataSpk.length >= batas;
     } catch (err) {
       barisEl.innerHTML = `<tr><td colspan="8" class="hampa">
         Gagal memuat: ${aman(err.message)}</td></tr>`;
@@ -387,6 +402,24 @@ export async function halamanLaporan(wadah) {
   wadah.querySelector("#l-unduh-pdf").addEventListener("click", () => unduhPdf(dataTampil));
 
   function gambarTabel() {
+    if (kemungkinanTerpotong) {
+      peringatanEl.hidden = false;
+      peringatanEl.innerHTML = `<div class="kartu" style="background:#FFF7E6;border:1px solid #E6C34D">
+        <p style="margin:0;font-size:12.5px;color:#6b5a1e">
+          ⚠️ Data yang tampil mungkin <b>terpotong</b> (sudah kena batas
+          ${BATAS_LAPORAN_DEFAULT} baris) — kemungkinan ada SPK lain di
+          rentang tanggal ini yang belum kelihatan.
+          <button class="tombol tombol--kecil" id="l-ambil-semua"
+            style="margin-left:6px">Ambil Semua</button>
+        </p>
+      </div>`;
+      peringatanEl.querySelector("#l-ambil-semua")
+        .addEventListener("click", () => muat(true));
+    } else {
+      peringatanEl.hidden = true;
+      peringatanEl.innerHTML = "";
+    }
+
     const totalNilai = dataTampil.reduce((s, t) => s + (t.hargaOtr || 0), 0);
     const jmlReady = dataTampil.filter((t) => t.kondisiUnit === "ready").length;
     const jmlIndent = dataTampil.filter((t) => t.kondisiUnit === "indent").length;
