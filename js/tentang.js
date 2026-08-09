@@ -9,6 +9,15 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.2.3", tanggal: "Agustus 2026",
+    judul: "Proteksi Pembayaran Dobel/Salah Input di \"Terima Pembayaran\"",
+    butir: [
+      "PERBAIKAN BUG PENTING: alur \"Terima Pembayaran\" untuk cicilan/pelunasan (bukan pembayaran pertama) TIDAK PUNYA langkah konfirmasi sama sekali sebelumnya — ketik jumlah lalu OK langsung tercatat & tercetak. Sekarang ditambahkan langkah tinjau ulang wajib (SPK, pembeli, jumlah, sisa tagihan setelahnya) sebelum benar-benar diproses.",
+      "Deteksi otomatis kalau jumlah yang diketik PERSIS SAMA dengan pembayaran TERAKHIR yang tercatat untuk SPK itu — muncul peringatan tegas \"⚠️ Jumlah Sama Seperti Pembayaran Terakhir\" dan wajib konfirmasi eksplisit \"Ya, Ini Memang Benar\", bukan cuma OK biasa. Ini menutup celah yang menyebabkan kasus pembayaran tercatat dua kali dengan angka sama tanpa ada yang sempat sadar.",
+      "Kunci anti-klik-ganda ditambahkan — kalau tombol \"Terima Pembayaran\" diklik dua kali cepat (jaringan lambat, dsb) untuk SPK yang sama, permintaan kedua ditolak halus sampai yang pertama selesai diproses.",
+    ],
+  },
+  {
     versi: "3.2.2", tanggal: "Agustus 2026",
     judul: "Minimal Uang Muka (DP) Dinaikkan Jadi Rp1.000.000",
     butir: [

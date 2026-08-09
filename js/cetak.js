@@ -864,6 +864,11 @@ export async function cetakKuitansiRevisi(t, revisi) {
 // cetak ulang yang sama. Cuma PEMBAYARAN PERTAMA yang mengunci data
 // pembeli/pemakai/unit (wajib password) — sesudah itu, tambah
 // pembayaran tidak perlu password lagi, tinggal catat & cetak.
+// Kunci anti-klik-ganda untuk "Terima Pembayaran" (lihat pemakaiannya
+// di dalam mintaCetakKuitansi) — modul-level supaya bertahan lintas
+// pemanggilan, isinya id SPK yang pembayarannya sedang diproses.
+const sedangMemprosesPembayaran = new Set();
+
 export async function mintaCetakKuitansi(t, muatUlang) {
   if (!t) return;
 
@@ -998,7 +1003,11 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   }
 
   // ── Sudah terkunci, BELUM lunas: catat pembayaran BERIKUTNYA
-  // (cicilan/pelunasan) — tidak perlu password lagi.
+  // (cicilan/pelunasan) — tidak perlu password lagi, TAPI tetap
+  // wajib ada langkah tinjau ulang (sebelumnya TIDAK ADA sama
+  // sekali di sini — beda dari pembayaran pertama yang sudah punya
+  // konfirmasi. Ini titik yang menyebabkan kasus SPK yang tercatat
+  // pembayaran sama persis dua kali tanpa ada yang sempat sadar).
   const totalSaatIni = hitungTotalDibayar(tKerja);
   const sisaSebelum = (tKerja.hargaOtr || 0) - totalSaatIni;
   const isian = await tanya({
@@ -1013,6 +1022,42 @@ export async function mintaCetakKuitansi(t, muatUlang) {
     kabar("Jumlah harus lebih dari 0.", "rem");
     return;
   }
+
+  // Deteksi kemungkinan input dobel — jumlah PERSIS sama dengan
+  // pembayaran TERAKHIR yang tercatat untuk SPK ini. Bukan berarti
+  // otomatis salah (bisa saja kebetulan/memang cicilan tetap tiap
+  // bulan), makanya tidak diblokir — tapi wajib disadari & dikonfirmasi
+  // secara eksplisit, bukan lewat begitu saja tanpa jeda.
+  const riwayatSaatIni = Array.isArray(tKerja.riwayatBayar) ? tKerja.riwayatBayar : [];
+  const entriTerakhir = riwayatSaatIni.length ? riwayatSaatIni[riwayatSaatIni.length - 1] : null;
+  const kemungkinanDobel = entriTerakhir && entriTerakhir.jumlah === jumlahBaru;
+
+  const sisaSetelah = Math.max(sisaSebelum - jumlahBaru, 0);
+  const lanjutBayar = await konfirmasi({
+    judul: kemungkinanDobel ? "⚠️ Jumlah Sama Seperti Pembayaran Terakhir" : "Konfirmasi Pembayaran",
+    pesan: (kemungkinanDobel
+      ? `PERHATIAN: pembayaran TERAKHIR yang tercatat untuk SPK ini juga ` +
+        `persis ${rupiah(entriTerakhir.jumlah)} (${aman(entriTerakhir.keterangan)}, ` +
+        `${tanggal(entriTerakhir.tanggal)}). Pastikan ini BUKAN pengulangan/salah ` +
+        `input dari yang sebelumnya. `
+      : "") +
+      `SPK ${tKerja.spkNo} — pembeli ${aman(tKerja.pembeli?.nama || "-")}. ` +
+      `Akan dicatat: ${rupiah(jumlahBaru)}. Sisa tagihan setelah ini: ${rupiah(sisaSetelah)}.`,
+    oke: kemungkinanDobel ? "Ya, Ini Memang Benar" : "Ya, Catat Pembayaran",
+    bahaya: !!kemungkinanDobel,
+  });
+  if (!lanjutBayar) return;
+
+  // Kunci sederhana anti-klik-ganda — tombol "Terima Pembayaran"
+  // bisa saja diklik dua kali cepat (jaringan lambat, atau tidak
+  // sadar sudah tersubmit) sebelum baris di tabel sempat dimuat
+  // ulang dan tombolnya berubah. Selama masih diproses untuk SPK
+  // yang sama, permintaan berikutnya ditolak halus.
+  if (sedangMemprosesPembayaran.has(t.id)) {
+    kabar("Pembayaran untuk SPK ini sedang diproses, tunggu sebentar…", "rem");
+    return;
+  }
+  sedangMemprosesPembayaran.add(t.id);
 
   try {
     const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
@@ -1054,6 +1099,8 @@ export async function mintaCetakKuitansi(t, muatUlang) {
     if (muatUlang) await muatUlang();
   } catch (err) {
     kabar("Gagal mencatat pembayaran: " + err.message, "rem");
+  } finally {
+    sedangMemprosesPembayaran.delete(t.id);
   }
 }
 
