@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="icon" href="./logo.png">
 <link rel="apple-touch-icon" href="./logo.png">
-<link rel="stylesheet" href="./css/style.css?v=3.2.6">
+<link rel="stylesheet" href="./css/style.css?v=3.3.0">
 </head>
 <body>
 
@@ -63,6 +63,14 @@
   // supaya tetap jalan APA PUN yang terjadi ke app.js (termasuk
   // kalau app.js gagal total karena ada file yang hilang), jadi
   // batas waktu gagal-muat di bawah ini tetap bisa memberi tahu.
+  (function () {
+    // Tema Kemerdekaan aktif OTOMATIS sepanjang bulan Agustus (bulan
+    // HUT RI) — cukup deteksi tanggal lokal, tidak perlu diatur
+    // manual tiap tahun.
+    if (new Date().getMonth() === 7) {
+      document.documentElement.classList.add("tema-kemerdekaan");
+    }
+  })();
   (function () {
     var barEl = document.getElementById("muat-bar-isi");
     var persenEl = document.getElementById("muat-persen");
@@ -155,13 +163,17 @@
       </ul>
     </div>
     <p class="masuk-kaki-brand">
-      <span id="versi">v3.2.6</span>
+      <span id="versi">v3.3.0</span>
       <span data-merek>©SRISP 2026</span>
     </p>
   </aside>
 
   <!-- Kolom kanan: panel masuk -->
   <section class="masuk-panel">
+    <div class="tema-bunting" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
     <div class="masuk-panel-isi">
       <p class="eyebrow">Akses terbatas karyawan</p>
       <h2 class="masuk-judul">Masuk ke sistem</h2>
@@ -203,7 +215,7 @@
     </div>
     <nav id="nav" class="nav"></nav>
     <div class="sisi-kaki">
-      <span id="sisi-versi">v3.2.6</span>
+      <span id="sisi-versi">v3.3.0</span>
       <span data-merek>©SRISP 2026</span>
     </div>
   </aside>
@@ -254,6 +266,6 @@
 
 <div id="kabar" class="kabar-wadah" aria-live="polite"></div>
 
-<script type="module" src="./js/app.js?v=3.2.6"></script>
+<script type="module" src="./js/app.js?v=3.3.0"></script>
 </body>
 </html>
