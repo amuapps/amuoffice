@@ -82,7 +82,7 @@ export function pecahHarga(otr, mewah = false) {
 // ── Penanda versi ─────────────────────────────────────────────
 // Naikkan angkanya setiap kali deploy supaya browser tidak
 // menyajikan file lama dari cache.
-export const VERSI = "3.1.0";
+export const VERSI = "3.2.2";
 
 // Zona waktu untuk semua tampilan tanggal.
 // Firestore menyimpan waktu dalam UTC — ini yang menerjemahkannya.
@@ -98,6 +98,11 @@ export const MODE_UJI = false;
 // Diambil dari formulir Surat Pesanan Kendaraan yang berlaku di
 // dealer Piaggio. Dicetak di lembar SPK, jadi mengikat pemesan.
 export const MASA_BERLAKU_SPK = 60; // hari, terhitung sejak unit siap
+
+// Uang muka (DP) minimum supaya SPK bisa disimpan — sesuai Syarat No.4
+// di SPK ("uang muka telah dibayar"). Ubah angka ini saja kalau
+// kebijakannya berubah, tidak perlu cari-cari di spk.js.
+export const DP_MINIMUM = 1000000;
 
 export const SYARAT_SPK = [
   "Harga yang tercantum dalam Surat Pesanan ini TIDAK MENGIKAT.",

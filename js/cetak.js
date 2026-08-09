@@ -9,7 +9,7 @@
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
   nomorBerikutnya } from "./db.js";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK } from "./config.js";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js";
 import { rupiah, terbilang, aman, tanggal } from "./ui.js";
 import { rekeningDari, muatRekening } from "./rekening.js";
 import { leasingDari, muatLeasing } from "./leasing.js";
@@ -161,6 +161,9 @@ const CSS_CETAK = `
   .c-nomor table { font-size: 11px; }
   .c-judul { text-align: center; font-size: 15px; font-weight: 600;
     margin: 10px 0; letter-spacing: .02em; }
+  .c-peringatan-dp { background: #FDECEC; border: 1.5px solid #D33; color: #A00;
+    padding: 8px 10px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    text-align: center; margin: 8px 0; }
   .c-dua, .c-badan { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
     border: 1px solid #999; padding: 9px; margin-bottom: -1px; }
   .c-tabel { width: 100%; border-collapse: collapse; }
@@ -202,6 +205,8 @@ const CSS_CETAK = `
     * { color: #000 !important; border-color: #000 !important; }
     .lembar-cetak::before { opacity: .06 !important; }
     .c-pt { font-size: 17px; }
+    .c-peringatan-dp { background: #fff !important; border: 2px solid #000 !important;
+      color: #000 !important; font-size: 12px; }
     .c-kecil { font-size: 11px; }
     .c-judul { font-size: 17px; }
     .c-label, .c-isi, .c-sub, .c-tabel { font-size: 12px; }
@@ -360,6 +365,9 @@ export async function cetakSpk(t) {
     </header>
 
     <h1 class="c-judul">Surat Pesanan Kendaraan</h1>
+    ${hitungTotalDibayar(t) < DP_MINIMUM ? `<p class="c-peringatan-dp">
+      ⚠️ UANG MUKA BELUM MEMENUHI SYARAT MINIMUM (${rupiah(DP_MINIMUM)}) —
+      SPK INI BELUM SAH sesuai Syarat No. 4 di bawah</p>` : ""}
 
     <section class="c-dua">
       <table class="c-tabel">
@@ -773,6 +781,81 @@ export async function cetakTagihanLeasingBatch(daftar) {
   tabBaru.document.body.innerHTML = potongan.join("") +
     `<div class="aksi-cetak"><button type="button" onclick="window.print()">
       Cetak / Simpan PDF (${daftar.length} lembar)</button></div>`;
+}
+
+// ── Kuitansi Revisi ────────────────────────────────────────────
+// Dicetak otomatis saat Owner mengoreksi DP setelah kuitansi asli
+// sudah pernah dicetak (lewat form Ubah SPK). SENGAJA dokumen
+// TERPISAH dari kuitansi asli — bukan menimpanya — supaya kuitansi
+// yang sudah di tangan konsumen tetap sah sebagai riwayat, dan
+// jelas terlihat kapan/kenapa/oleh siapa dikoreksi.
+export async function cetakKuitansiRevisi(t, revisi) {
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Kuitansi Revisi — ${aman(revisi.nomorRevisi)}</title>
+    <style>${CSS_KUITANSI}</style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  const selisih = revisi.keJumlah - revisi.dariJumlah;
+  const isi = `<div class="k-kuitansi">
+    <div class="k-atas">
+      <div class="k-kop">
+        <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div><p class="k-pt">${aman(SHOWROOM.nama)}</p></div>
+      </div>
+      <table class="k-jenis-tabel">
+        <tr><td>KETERANGAN</td><td>Revisi Kuitansi</td></tr>
+      </table>
+    </div>
+
+    <h2 class="k-judul">KUITANSI REVISI</h2>
+    <p class="k-nomor-tgl">No: ${aman(revisi.nomorRevisi)} &nbsp;·&nbsp; ${tanggal(revisi.pada)}</p>
+
+    <p class="k-kecil" style="margin-top:10px">
+      Merevisi kuitansi asli No. <b>${aman(t.kuitansiNo || "-")}</b>
+      SPK <b>${aman(t.spkNo)}</b> — ${aman(t.pembeli?.nama || "-")}.
+      Kuitansi asli TETAP SAH sebagai riwayat, dokumen ini adalah
+      koreksi resmi atas jumlah yang tercatat.</p>
+
+    <div class="k-grid2" style="margin-top:14px">
+      <div>
+        <p class="k-jumlah-label">Jumlah semula (kuitansi asli)</p>
+        <p class="k-kalimat-isi">${rupiah(revisi.dariJumlah)}</p>
+
+        <p class="k-jumlah-label" style="margin-top:9px">Dikoreksi menjadi</p>
+        <p class="k-jumlah-besar">${rupiah(revisi.keJumlah)}</p>
+        <p class="k-terbilang-kotak">${aman(terbilang(revisi.keJumlah))}</p>
+
+        <p class="k-kecil" style="margin-top:6px">
+          Selisih: <b>${selisih >= 0 ? "+" : ""}${rupiah(selisih)}</b></p>
+      </div>
+      <div>
+        <p class="k-jumlah-label">Alasan Koreksi</p>
+        <p class="k-kalimat-isi">${aman(revisi.alasan)}</p>
+        <p class="k-jumlah-label" style="margin-top:9px">Dikoreksi Oleh</p>
+        <p class="k-kalimat-isi">${aman(revisi.olehNama)}</p>
+      </div>
+    </div>
+
+    <section class="k-ttd">
+      <div><span class="k-garis"></span>Tanda Tangan &amp; Nama Jelas
+        <br><span class="k-kecil">Konsumen</span></div>
+      <div><span class="k-garis"></span>Tanda Tangan, Nama Jelas &amp; Cap
+        <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
+    </section>
+    <p class="k-kaki">Dokumen koreksi resmi — bukan pengganti kuitansi asli.</p>
+  </div>
+
+  <div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>`;
+
+  tabBaru.document.body.innerHTML = isi;
 }
 
 // ── Catat Pembayaran & Cetak Kuitansi ───────────────────────────

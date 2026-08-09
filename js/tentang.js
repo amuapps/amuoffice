@@ -9,6 +9,31 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.2.2", tanggal: "Agustus 2026",
+    judul: "Minimal Uang Muka (DP) Dinaikkan Jadi Rp1.000.000",
+    butir: [
+      "Batas minimal DP untuk SPK Baru dinaikkan dari \"asal lebih dari Rp0\" jadi WAJIB minimal Rp1.000.000 — angka ini diatur di satu tempat (config.js → DP_MINIMUM), gampang diubah lagi kalau kebijakannya berubah tanpa perlu cari-cari di kode.",
+      "Peringatan merah di dokumen SPK cetak ikut disesuaikan — sekarang muncul untuk SPK (data lama) dengan DP di bawah Rp1.000.000, bukan cuma yang persis Rp0.",
+    ],
+  },
+  {
+    versi: "3.2.1", tanggal: "Agustus 2026",
+    judul: "SPK Wajib Ada Uang Muka Sebelum Bisa Disimpan",
+    butir: [
+      "SPK Baru sekarang WAJIB diisi \"Jumlah dibayar sekarang\" lebih dari Rp0 sebelum bisa disimpan — sebelumnya sistem membiarkan SPK tersimpan & tercetak dengan DP Rp0, padahal Syarat No. 4 di dokumen SPK sendiri mensyaratkan uang muka sudah dibayar sebelum SPK dianggap sah.",
+      "Dokumen SPK: kotak peringatan merah tegas otomatis muncul di bagian atas cetakan kalau SPK-nya (khusus data LAMA yang kadung tersimpan sebelum validasi ini ada) ternyata belum ada pembayaran sama sekali — supaya tidak disalahartikan sebagai SPK yang sudah sah oleh siapa pun yang memegang kertasnya.",
+    ],
+  },
+  {
+    versi: "3.2.0", tanggal: "Agustus 2026",
+    judul: "Form Ubah SPK (Owner) Dirombak Jadi 3 Tab, Setara Otoritas Input Awal",
+    butir: [
+      "Form \"Ubah\" khusus Owner sekarang dibagi 3 tab persis seperti SPK Baru — Customer Info, Internal Info, Payment Info — supaya tidak lagi satu halaman panjang tak berujung.",
+      "Field baru \"Jumlah Dibayar Sekarang (DP)\" akhirnya ada di form Ubah (sebelumnya tidak ada field ini sama sekali, jadi Owner tidak bisa memperbaiki salah input DP). Kalau kuitansi belum pernah dicetak, bebas diedit langsung. Kalau kuitansi SUDAH dicetak, mengubah angka ini otomatis memicu alur revisi: wajib isi alasan, konfirmasi password, sistem mencatat riwayat revisi (jumlah lama → baru, siapa, kapan, kenapa) TANPA menimpa kuitansi asli, dan otomatis mencetak dokumen \"Kuitansi Revisi\" terpisah bernomor sama + kode -REV1/-REV2/dst.",
+      "Tab Internal Info (baru): Owner sekarang bisa memindahkan SPK ke sales lain (\"Atas nama karyawan\"), serta mengubah Agen & Fee Agen — sebelumnya field-field ini tidak bisa diubah lewat form Ubah sama sekali.",
+    ],
+  },
+  {
     versi: "3.1.0", tanggal: "Agustus 2026",
     judul: "Owner Bisa Kelola Unit Sepenuhnya, Keamanan Diperketat, Laporan Diperluas",
     butir: [

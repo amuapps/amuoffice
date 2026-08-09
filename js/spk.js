@@ -14,6 +14,7 @@ import {
 } from "./db.js";
 import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js";
 import { batasDiskon, PERAN } from "./roles.js";
+import { DP_MINIMUM } from "./config.js";
 import { muatTipe, tipeDari } from "./tipe.js";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
   kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js";
@@ -24,7 +25,7 @@ import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js";
 import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js";
 import { muatAgen, agenAktif } from "./agen.js";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales } from "./cetak.js";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi } from "./cetak.js";
 import { konfirmasi, tanya, beritahu } from "./dialog.js";
 import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js";
 import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js";
@@ -450,6 +451,24 @@ export async function halamanSpk(wadah) {
       return;
     }
 
+    // WAJIB ada uang muka minimal Rp1.000.000 — sesuai Syarat &
+    // Ketentuan di dokumen SPK sendiri (poin 4: "SPK sah apabila
+    // uang muka telah dibayar"). Sebelumnya sistem membiarkan SPK
+    // tersimpan & tercetak dengan DP Rp0, yang berarti SPK-nya
+    // sendiri belum sah menurut aturannya sendiri — celah ini yang
+    // ditutup di sini. Angka minimumnya diatur di config.js
+    // (DP_MINIMUM), bukan angka mati di sini.
+    const bttSblmSimpan = !wadahTT.hidden;
+    const jumlahBayarCek = bttSblmSimpan
+      ? bacaAngka(wadah.querySelector("#s-jml-tunai")) + bacaAngka(wadah.querySelector("#s-jml-transfer"))
+      : bacaAngka(wadah.querySelector("#s-bayar"));
+    if (jumlahBayarCek < DP_MINIMUM) {
+      kabar(`SPK wajib ada uang muka (DP) minimal ${rupiah(DP_MINIMUM)} ` +
+        `sebelum bisa disimpan — isi "Jumlah dibayar sekarang" di tab ` +
+        `Payment Info.`, "rem");
+      return;
+    }
+
     tombol.disabled = true;
     tombol.textContent = "Menyimpan…";
 
@@ -773,23 +792,90 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
   let daftarTipe = [], daftarLeasingAktif = [], daftarRekeningAktif = [];
   let unitSekarangNoRangka = "";
   let daftarUnitReady = [];
+  let daftarAgenPilihan = [], daftarSalesPilihan = [];
   if (owner) {
     const [, , , unitSnap, unitReadySnap] = await Promise.all([
       muatTipe().then((d) => { daftarTipe = d; }),
       muatLeasing(), muatRekening(),
       t.unitId ? getDoc(doc(dbase, "units", t.unitId)) : Promise.resolve(null),
       muatSemuaUnitReadyRingkas(),
+      muatAgen(),
     ]);
     daftarLeasingAktif = leasingAktif();
     daftarRekeningAktif = rekeningAktif();
     if (unitSnap && unitSnap.exists()) unitSekarangNoRangka = unitSnap.data().noRangka || "";
     daftarUnitReady = unitReadySnap;
+    daftarAgenPilihan = agenAktif();
+    const snapKaryawan = await getDocs(collection(dbase, "users"));
+    daftarSalesPilihan = snapKaryawan.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((u) => u.aktif !== false && u.peran !== "owner")
+      .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
   }
   const kredit = t.kredit || {};
   const caraBayarLama = t.caraBayar || [];
+  const bisaLihatFeeAgen = true; // form ini SELALU owner-only
 
-  const panelOwnerLanjutan = !owner ? "" : `
-    <h4 class="judul" style="font-size:14px;margin-top:14px">Unit &amp; Harga</h4>
+  // Jumlah dibayar sekarang (DP) — beda perlakuan tergantung apakah
+  // kuitansi pertama SUDAH tercetak atau belum (lihat submit handler
+  // di bawah untuk alur revisinya).
+  const dpSaatIni = t.jumlahBayar || 0;
+
+  // ── TAB: Customer Info ─────────────────────────────────────────
+  const tabCustomer = `<div class="tab-panel" data-panel="ecustomer">
+    <h4 class="judul" style="font-size:14px">Pembeli</h4>
+    ${formPelanggan(t.pembeli || {}, "epembeli", saranKecamatan, saranKota)}
+
+    <label class="pilihan" style="margin-top:8px">
+      <input type="checkbox" id="e-sama-${t.id}" ${pemakaiSama ? "checked" : ""}>
+      <span>Pemakai kendaraan sama dengan pembeli di atas</span>
+    </label>
+    <div id="e-wadah-pemakai-${t.id}" ${pemakaiSama ? "hidden" : ""}>
+      <h4 class="judul" style="font-size:14px;margin-top:8px">Pemakai</h4>
+      ${formPelanggan(t.pemakai || {}, "epemakai", saranKecamatan, saranKota)}
+    </div>
+  </div>`;
+
+  // ── TAB: Internal Info ─────────────────────────────────────────
+  const tabInternal = !owner ? "" : `<div class="tab-panel" data-panel="einternal" hidden>
+    <label class="label label--gelap" for="e-sales-${t.id}">Atas nama karyawan
+      <span class="kunci">pindahkan SPK ini ke sales lain kalau perlu</span></label>
+    <select class="isian" id="e-sales-${t.id}">
+      <option value="" ${!t.salesUid || t.salesUid === sesi.uid ? "selected" : ""}>
+        OWNER (saya sendiri)</option>
+      ${daftarSalesPilihan.map((s) => `<option value="${s.id}"
+        ${s.id === t.salesUid ? "selected" : ""}>
+        ${aman(s.nama)} — ${aman(PERAN[s.peran]?.label || s.peran)}</option>`).join("")}
+    </select>
+    <p class="petunjuk">Sekarang tercatat atas nama: <b>${aman(t.salesNama || "-")}</b>.
+      Mengubah ini memindahkan SPK (dan biasanya komisi/laporan penjualannya)
+      ke karyawan lain — jejak siapa yang BENAR-BENAR input tetap tersimpan
+      terpisah, tidak ikut berubah.</p>
+
+    <label class="label label--gelap" for="e-diskon-${t.id}">Diskon (Rp)</label>
+    <input class="isian" id="e-diskon-${t.id}" value="${rupiah(t.diskon || 0)}">
+
+    <label class="label label--gelap" for="e-cashback-${t.id}">Cashback (Rp)</label>
+    <input class="isian" id="e-cashback-${t.id}" value="${rupiah(t.cashback || 0)}">
+
+    <label class="label label--gelap" for="e-agen-${t.id}">Agen
+      <span class="kunci">opsional</span></label>
+    <select class="isian" id="e-agen-${t.id}">
+      <option value="" ${!t.agenId ? "selected" : ""}>— tidak ada agen —</option>
+      ${daftarAgenPilihan.map((a) => `<option value="${a.id}"
+        ${a.id === t.agenId ? "selected" : ""}>${aman(a.idAgen)} · ${aman(a.nama)}</option>`).join("")}
+    </select>
+    <label class="label label--gelap" for="e-fee-agen-${t.id}">Fee Agen (Rp)</label>
+    <input class="isian" id="e-fee-agen-${t.id}" value="${rupiah(t.feeAgen || 0)}">
+
+    <label class="label label--gelap" for="e-catatan-${t.id}">Catatan internal</label>
+    <textarea class="isian" id="e-catatan-${t.id}" rows="2"
+      >${aman(t.catatan || "")}</textarea>
+  </div>`;
+
+  // ── TAB: Payment Info ───────────────────────────────────────────
+  const tabPayment = !owner ? "" : `<div class="tab-panel" data-panel="epayment" hidden>
+    <h4 class="judul" style="font-size:14px">Unit &amp; Harga</h4>
     <p class="petunjuk">Unit sekarang: <b>${aman(t.tipeNama)} ${aman(t.warna)}</b>
       ${unitSekarangNoRangka ? ` — No. Rangka ${aman(unitSekarangNoRangka)}` : ""}</p>
     <label class="label">Tipe motor
@@ -816,17 +902,10 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     <p class="petunjuk">SPK ini <b>TIDAK dibatalkan</b> — pembeli, pembayaran,
       dan riwayatnya tetap tersimpan apa adanya. Yang berubah cuma status
       unit fisiknya: kembali jadi <b>Ready</b> (bisa dipakai SPK lain), dan
-      SPK ini berubah status jadi <b>Indent</b> (menunggu unit lain masuk).
-      Pilihan ini cocok kalau unitnya "direbut" untuk alasan di luar sistem
-      (mis. sudah dijanjikan ke pembeli lain secara langsung).</p>
+      SPK ini berubah status jadi <b>Indent</b> (menunggu unit lain masuk).</p>
 
     <p class="label label--gelap" style="margin-top:10px">
       Atau ganti ke unit fisik tertentu</p>
-    <p class="petunjuk">Pilih SATU unit di tabel bawah untuk mengunci SPK ini
-      KHUSUS ke unit fisik itu (bisa tipe/warna sama — misal cuma tukar
-      nomor rangka — atau tipe/warna lain kalau dicentang "semua tipe").
-      Kalau tidak pilih apa pun di sini, sistem pakai pencarian otomatis
-      di atas (berdasar field Tipe/Warna).</p>
     <label class="pilihan">
       <input type="checkbox" id="e-unit-semua-tipe-${t.id}">
       <span>Tampilkan semua tipe (bukan cuma tipe yang dipilih di atas)</span>
@@ -843,6 +922,18 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       ${caraBayarLama.includes("transfer") ? "checked" : ""}><span>Transfer</span></label>
     <label class="pilihan"><input type="checkbox" id="e-kredit-${t.id}"
       ${caraBayarLama.includes("kredit") ? "checked" : ""}><span>Kredit (Leasing)</span></label>
+
+    <label class="label label--gelap" for="e-bayar-${t.id}" style="margin-top:8px">
+      Jumlah Dibayar Sekarang (DP)</label>
+    <input class="isian" id="e-bayar-${t.id}" value="${rupiah(dpSaatIni)}">
+    ${!t.kuitansiTercetak ? `<p class="petunjuk">Kuitansi belum pernah dicetak
+        untuk SPK ini — angka ini masih bisa diubah bebas, langsung tersimpan.</p>`
+      : `<p class="petunjuk"><b>Kuitansi pertama SUDAH pernah dicetak</b>
+        (${aman(t.kuitansiNo || "")}). Kalau angka ini diubah, sistem TIDAK
+        menimpa kuitansi lama — melainkan mencatatnya sebagai
+        <b>revisi</b> (alasan wajib diisi) dan otomatis mencetak
+        <b>Kuitansi Revisi</b> bernomor sama + kode REV, supaya kuitansi asli
+        yang sudah di tangan konsumen tetap punya jejak riwayatnya.</p>`}
 
     <div id="e-wadah-rekening-${t.id}" ${!caraBayarLama.includes("transfer") ? "hidden" : ""}>
       <label class="label">Rekening tujuan
@@ -861,6 +952,10 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
             ${l.id === kredit.leasingId ? "selected" : ""}>${aman(l.nama)}</option>`).join("")}
         </select>
       </label>
+      <label class="label">Tagihan ke Leasing
+        <span class="kunci">OTR &minus; DP</span></label>
+      <input class="isian" id="e-tagihan-leasing-${t.id}"
+        value="${rupiah(Math.max((t.hargaOtr || 0) - dpSaatIni, 0))}" disabled>
       <div class="dua">
         <label class="label">Cicilan per bulan
           <input class="isian" id="e-cicilan-${t.id}" value="${rupiah(kredit.cicilan || 0)}">
@@ -876,20 +971,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
             .toISOString().slice(0, 10) || "" : ""}">
       </label>
     </div>
-
-    <h4 class="judul" style="font-size:14px;margin-top:14px">Diskon, Cashback &amp; Catatan</h4>
-    <div class="dua">
-      <label class="label">Diskon
-        <input class="isian" id="e-diskon-${t.id}" value="${rupiah(t.diskon || 0)}">
-      </label>
-      <label class="label">Cashback
-        <input class="isian" id="e-cashback-${t.id}" value="${rupiah(t.cashback || 0)}">
-      </label>
-    </div>
-    <label class="label">Catatan internal
-      <textarea class="isian" id="e-catatan-${t.id}" rows="2"
-        >${aman(t.catatan || "")}</textarea>
-    </label>`;
+  </div>`;
 
   kontainer.innerHTML = `<div class="lembar" style="margin-top:10px">
     <h3 class="judul" style="font-size:15px">
@@ -897,33 +979,31 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       <span class="mono">${aman(t.spkNo)}</span>
     </h3>
     <p class="petunjuk">${owner
-      ? `Sebagai Owner, Anda bisa mengubah SEMUA data SPK ini — termasuk unit, ` +
-        `harga, cara bayar, sampai kredit/cash. `
+      ? `Sebagai Owner, Anda bisa mengubah SEMUA data SPK ini — sama seperti ` +
+        `saat pertama kali input, termasuk unit, harga, cara bayar, DP, sampai ` +
+        `siapa sales-nya. `
       : "Cuma data pembeli &amp; pemakai yang bisa diajukan di sini. Unit, harga, " +
         "dan cara bayar tidak bisa diubah lewat form ini."}
       ${owner
         ? (terkunci
             ? `<b>Kuitansi SPK ini sudah dicetak (${aman(t.kuitansiNo || "")})</b> — ` +
               `perubahan yang berdampak ke keuangan/stok akan diminta konfirmasi ` +
-              `password sebelum tersimpan. Nomor kuitansi TIDAK akan berubah.`
+              `password sebelum tersimpan. Nomor kuitansi asli TIDAK akan berubah.`
             : "Perubahan yang berdampak ke keuangan/stok (unit, harga, cara bayar, " +
-              "kredit, diskon, cashback) akan diminta konfirmasi password sebelum " +
-              "tersimpan. Perubahan data pembeli saja tidak perlu password.")
+              "DP, kredit, diskon, cashback) akan diminta konfirmasi password " +
+              "sebelum tersimpan. Perubahan data pembeli saja tidak perlu password.")
         : "Perubahan baru berlaku setelah <b>disetujui Owner</b>."}</p>
+
+    ${owner ? `<div class="chip-baris" id="e-tab-${t.id}">
+      <button type="button" class="chip aktif" data-etab="ecustomer">Customer Info</button>
+      <button type="button" class="chip" data-etab="einternal">Internal Info</button>
+      <button type="button" class="chip" data-etab="epayment">Payment Info</button>
+    </div>` : ""}
+
     <form id="form-edit-${t.id}" class="form">
-      <h4 class="judul" style="font-size:14px">Pembeli</h4>
-      ${formPelanggan(t.pembeli || {}, "epembeli", saranKecamatan, saranKota)}
-
-      <label class="pilihan" style="margin-top:8px">
-        <input type="checkbox" id="e-sama-${t.id}" ${pemakaiSama ? "checked" : ""}>
-        <span>Pemakai kendaraan sama dengan pembeli di atas</span>
-      </label>
-      <div id="e-wadah-pemakai-${t.id}" ${pemakaiSama ? "hidden" : ""}>
-        <h4 class="judul" style="font-size:14px;margin-top:8px">Pemakai</h4>
-        ${formPelanggan(t.pemakai || {}, "epemakai", saranKecamatan, saranKota)}
-      </div>
-
-      ${panelOwnerLanjutan}
+      ${tabCustomer}
+      ${tabInternal}
+      ${tabPayment}
 
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">
@@ -933,6 +1013,17 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       </div>
     </form>
   </div>`;
+
+  if (owner) {
+    kontainer.querySelector(`#e-tab-${t.id}`).addEventListener("click", (e) => {
+      const b = e.target.closest("[data-etab]");
+      if (!b) return;
+      kontainer.querySelectorAll(`#e-tab-${t.id} .chip`)
+        .forEach((c) => c.classList.toggle("aktif", c === b));
+      kontainer.querySelectorAll(`#form-edit-${t.id} .tab-panel`).forEach((p) =>
+        (p.hidden = p.dataset.panel !== b.dataset.etab));
+    });
+  }
 
   pasangHurufBesarPelanggan(kontainer, "epembeli");
   pasangHurufBesarPelanggan(kontainer, "epemakai");
@@ -946,7 +1037,17 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const diskonEl = kontainer.querySelector(`#e-diskon-${t.id}`);
     const cashbackEl = kontainer.querySelector(`#e-cashback-${t.id}`);
     const cicilanEl = kontainer.querySelector(`#e-cicilan-${t.id}`);
-    [otrEl, diskonEl, cashbackEl, cicilanEl].forEach(pasangFormatUang);
+    const bayarEl = kontainer.querySelector(`#e-bayar-${t.id}`);
+    const feeAgenEl = kontainer.querySelector(`#e-fee-agen-${t.id}`);
+    const tagihanLeasingEl = kontainer.querySelector(`#e-tagihan-leasing-${t.id}`);
+    [otrEl, diskonEl, cashbackEl, cicilanEl, bayarEl, feeAgenEl].forEach(pasangFormatUang);
+
+    function perbaruiTagihanLeasingEdit() {
+      const otr = bacaAngka(otrEl);
+      const bayar = bacaAngka(bayarEl);
+      tagihanLeasingEl.value = rupiah(Math.max(otr - bayar, 0));
+    }
+    [otrEl, bayarEl].forEach((el) => el.addEventListener("input", perbaruiTagihanLeasingEdit));
 
     const tunaiEl = kontainer.querySelector(`#e-tunai-${t.id}`);
     const transferEl = kontainer.querySelector(`#e-transfer-${t.id}`);
@@ -1051,7 +1152,19 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
 
     let fatal = false; // apa pun di luar pembeli/pemakai dianggap "fatal"
     let perluGantiUnit = false, lepasUnitDiminta = false, unitIdDipilihManual = null;
+    let dpBerubah = false, dpBaru = 0, dpLama = 0;
     if (owner) {
+      // Internal Info: Sales, Diskon, Cashback, Agen/Fee Agen, Catatan
+      const salesIdBaru = kontainer.querySelector(`#e-sales-${t.id}`).value;
+      const salesDipilih = salesIdBaru
+        ? daftarSalesPilihan.find((s) => s.id === salesIdBaru) : null;
+      const salesUidBaru = salesDipilih ? salesDipilih.id : sesi.uid;
+      const salesNamaBaru = salesDipilih ? salesDipilih.nama : sesi.nama;
+      const salesPeranBaru = salesDipilih ? salesDipilih.peran : sesi.peran;
+      const agenIdBaru = kontainer.querySelector(`#e-agen-${t.id}`).value || null;
+      const agenDipilih = agenIdBaru ? daftarAgenPilihan.find((a) => a.id === agenIdBaru) : null;
+      const feeAgenBaru = bacaAngka(kontainer.querySelector(`#e-fee-agen-${t.id}`));
+
       let tipeBaru = kontainer.querySelector(`#e-tipe-${t.id}`).value;
       let warnaBaru = kontainer.querySelector(`#e-warna-${t.id}`).value.trim();
       const otrBaru = bacaAngka(kontainer.querySelector(`#e-otr-${t.id}`));
@@ -1111,6 +1224,28 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       dataBaru.diskon = diskonBaru;
       dataBaru.cashback = cashbackBaru;
       dataBaru.catatan = catatanBaru;
+      dataBaru.salesUid = salesUidBaru;
+      dataBaru.salesNama = salesNamaBaru;
+      dataBaru.salesPeran = salesPeranBaru;
+      dataBaru.agenId = agenIdBaru;
+      dataBaru.agenNama = agenDipilih ? agenDipilih.nama : null;
+      dataBaru.feeAgen = feeAgenBaru;
+
+      // ── DP (Jumlah Dibayar Sekarang) ────────────────────────────
+      dpLama = t.jumlahBayar || 0;
+      dpBaru = bacaAngka(kontainer.querySelector(`#e-bayar-${t.id}`));
+      dpBerubah = dpBaru !== dpLama;
+      if (dpBerubah) fatal = true;
+      if (!t.kuitansiTercetak) {
+        // Belum ada kuitansi sama sekali — aman diedit bebas,
+        // dipakai nanti sebagai DP saat kuitansi pertama dicetak.
+        dataBaru.jumlahBayar = dpBaru;
+      }
+      // Kalau kuitansiTercetak TRUE, dataBaru.jumlahBayar SENGAJA
+      // tidak diisi di sini — koreksinya lewat riwayatBayar[0] +
+      // dialog revisi (lihat blok setelah password di bawah), supaya
+      // kuitansi ASLI yang sudah di tangan konsumen tidak diam-diam
+      // "berubah" tanpa jejak.
 
       if (otrBaru !== (t.hargaOtr || 0)) fatal = true;
       if (JSON.stringify([...caraBayarBaru].sort()) !==
@@ -1119,6 +1254,9 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       if (diskonBaru !== (t.diskon || 0)) fatal = true;
       if (cashbackBaru !== (t.cashback || 0)) fatal = true;
       if (tipeBerubah || warnaBerubah) fatal = true;
+      if (salesUidBaru !== (t.salesUid || sesi.uid)) fatal = true;
+      if (agenIdBaru !== (t.agenId || null)) fatal = true;
+      if (feeAgenBaru !== (t.feeAgen || 0)) fatal = true;
     }
 
     const catatanPerubahan = buatCatatanPerubahan(dataLama, dataBaru);
@@ -1157,6 +1295,29 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           oke: "Lanjutkan", bahaya: true,
         });
         if (!lanjutUnit) {
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+      }
+      // ── Revisi DP (kalau kuitansi pertama sudah tercetak) ────────
+      let alasanRevisiDp = "";
+      const perluRevisiDp = dpBerubah && t.kuitansiTercetak;
+      if (perluRevisiDp) {
+        alasanRevisiDp = await tanya({
+          judul: "Alasan Koreksi DP",
+          pesan: `Kuitansi asli (${aman(t.kuitansiNo || "")}) sudah tercatat ` +
+                 `${rupiah(dpLama)}, akan dikoreksi jadi ${rupiah(dpBaru)}. ` +
+                 `Kuitansi Revisi akan otomatis dicetak dengan nomor sama + ` +
+                 `kode REV — kuitansi asli tetap tersimpan sebagai riwayat, ` +
+                 `tidak dihapus. Jelaskan alasan koreksinya (wajib).`,
+          petunjuk: "mis. Salah ketik, seharusnya Rp3.000.000 bukan Rp300.000",
+        });
+        if (alasanRevisiDp === null) {
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+        if (!alasanRevisiDp.trim()) {
+          kabar("Alasan koreksi wajib diisi.", "rem");
           tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
           return;
         }
@@ -1235,6 +1396,39 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           }
         }
 
+        // ── Revisi DP (kalau kuitansi pertama sudah tercetak) ────────
+        // Bukan menimpa entri lama — angka pembayaran pertama di
+        // riwayatBayar dikoreksi, TAPI kuitansi ASLI (kertas yang
+        // sudah di tangan konsumen) tidak diubah/ditarik. Sistem
+        // mencatat siapa/kapan/kenapa dikoreksi di kuitansiRevisi,
+        // dan mencetak dokumen Kuitansi Revisi terpisah sebagai bukti
+        // resmi koreksinya.
+        let entriRevisiUntukCetak = null;
+        if (perluRevisiDp) {
+          const riwayatBaru = Array.isArray(t.riwayatBayar) && t.riwayatBayar.length
+            ? [...t.riwayatBayar]
+            : [{ kuitansiNo: t.kuitansiNo, kodeAman: t.kuitansiKode, jumlah: dpLama,
+                 sumber: "konsumen", sumberNama: t.pembeli?.nama || "-",
+                 keterangan: sudahLunas(t) ? "Lunas" : "DP", tanggal: t.kuitansiTercetakPada || new Date() }];
+          riwayatBaru[0] = { ...riwayatBaru[0], jumlah: dpBaru };
+          const totalBaru = riwayatBaru.reduce((s, r) => s + (r.jumlah || 0), 0);
+          dataBaru.riwayatBayar = riwayatBaru;
+          dataBaru.totalDibayar = totalBaru;
+          dataBaru.statusBayar = totalBaru >= (dataBaru.hargaOtr || t.hargaOtr || 0) ? "lunas" : "dp";
+          dataBaru.jumlahBayar = dpBaru; // supaya cetak ULANG dokumen SPK ikut tampilkan angka terkoreksi
+
+          const revisiLama = Array.isArray(t.kuitansiRevisi) ? t.kuitansiRevisi : [];
+          const revKe = revisiLama.length + 1;
+          const nomorRevisi = `${t.kuitansiNo}-REV${revKe}`;
+          const catatanRevisi = {
+            revKe, nomorRevisi, dariJumlah: dpLama, keJumlah: dpBaru,
+            alasan: alasanRevisiDp.trim(), olehUid: sesi.uid, olehNama: sesi.nama,
+            pada: new Date(),
+          };
+          dataBaru.kuitansiRevisi = [...revisiLama, catatanRevisi];
+          entriRevisiUntukCetak = catatanRevisi;
+        }
+
         try {
           const batch = writeBatch(dbase);
           batch.update(doc(dbase, "transaksi", t.id), dataBaru);
@@ -1257,6 +1451,9 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         kabar("Perubahan tersimpan.", "netral");
         kontainer.innerHTML = "";
         if (muatUlang) await muatUlang();
+        if (entriRevisiUntukCetak) {
+          await cetakKuitansiRevisi({ ...t, ...dataBaru, id: t.id }, entriRevisiUntukCetak);
+        }
       } catch (err) {
         kabar("Gagal menyimpan: " + err.message, "rem");
         tombol.disabled = false;
