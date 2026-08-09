@@ -294,7 +294,12 @@ button, input, select { font: inherit; }
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
   padding: 18px 20px 28px; max-width: 860px; width: 100%;
 }
-.lembar { background: none; border: 0; border-radius: 0; padding: 0; }
+.lembar { background: none; border: 0; border-radius: 0; padding: 0;
+  /* Sama seperti .form — .lembar juga dipakai buat panel Ubah/Detail
+     yang ditaruh di dalam <td> tabel, jadi perlu putus pewarisan
+     white-space: nowrap dari .tabel td juga. */
+  white-space: normal; }
+.lembar * { white-space: normal; }
 .judul {
   font-family: var(--papan); font-size: 20px; font-weight: 600;
   margin: 0 0 14px;
@@ -378,7 +383,14 @@ button, input, select { font: inherit; }
   background: var(--lapis);
   border: 1px solid var(--garis); border-radius: var(--r-besar);
   padding: 18px; margin-bottom: 16px;
+  /* Form "Ubah" SPK ditaruh di dalam <td> tabel (colspan) — .tabel td
+     punya white-space: nowrap yang DIWARISKAN turun ke semua anaknya
+     (label, <p>, textarea, dst), memaksa semuanya coba muat dalam
+     satu baris dan bikin tata letak berantakan/tumpang tindih di HP.
+     Putus pewarisannya di sini. */
+  white-space: normal;
 }
+.form * { white-space: normal; }
 .label--gelap { color: var(--abu); }
 .isian--terang { background: var(--kartu); }
 select.isian {
@@ -399,7 +411,9 @@ select.isian {
 .kunci { font-size: 11px; color: var(--biru); margin-left: 6px; }
 
 .d-panel { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px;
-  background: var(--abu-terang, #f5f5f5); border-radius: 8px; }
+  background: var(--abu-terang, #f5f5f5); border-radius: 8px;
+  white-space: normal; }
+.d-panel * { white-space: normal; }
 .d-kolom { flex: 1 1 200px; min-width: 180px; }
 .d-judul { font-weight: 600; font-size: 13px; margin: 0 0 6px; }
 .d-baris { display: flex; justify-content: space-between; gap: 8px;
