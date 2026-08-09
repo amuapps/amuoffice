@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F3F3F3">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>PT Auto Mitra Utama — Sistem Internal</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<link rel="icon" href="./logo.png">
+<link rel="apple-touch-icon" href="./logo.png">
+<link rel="stylesheet" href="./css/style.css?v=3.0.4">
+</head>
+<body>
+
+<!-- Layar muat: tampil sampai status login diketahui -->
+<div id="muat" class="muat">
+  <div class="muat-isi">
+    <div class="logo-ubin">
+      <img class="logo" src="./logo.png" alt="Logo PT Auto Mitra Utama"
+           onerror="this.hidden=true;this.nextElementSibling.hidden=false">
+      <svg class="logo" viewBox="0 0 72 72" hidden aria-hidden="true">
+        <rect x="2" y="2" width="68" height="68" rx="17" fill="#0071E3"/>
+        <circle cx="24" cy="47" r="7.5" fill="none" stroke="#fff" stroke-width="3.2"/>
+        <circle cx="50" cy="47" r="7.5" fill="none" stroke="#fff" stroke-width="3.2"/>
+        <path d="M17 47c-1-9 2-16 8-19l9-3 6 9h8c4 0 7 3 7 7v6"
+              fill="none" stroke="#fff" stroke-width="3.2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="muat-nama">PT AUTO MITRA UTAMA</p>
+    <div class="muat-bar"><span id="muat-bar-isi"></span></div>
+    <p class="muat-persen" id="muat-persen">Memuat… 0%</p>
+
+    <div id="muat-gagal" class="muat-gagal" hidden>
+      <p class="muat-gagal-judul">Gagal memuat aplikasi</p>
+      <p class="muat-gagal-teks">Ini kelamaan dari biasanya — kemungkinan
+        koneksi lambat, atau ada file yang belum lengkap ter-upload ke
+        server. Coba muat ulang; kalau masih terjadi, hubungi admin.</p>
+      <button type="button" class="tombol tombol--utama"
+              onclick="location.reload()">Muat Ulang</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Bar persentase ini SENGAJA cuma perkiraan (bukan progres asli
+  // per-file, karena browser tidak menyediakan itu untuk import
+  // ES module) — naik pelan mendekati 90% lalu berhenti menunggu.
+  // Begitu app.js beneran selesai (kelas "muat--pergi" ditambahkan),
+  // langsung dilompatkan ke 100% dan berhenti.
+  //
+  // Skrip biasa (BUKAN type="module") sengaja dipakai di sini —
+  // supaya tetap jalan APA PUN yang terjadi ke app.js (termasuk
+  // kalau app.js gagal total karena ada file yang hilang), jadi
+  // batas waktu gagal-muat di bawah ini tetap bisa memberi tahu.
+  (function () {
+    var barEl = document.getElementById("muat-bar-isi");
+    var persenEl = document.getElementById("muat-persen");
+    var muatEl = document.getElementById("muat");
+    var gagalEl = document.getElementById("muat-gagal");
+    var persen = 0;
+    var selesai = false;
+
+    function tampilkan(p) {
+      if (barEl) barEl.style.width = p + "%";
+      if (persenEl) persenEl.textContent = "Memuat… " + p + "%";
+    }
+
+    var interval = setInterval(function () {
+      if (selesai) { clearInterval(interval); return; }
+      // Melambat mendekati 90% — kesan wajar, tidak pernah benar-benar
+      // menyentuh 100% sampai memang benar-benar selesai.
+      persen += Math.max(1, Math.round((90 - persen) / 8));
+      if (persen >= 90) persen = 90;
+      tampilkan(persen);
+    }, 220);
+
+    // Batas waktu gagal-muat — 12 detik dianggap sudah kelamaan
+    // untuk aplikasi seringan ini.
+    var batasWaktu = setTimeout(function () {
+      if (selesai || !muatEl || muatEl.classList.contains("muat--pergi")) return;
+      clearInterval(interval);
+      if (gagalEl) gagalEl.hidden = false;
+      if (persenEl) persenEl.hidden = true;
+      if (document.querySelector(".muat-bar")) {
+        document.querySelector(".muat-bar").hidden = true;
+      }
+    }, 12000);
+
+    // Pantau kelas "muat--pergi" (dipasang app.js begitu benar-benar
+    // selesai) lewat MutationObserver — supaya bar-nya langsung
+    // dilompatkan ke 100% pas selesai, bukan nanggung di 90%.
+    if (muatEl && window.MutationObserver) {
+      var pengamat = new MutationObserver(function () {
+        if (muatEl.classList.contains("muat--pergi")) {
+          selesai = true;
+          clearInterval(interval);
+          clearTimeout(batasWaktu);
+          tampilkan(100);
+          pengamat.disconnect();
+        }
+      });
+      pengamat.observe(muatEl, { attributes: true, attributeFilter: ["class"] });
+    }
+  })();
+</script>
+
+<!-- ── Layar masuk ─────────────────────────────────────────── -->
+<div id="layar-masuk" class="masuk">
+
+  <!-- Kolom kiri: identitas perusahaan -->
+  <aside class="masuk-brand">
+    <img class="masuk-vespa" src="./vespa.gif" alt="" aria-hidden="true"
+         onerror="this.hidden=true">
+    <div class="masuk-brand-isi">
+      <img class="masuk-logo" src="./logo.png"
+           alt="Logo PT Auto Mitra Utama" onerror="this.hidden=true">
+      <h1 id="nama-showroom" class="masuk-nama">PT AUTO MITRA UTAMA</h1>
+      <p class="masuk-tag">Sistem Informasi Terpadu — Dealer Vespa</p>
+      <ul class="masuk-poin">
+        <li>Penjualan &amp; Surat Pesanan Kendaraan</li>
+        <li>Pembelian, Inventori &amp; Serah Terima</li>
+        <li>Kas, Piutang &amp; Utang Main Dealer</li>
+      </ul>
+    </div>
+    <p class="masuk-kaki-brand">
+      <span id="versi">v1.0.0</span>
+      <span data-merek>©SRISP 2026</span>
+    </p>
+  </aside>
+
+  <!-- Kolom kanan: panel masuk -->
+  <section class="masuk-panel">
+    <div class="masuk-panel-isi">
+      <p class="eyebrow">Akses terbatas karyawan</p>
+      <h2 class="masuk-judul">Masuk ke sistem</h2>
+
+      <form id="form-masuk" class="masuk-form" autocomplete="on">
+        <label class="label" for="email">Email</label>
+        <input class="isian" id="email" type="email"
+               autocomplete="username">
+
+        <label class="label" for="sandi">Kata sandi</label>
+        <input class="isian" id="sandi" type="password"
+               autocomplete="current-password" placeholder="••••••••">
+
+        <button class="tombol tombol--utama" id="tombol-masuk" type="submit">
+          Masuk
+        </button>
+      </form>
+
+      <button class="tombol tombol--sunyi" id="tombol-lupa-sandi" type="button"
+              style="margin-top:14px;padding:0;font-size:12.5px">
+        Lupa password?
+      </button>
+      <p class="masuk-bantuan">Belum punya akses?
+        Hubungi owner untuk pengaturan akun.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ── Aplikasi ────────────────────────────────────────────── -->
+<div id="aplikasi" class="aplikasi" hidden>
+
+  <!-- Sidebar: menu berubah mengikuti peran -->
+  <aside id="sisi" class="sisi">
+    <div class="sisi-merek">
+      <img class="sisi-logo" src="./logo.png" alt=""
+           onerror="this.replaceWith(Object.assign(document.createElement('span'),
+                    {className:'lampu lampu--sein'}))">
+      <span id="sisi-nama">PT Auto Mitra Utama</span>
+    </div>
+    <nav id="nav" class="nav"></nav>
+    <div class="sisi-kaki">
+      <span id="sisi-versi">v1.0.4</span>
+      <span data-merek>©SRISP 2026</span>
+    </div>
+  </aside>
+
+  <div class="utama">
+    <header class="panel">
+      <div class="panel-baris">
+        <button class="hamburger" id="buka-sisi" type="button"
+                aria-label="Buka menu">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="jejak" id="jejak" aria-label="Jejak navigasi"></nav>
+        <div class="panel-teks">
+          <span id="label-peran" class="panel-peran">Peran</span>
+          <span id="nama-pengguna" class="panel-nama">Pengguna</span>
+        </div>
+        <span id="lampu-peran" class="lampu lampu--sein"></span>
+        <button class="tombol tombol--sunyi" id="tombol-inbox" type="button"
+                style="position:relative" aria-label="Inbox notifikasi">
+          🔔<span id="lencana-notif" class="lencana-notif" hidden>0</span>
+        </button>
+        <button class="tombol tombol--sunyi" id="tombol-sandi" type="button">
+          Ubah Sandi
+        </button>
+        <button class="tombol tombol--sunyi" id="tombol-keluar" type="button">
+          Keluar
+        </button>
+      </div>
+      <div class="panel-baca" id="panel-baca">
+        <span id="batas-diskon" class="baca">Batas diskon</span>
+        <span id="penanda-uji" class="tanda tanda--uji" hidden>Data uji</span>
+      </div>
+      <div id="status-koneksi" class="pita-luring" hidden>
+        Tanpa koneksi — pekerjaan tersimpan di HP, terkirim saat sinyal kembali
+      </div>
+    </header>
+
+    <div id="tab-bar" class="tab-bar"></div>
+    <main id="konten" class="konten"></main>
+  </div>
+
+  <div id="tirai" class="tirai" hidden></div>
+</div>
+
+<div id="publik" class="publik" hidden></div>
+
+<div id="dialog-wadah" class="dialog-wadah" hidden></div>
+
+<div id="kabar" class="kabar-wadah" aria-live="polite"></div>
+
+<script type="module" src="./js/app.js?v=3.2.3"></script>
+</body>
+</html>
