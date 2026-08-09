@@ -11,9 +11,9 @@
 import {
   dbase, doc, collection, addDoc, getDoc, getDocs, updateDoc, query, where,
   limit, serverTimestamp, onSnapshot,
-} from "./db.js?v=3.2.4";
-import { sesi } from "./auth.js?v=3.2.4";
-import { aman, tanggalJam } from "./ui.js?v=3.2.4";
+} from "./db.js?v=3.2.5";
+import { sesi } from "./auth.js?v=3.2.5";
+import { aman, tanggalJam } from "./ui.js?v=3.2.5";
 
 // Dipanggil dari modul lain begitu ada kejadian yang perlu
 // diberitahukan ke seseorang. Gagal diam-diam kalau ada masalah —

@@ -3,11 +3,20 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.2.4";
-import { VERSI } from "./config.js?v=3.2.4";
-import { aman } from "./ui.js?v=3.2.4";
+import { sesi } from "./auth.js?v=3.2.5";
+import { VERSI } from "./config.js?v=3.2.5";
+import { aman } from "./ui.js?v=3.2.5";
 
 const RIWAYAT = [
+  {
+    versi: "3.2.5", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN BUG SERIUS: Tata Letak Form Ubah/Detail Berantakan di Dalam Tabel",
+    butir: [
+      "AKHIRNYA KETEMU: form \"Ubah\" dan panel \"Detail\" di Riwayat SPK terlihat berantakan/field hilang — padahal field-nya SELALU ada di HTML (bukan bug JavaScript sama sekali). Penyebabnya CSS: aturan \".tabel td { white-space: nowrap }\" DIWARISKAN turun ke semua elemen anak, dan form Ubah/panel Detail ditaruh di dalam sel tabel (<td colspan>) — jadi semua teks label/paragraf di dalamnya ikut dipaksa \"jangan pernah pindah baris\", bikin tata letak tumpang tindih dan terpotong-potong parah di layar sempit.",
+      "Diperbaiki dengan memutus pewarisan white-space di dalam .form, .lembar, dan .d-panel — supaya form/detail yang bersarang di dalam tabel tetap tersusun rapi, sementara tabel-tabel kecil YANG MEMANG perlu nowrap (misal tabel pilih unit) tetap tidak terganggu.",
+      "Butuh berhari-hari sesi debugging cache/deploy sebelum akhirnya ketemu ini BUKAN soal cache sama sekali — semua perbaikan cache-busting (?v= di setiap file, .nojekyll) sebelumnya tetap penting dan valid, tapi bug SEBENARNYA ada di CSS ini, baru kelihatan setelah app.js/spk.js dipastikan benar-benar termuat versi terbaru.",
+    ],
+  },
   {
     versi: "3.2.4", tanggal: "Agustus 2026",
     judul: "Cache-Busting di SEMUA File — Perbaikan Deploy yang Tidak Konsisten",
