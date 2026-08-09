@@ -3,11 +3,11 @@
 // tombol, biar tampilan utamanya bersih — baru muncul kalau memang
 // mau menyaring datanya.
 
-import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.2.6";
-import { sesi } from "./auth.js?v=3.2.6";
-import { muatTipe } from "./tipe.js?v=3.2.6";
-import { rupiah, aman, namaTampilan } from "./ui.js?v=3.2.6";
-import { resolveNamaSales } from "./cetak.js?v=3.2.6";
+import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.3.0";
+import { sesi } from "./auth.js?v=3.3.0";
+import { muatTipe } from "./tipe.js?v=3.3.0";
+import { rupiah, aman, namaTampilan } from "./ui.js?v=3.3.0";
+import { resolveNamaSales } from "./cetak.js?v=3.3.0";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -129,23 +129,22 @@ function tabelDetailSpk(daftar) {
   </div>`;
 }
 
-function kartuPeringkat(nama, jumlah, posisi) {
+function barisPeringkat(nama, jumlah, posisi, jumlahMaks) {
   const warna = WARNA_PERINGKAT[posisi - 1] || "var(--abu-2)";
   const inisial = (nama || "-").trim().charAt(0).toUpperCase() || "-";
-  return `<article class="kartu" data-peringkat-sales="${aman(nama)}"
-              style="text-align:center;flex:1;cursor:pointer;
-              background:${warna}; color:#fff; position:relative; overflow:hidden">
-    <span style="position:absolute;top:8px;right:10px;font-size:18px">★</span>
-    <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.22);
-                display:flex;align-items:center;justify-content:center;
-                font-weight:700;font-size:20px;margin:4px auto 10px">${aman(inisial)}</div>
-    <p class="kartu-judul" style="font-size:14px;color:#fff">${aman(nama)}</p>
-    <p class="kartu-rinci" style="color:rgba(255,255,255,.85)">${jumlah} SPK</p>
-    <span style="display:inline-block;margin-top:6px;padding:2px 12px;
-                border-radius:99px;background:rgba(255,255,255,.22);
-                font-size:11px;font-weight:700">${posisi === 1 ? "1st"
-                  : posisi === 2 ? "2nd" : "3rd"}</span>
-  </article>`;
+  const persen = jumlahMaks > 0 ? Math.round((jumlah / jumlahMaks) * 100) : 0;
+  const medali = posisi <= 3 ? ["🥇", "🥈", "🥉"][posisi - 1] : null;
+  return `<div class="peringkat-baris" data-peringkat-sales="${aman(nama)}"
+              style="cursor:pointer">
+    <span class="peringkat-no" style="${medali ? "" : `color:${warna}`}">
+      ${medali || `#${posisi}`}</span>
+    <span class="peringkat-avatar" style="background:${warna}">${aman(inisial)}</span>
+    <div class="peringkat-tengah">
+      <p class="peringkat-nama">${aman(nama)}</p>
+      <div class="peringkat-bar"><span style="width:${persen}%;background:${warna}"></span></div>
+    </div>
+    <span class="peringkat-jumlah">${jumlah} <span class="kunci" style="margin:0">SPK</span></span>
+  </div>`;
 }
 
 export async function halamanDashboard(wadah) {
@@ -227,7 +226,7 @@ export async function halamanDashboard(wadah) {
 
     <div class="lembar" style="margin-top:16px">
       <h3 class="judul" style="font-size:15px">Sales Penjualan Terbanyak</h3>
-      <div id="d-peringkat" style="display:flex;gap:10px;margin-top:10px">
+      <div id="d-peringkat" class="peringkat-daftar">
         <p class="hampa">Memuat…</p>
       </div>
     </div>
@@ -378,9 +377,11 @@ export async function halamanDashboard(wadah) {
       const nama = t.salesNamaTampil || t.salesNama || "-";
       perSales[nama] = (perSales[nama] || 0) + 1;
     });
-    const top3 = Object.entries(perSales).sort((a, b) => b[1] - a[1]).slice(0, 3);
-    wadah.querySelector("#d-peringkat").innerHTML = top3.length
-      ? top3.map(([nama, n], i) => kartuPeringkat(nama, n, i + 1)).join("")
+    const semuaSales = Object.entries(perSales).sort((a, b) => b[1] - a[1]);
+    const top8 = semuaSales.slice(0, 8);
+    const jumlahMaks = top8.length ? top8[0][1] : 0;
+    wadah.querySelector("#d-peringkat").innerHTML = top8.length
+      ? top8.map(([nama, n], i) => barisPeringkat(nama, n, i + 1, jumlahMaks)).join("")
       : `<p class="hampa">Belum ada data.</p>`;
     wadah.querySelectorAll("[data-peringkat-sales]").forEach((el) => {
       el.addEventListener("click", () => {

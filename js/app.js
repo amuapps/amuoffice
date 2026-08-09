@@ -8,35 +8,35 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.2.6";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.3.0";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.2.6";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.2.6";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.2.6";
+  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.3.0";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.3.0";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.3.0";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.2.6";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.2.6";
-import { konfirmasi, tanya } from "./dialog.js?v=3.2.6";
-import { halamanStok } from "./stok.js?v=3.2.6";
-import { halamanTipe } from "./tipe.js?v=3.2.6";
-import { halamanReferensi } from "./referensi.js?v=3.2.6";
-import { halamanPengguna } from "./pengaturan.js?v=3.2.6";
-import { halamanPelanggan } from "./pelanggan.js?v=3.2.6";
-import { halamanLeasing } from "./leasing.js?v=3.2.6";
-import { halamanRekening } from "./rekening.js?v=3.2.6";
-import { halamanSpk } from "./spk.js?v=3.2.6";
-import { halamanLaporan } from "./laporan.js?v=3.2.6";
-import { halamanLabel, muatLabelKustom } from "./label.js?v=3.2.6";
-import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.2.6";
-import { halamanLog } from "./log.js?v=3.2.6";
-import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.2.6";
-import { halamanAgen } from "./agen.js?v=3.2.6";
-import { halamanBiro } from "./biro.js?v=3.2.6";
-import { halamanSupplier } from "./supplier.js?v=3.2.6";
-import { halamanDashboard } from "./dashboard.js?v=3.2.6";
-import { halamanTentang } from "./tentang.js?v=3.2.6";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.2.6";
-import { halamanSegera } from "./segera.js?v=3.2.6";
+  from "./router.js?v=3.3.0";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.3.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.3.0";
+import { halamanStok } from "./stok.js?v=3.3.0";
+import { halamanTipe } from "./tipe.js?v=3.3.0";
+import { halamanReferensi } from "./referensi.js?v=3.3.0";
+import { halamanPengguna } from "./pengaturan.js?v=3.3.0";
+import { halamanPelanggan } from "./pelanggan.js?v=3.3.0";
+import { halamanLeasing } from "./leasing.js?v=3.3.0";
+import { halamanRekening } from "./rekening.js?v=3.3.0";
+import { halamanSpk } from "./spk.js?v=3.3.0";
+import { halamanLaporan } from "./laporan.js?v=3.3.0";
+import { halamanLabel, muatLabelKustom } from "./label.js?v=3.3.0";
+import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.3.0";
+import { halamanLog } from "./log.js?v=3.3.0";
+import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.3.0";
+import { halamanAgen } from "./agen.js?v=3.3.0";
+import { halamanBiro } from "./biro.js?v=3.3.0";
+import { halamanSupplier } from "./supplier.js?v=3.3.0";
+import { halamanDashboard } from "./dashboard.js?v=3.3.0";
+import { halamanTentang } from "./tentang.js?v=3.3.0";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.3.0";
+import { halamanSegera } from "./segera.js?v=3.3.0";
 
 const el = (id) => document.getElementById(id);
 
@@ -427,7 +427,8 @@ el("tombol-keluar").addEventListener("click", async () => {
            "tersimpan bisa hilang.",
     oke: "Keluar",
     batal: "Tetap di sini",
-    bahaya: true,
+    // Bukan tombol--bahaya (merah) — keluar bukan aksi destruktif
+    // seperti hapus data, jadi tetap pakai warna biru khas aplikasi.
   });
   if (!jadi) return;
   await keluar();
@@ -497,6 +498,34 @@ function selesaiMemuat() {
 // (penyegaran token untuk orang yang sama) diabaikan saja.
 let uidSesiAktif = null;
 
+// ── Auto-logout kalau tidak ada aktivitas ────────────────────────
+// 5 menit tanpa interaksi (klik, ketik, scroll, sentuh) → otomatis
+// keluar, supaya HP yang lupa di-logout tidak jadi celah keamanan
+// kalau ditinggal di meja/berpindah tangan.
+const BATAS_IDLE_MS = 5 * 60 * 1000;
+let timerIdle = null;
+
+function resetTimerIdle() {
+  if (!timerIdle) return; // belum login / sudah logout, tidak perlu jalan
+  clearTimeout(timerIdle);
+  timerIdle = setTimeout(async () => {
+    await keluar();
+    kabar("Anda keluar otomatis karena tidak ada aktivitas selama 5 menit.", "rem");
+  }, BATAS_IDLE_MS);
+}
+
+["click", "keydown", "touchstart", "scroll", "mousemove"].forEach((ev) =>
+  document.addEventListener(ev, resetTimerIdle, { passive: true }));
+
+function mulaiTimerIdle() {
+  timerIdle = setTimeout(() => {}, 0); // tanda "aktif", nilai aslinya diisi resetTimerIdle
+  resetTimerIdle();
+}
+function hentikanTimerIdle() {
+  clearTimeout(timerIdle);
+  timerIdle = null;
+}
+
 pantauSesi(
   async (profil) => {
     selesaiMemuat();
@@ -515,12 +544,14 @@ pantauSesi(
     if (!location.hash) location.hash = PERAN[profil.peran].beranda;
     mulaiRouter();
     gambarJejak();
+    mulaiTimerIdle();
     kabar(`Selamat datang, ${namaTampilan(profil.peran, profil.nama)}.`, "netral");
   },
   () => {
     selesaiMemuat();
     if (cekPublik()) return;
     uidSesiAktif = null;
+    hentikanTimerIdle();
     el("aplikasi").hidden = true;
     el("layar-masuk").hidden = false;
     el("konten").innerHTML = "";

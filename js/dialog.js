@@ -21,6 +21,8 @@ function bangun({
     <div class="dialog" role="dialog" aria-modal="true"
          aria-labelledby="dialog-judul">
       <div class="dialog-kop">
+        <img class="dialog-logo" src="./logo.png" alt=""
+             onerror="this.hidden=true">
         <span class="dialog-titik"></span>
         <h2 class="dialog-judul" id="dialog-judul">${judul}</h2>
       </div>

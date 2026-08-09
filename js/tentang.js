@@ -3,11 +3,21 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.2.6";
-import { VERSI } from "./config.js?v=3.2.6";
-import { aman } from "./ui.js?v=3.2.6";
+import { sesi } from "./auth.js?v=3.3.0";
+import { VERSI } from "./config.js?v=3.3.0";
+import { aman } from "./ui.js?v=3.3.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.3.0", tanggal: "Agustus 2026",
+    judul: "Auto-Logout, Dashboard Peringkat Sales Dirombak, Tema Kemerdekaan",
+    butir: [
+      "Auto-logout setelah 5 menit tanpa aktivitas (klik/ketik/scroll/sentuh) — mencegah HP yang lupa di-logout jadi celah kalau ditinggal atau berpindah tangan.",
+      "Dashboard: \"Sales Penjualan Terbanyak\" dirombak dari kartu besar berwarna jadi list ranking kompak (medali untuk 3 besar, bar progres, nomor urut) — sekarang bisa tampilkan sampai 8 sales sekaligus tanpa jadi berantakan, sebelumnya cuma muat 3 kartu besar berdampingan.",
+      "Dialog \"Keluar dari sistem\" — tombolnya diganti dari merah (bahaya) jadi biru khas aplikasi, karena keluar bukan aksi destruktif seperti hapus data. Semua kotak dialog sekarang juga menampilkan logo kecil di kop-nya untuk identitas visual yang konsisten.",
+      "Tema Kemerdekaan — otomatis aktif sepanjang bulan Agustus di layar Masuk: bunting bendera merah-putih bergoyang halus + pita \"Dirgahayu Republik Indonesia\" di panel login. Otomatis nonaktif sendiri begitu masuk September, tidak perlu diatur manual tiap tahun.",
+    ],
+  },
   {
     versi: "3.2.6", tanggal: "Agustus 2026",
     judul: "Form Ubah: Pilih Unit Sekarang Persis Seperti SPK Baru",
