@@ -13,7 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <link rel="icon" href="./logo.png">
 <link rel="apple-touch-icon" href="./logo.png">
-<link rel="stylesheet" href="./css/style.css?v=3.0.4">
+<link rel="stylesheet" href="./css/style.css?v=3.2.4">
 </head>
 <body>
 
@@ -41,6 +41,11 @@
       <p class="muat-gagal-teks">Ini kelamaan dari biasanya — kemungkinan
         koneksi lambat, atau ada file yang belum lengkap ter-upload ke
         server. Coba muat ulang; kalau masih terjadi, hubungi admin.</p>
+      <p class="muat-gagal-teks" id="muat-gagal-detail"
+         style="font-family:monospace;font-size:11px;color:#a00;
+                word-break:break-all;text-align:left;background:#fff5f5;
+                border:1px solid #f0c0c0;border-radius:6px;padding:8px;
+                margin-top:8px" hidden></p>
       <button type="button" class="tombol tombol--utama"
               onclick="location.reload()">Muat Ulang</button>
     </div>
@@ -63,8 +68,25 @@
     var persenEl = document.getElementById("muat-persen");
     var muatEl = document.getElementById("muat");
     var gagalEl = document.getElementById("muat-gagal");
+    var detailEl = document.getElementById("muat-gagal-detail");
     var persen = 0;
     var selesai = false;
+    var pesanError = null; // ditangkap dari window.onerror di bawah
+
+    // Tangkap error JS sungguhan (mis. "Failed to fetch dynamically
+    // imported module: ./spk.js — 404" atau "does not provide an
+    // export named X") supaya tampil APA ADANYA di layar gagal-muat,
+    // bukan cuma pesan generik "coba muat ulang" yang tidak membantu
+    // menebak file mana yang bermasalah.
+    window.addEventListener("error", function (e) {
+      if (!pesanError) pesanError = String(e.message || e.error || e);
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      if (!pesanError) {
+        var alasan = e.reason;
+        pesanError = alasan && alasan.message ? alasan.message : String(alasan);
+      }
+    });
 
     function tampilkan(p) {
       if (barEl) barEl.style.width = p + "%";
@@ -89,6 +111,10 @@
       if (persenEl) persenEl.hidden = true;
       if (document.querySelector(".muat-bar")) {
         document.querySelector(".muat-bar").hidden = true;
+      }
+      if (detailEl && pesanError) {
+        detailEl.textContent = pesanError;
+        detailEl.hidden = false;
       }
     }, 12000);
 
@@ -129,7 +155,7 @@
       </ul>
     </div>
     <p class="masuk-kaki-brand">
-      <span id="versi">v1.0.0</span>
+      <span id="versi">v3.2.4</span>
       <span data-merek>©SRISP 2026</span>
     </p>
   </aside>
@@ -177,7 +203,7 @@
     </div>
     <nav id="nav" class="nav"></nav>
     <div class="sisi-kaki">
-      <span id="sisi-versi">v1.0.4</span>
+      <span id="sisi-versi">v3.2.4</span>
       <span data-merek>©SRISP 2026</span>
     </div>
   </aside>
