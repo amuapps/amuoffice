@@ -9,6 +9,25 @@ import { aman } from "./ui.js";
 
 const RIWAYAT = [
   {
+    versi: "3.1.0", tanggal: "Agustus 2026",
+    judul: "Owner Bisa Kelola Unit Sepenuhnya, Keamanan Diperketat, Laporan Diperluas",
+    butir: [
+      "Form \"Ubah\" (Owner) sekarang bisa mengubah SEMUA data SPK — bukan cuma pembeli/pemakai — termasuk Tipe/Warna/Unit, Harga OTR, Cara Bayar, Kredit/Leasing, Diskon, Cashback, dan Catatan internal. Perubahan yang berdampak ke keuangan/stok wajib konfirmasi password dulu; perubahan data pembeli/pemakai/catatan saja tetap langsung tersimpan seperti biasa.",
+      "3 pilihan baru khusus urusan unit di form Ubah: (1) Ganti ke unit fisik lain lewat TABEL pilih (No. Rangka/Tipe/Warna/Tahun), default cuma tampilkan tipe/warna yang sama, ada opsi \"tampilkan semua tipe\"; (2) Lepas unit ini kembali ke stok TANPA membatalkan SPK (SPK jadi Indent, pembeli/pembayaran tetap tersimpan); (3) Batalkan SPK sepenuhnya (sudah ada sebelumnya). Semua dialog konfirmasinya sekarang menyebutkan nama pembeli, nama karyawan yang input, tipe/warna unit, dan konsekuensinya secara eksplisit.",
+      "PERBAIKAN KEAMANAN: penguncian unit ke SPK sekarang pakai transaksi atomik (runTransaction) — sebelumnya ada celah race condition yang memungkinkan dua sales mengunci unit fisik yang sama persis kalau mengklik simpan di waktu yang hampir bersamaan.",
+      "PERBAIKAN KEAMANAN: Firestore Rules diperketat di tiga koleksi — transaksi (cuma Owner boleh input SPK atas nama karyawan lain; Admin/Sales dibatasi field yang boleh ditulis saat catat pembayaran), units, dan tipe_motor (Sales dibatasi cuma boleh sentuh field yang memang perlu buat kunci/lepas unit, bukan field data master seperti No. Rangka/harga). Sebelumnya batasan ini cuma ada di tampilan, bisa dilewati lewat DevTools/API langsung.",
+      "Riwayat & Laporan SPK: filter baru (Cara Bayar, Status Bayar, Leasing, Sales, Nama Konsumen) yang bisa disembunyikan/dibuka; tombol Unduh Excel & Unduh PDF mengikuti hasil filter; tombol \"Cetak Semua Tagihan Leasing\" kalau filter Cara Bayar = Kredit sedang aktif.",
+      "Dokumen baru \"Cetak Tagihan Leasing\" — ditagihkan ke pihak leasing (bukan konsumen), berisi rincian OTR − DP diterima showroom = sisa yang ditagihkan, data unit, dan kolom tanda tangan Salesman/SPV/Leasing.",
+      "Tombol-tombol cetak di Riwayat SPK (Cetak SPK/Tagihan Leasing/Cetak Ulang) digabung jadi satu dropdown \"Cetak ▾\" per baris — tombol \"Terima Pembayaran\" dipisah karena itu mencatat data, bukan cetak murni.",
+      "Peringatan otomatis di Riwayat SPK kalau data yang tampil kena batas 500 baris (kemungkinan terpotong) — dengan tombol \"Ambil Semua\" buat menaikkan batas ke 10.000 kalau memang perlu.",
+      "Admin sekarang ikut melihat badge \"sales: [nama]\" di Riwayat SPK (sebelumnya cuma Owner) — supaya Admin bisa memantau SPK ditangani sales mana. Tombol \"Detail\" (No. Rangka/Mesin, status kredit, riwayat pembayaran) tetap khusus Owner.",
+      "Badge Cash/Kredit langsung terlihat di tabel Riwayat SPK dan Database Konsumen, tanpa perlu buka Detail dulu.",
+      "Database Konsumen dirombak jadi tampilan tabel (Nama/No. HP/Peran), dengan tombol Detail yang menampilkan ringkasan tiap pesanan (unit & cara bayar) plus riwayat lengkap seperti sebelumnya.",
+      "Kuitansi & SPK: mode cetak disesuaikan buat printer dot matrix — warna dipaksa hitam pekat di atas putih (bukan abu-abu/keemasan yang tidak terbaca di ribbon hitam-putih), font dibesarkan, watermark tetap ada (tetap teks vektor ringan).",
+      "Teks petunjuk \"Jumlah dibayar sekarang\" di form SPK Kredit diperjelas — DP diterima showroom, bukan ditransfer ke leasing. Field baru \"Tagihan ke Leasing\" (OTR − DP) otomatis terhitung live di form.",
+    ],
+  },
+  {
     versi: "3.0.4", tanggal: "Agustus 2026",
     judul: "Perbaikan Bug: \"Dibayar Sekarang\" Rp 0 Padahal Tunai+Transfer Terisi",
     butir: [
