@@ -3,11 +3,19 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js";
-import { VERSI } from "./config.js";
-import { aman } from "./ui.js";
+import { sesi } from "./auth.js?v=3.2.4";
+import { VERSI } from "./config.js?v=3.2.4";
+import { aman } from "./ui.js?v=3.2.4";
 
 const RIWAYAT = [
+  {
+    versi: "3.2.4", tanggal: "Agustus 2026",
+    judul: "Cache-Busting di SEMUA File — Perbaikan Deploy yang Tidak Konsisten",
+    butir: [
+      "PERBAIKAN PENTING: sebelumnya cuma app.js (file utama) yang punya penanda versi (?v=) di index.html — 141 file JS LAIN yang saling import satu sama lain (spk.js, cetak.js, laporan.js, dst) TIDAK punya penanda versi sama sekali. Ini menyebabkan sebagian file bisa \"nyangkut\" di versi lama di sisi browser/CDN/hosting walau sudah di-upload versi barunya, sementara file lain sudah ter-update — gejalanya: sebagian fitur baru muncul, sebagian tidak, padahal semuanya ada di rilis yang sama.",
+      "Sekarang SEMUA 142 baris import lintas-file di seluruh aplikasi (30 file) diberi penanda ?v=3.2.4 yang seragam. Setiap kali versi dinaikkan, SEMUA file otomatis dianggap \"baru\" oleh browser/CDN — tidak ada lagi kemungkinan sebagian file ke-cache sementara yang lain tidak.",
+    ],
+  },
   {
     versi: "3.2.3", tanggal: "Agustus 2026",
     judul: "Proteksi Pembayaran Dobel/Salah Input di \"Terima Pembayaran\"",

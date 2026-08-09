@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorBerikutnya } from "./db.js";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js";
-import { rekeningDari, muatRekening } from "./rekening.js";
-import { leasingDari, muatLeasing } from "./leasing.js";
-import { konfirmasi, tanya } from "./dialog.js";
-import { konfirmasiPassword } from "./auth.js";
-import { buatNotifikasi } from "./notifikasi.js";
-import { kabar } from "./ui.js";
+  nomorBerikutnya } from "./db.js?v=3.2.4";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.2.4";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.2.4";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.2.4";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.2.4";
+import { konfirmasi, tanya } from "./dialog.js?v=3.2.4";
+import { konfirmasiPassword } from "./auth.js?v=3.2.4";
+import { buatNotifikasi } from "./notifikasi.js?v=3.2.4";
+import { kabar } from "./ui.js?v=3.2.4";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>

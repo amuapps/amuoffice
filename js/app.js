@@ -8,35 +8,35 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.2.4";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword } from "./auth.js";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js";
+  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.2.4";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.2.4";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.2.4";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js";
-import { konfirmasi, tanya } from "./dialog.js";
-import { halamanStok } from "./stok.js";
-import { halamanTipe } from "./tipe.js";
-import { halamanReferensi } from "./referensi.js";
-import { halamanPengguna } from "./pengaturan.js";
-import { halamanPelanggan } from "./pelanggan.js";
-import { halamanLeasing } from "./leasing.js";
-import { halamanRekening } from "./rekening.js";
-import { halamanSpk } from "./spk.js";
-import { halamanLaporan } from "./laporan.js";
-import { halamanLabel, muatLabelKustom } from "./label.js";
-import { halamanAkses, muatAksesKustom } from "./akses.js";
-import { halamanLog } from "./log.js";
-import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js";
-import { halamanAgen } from "./agen.js";
-import { halamanBiro } from "./biro.js";
-import { halamanSupplier } from "./supplier.js";
-import { halamanDashboard } from "./dashboard.js";
-import { halamanTentang } from "./tentang.js";
-import { halamanInbox, pasangLencana } from "./notifikasi.js";
-import { halamanSegera } from "./segera.js";
+  from "./router.js?v=3.2.4";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.2.4";
+import { konfirmasi, tanya } from "./dialog.js?v=3.2.4";
+import { halamanStok } from "./stok.js?v=3.2.4";
+import { halamanTipe } from "./tipe.js?v=3.2.4";
+import { halamanReferensi } from "./referensi.js?v=3.2.4";
+import { halamanPengguna } from "./pengaturan.js?v=3.2.4";
+import { halamanPelanggan } from "./pelanggan.js?v=3.2.4";
+import { halamanLeasing } from "./leasing.js?v=3.2.4";
+import { halamanRekening } from "./rekening.js?v=3.2.4";
+import { halamanSpk } from "./spk.js?v=3.2.4";
+import { halamanLaporan } from "./laporan.js?v=3.2.4";
+import { halamanLabel, muatLabelKustom } from "./label.js?v=3.2.4";
+import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.2.4";
+import { halamanLog } from "./log.js?v=3.2.4";
+import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.2.4";
+import { halamanAgen } from "./agen.js?v=3.2.4";
+import { halamanBiro } from "./biro.js?v=3.2.4";
+import { halamanSupplier } from "./supplier.js?v=3.2.4";
+import { halamanDashboard } from "./dashboard.js?v=3.2.4";
+import { halamanTentang } from "./tentang.js?v=3.2.4";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.2.4";
+import { halamanSegera } from "./segera.js?v=3.2.4";
 
 const el = (id) => document.getElementById(id);
 

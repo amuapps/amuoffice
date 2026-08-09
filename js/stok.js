@@ -5,18 +5,18 @@ import {
   dbase, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru, catat, runTransaction,
-} from "./db.js";
-import { bolehAkses, sesi } from "./auth.js";
-import { PERAN } from "./roles.js";
-import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js";
-import { pecahHarga } from "./config.js";
-import { beritahu } from "./dialog.js";
-import { muatSupplier, supplierAktif } from "./supplier.js";
-import { beriTahuSemuaOwner } from "./notifikasi.js";
-import { hitungTotalDibayar } from "./cetak.js";
+} from "./db.js?v=3.2.4";
+import { bolehAkses, sesi } from "./auth.js?v=3.2.4";
+import { PERAN } from "./roles.js?v=3.2.4";
+import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js?v=3.2.4";
+import { pecahHarga } from "./config.js?v=3.2.4";
+import { beritahu } from "./dialog.js?v=3.2.4";
+import { muatSupplier, supplierAktif } from "./supplier.js?v=3.2.4";
+import { beriTahuSemuaOwner } from "./notifikasi.js?v=3.2.4";
+import { hitungTotalDibayar } from "./cetak.js?v=3.2.4";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
-} from "./ui.js";
+} from "./ui.js?v=3.2.4";
 
 const LABEL_STATUS = {
   ready: "Ready",
