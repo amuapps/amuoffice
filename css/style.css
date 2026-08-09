@@ -540,6 +540,7 @@ select.isian {
   display: flex; align-items: center; gap: 9px;
   padding: 16px 20px 0; background: var(--latar);
 }
+.dialog-logo { width: 20px; height: 20px; object-fit: contain; flex: 0 0 auto; }
 .dialog-titik { display: none; }
 .dialog-judul {
   font-family: var(--papan); font-size: 17px; font-weight: 600; margin: 0;
@@ -813,6 +814,48 @@ select.isian {
 }
 
 /* ══════════════════════════════════════════════════════════
+   Tema Kemerdekaan — aktif otomatis sepanjang Agustus (lihat
+   deteksi tanggal di index.html). Bunting bendera merah-putih
+   di tepi atas panel kanan, sengaja HALUS & tidak mengganggu
+   keterbacaan form login.
+   ══════════════════════════════════════════════════════════ */
+.tema-kemerdekaan .masuk-panel {
+  position: relative; overflow: hidden;
+}
+.tema-kemerdekaan .masuk-panel::before {
+  content: "🇮🇩 Dirgahayu Republik Indonesia";
+  position: absolute; top: 0; left: 0; right: 0;
+  text-align: center; font-size: 11px; font-weight: 600;
+  color: #fff; background: #C42B1C;
+  padding: 5px 0; letter-spacing: .02em;
+}
+.tema-kemerdekaan .masuk-panel-isi { margin-top: 22px; }
+.tema-bunting {
+  position: absolute; top: 26px; left: -6px; right: -6px;
+  height: 26px; pointer-events: none;
+  display: none; justify-content: space-between; padding: 0 10px;
+}
+.tema-kemerdekaan .tema-bunting { display: flex; }
+.tema-bunting span {
+  width: 0; height: 0; flex: 0 0 auto;
+  border-left: 9px solid transparent; border-right: 9px solid transparent;
+  border-top: 14px solid #C42B1C;
+  animation: bunting-goyang 2.6s ease-in-out infinite;
+  transform-origin: top center;
+}
+.tema-bunting span:nth-child(even) { border-top-color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.15)); }
+.tema-bunting span:nth-child(3n) { animation-delay: .3s; }
+.tema-bunting span:nth-child(4n) { animation-delay: .6s; }
+@keyframes bunting-goyang {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tema-bunting span { animation: none; }
+}
+
+/* ══════════════════════════════════════════════════════════
    Kerangka layar bergaya DMS dealer
    ══════════════════════════════════════════════════════════ */
 
@@ -982,4 +1025,38 @@ select.isian {
 .kartu--klik:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0,0,0,.08);
+}
+
+/* ── Peringkat Sales (Dashboard) — list ranking kompak, bukan
+   kartu besar, supaya tetap rapi walau nanti sales-nya banyak ── */
+.peringkat-daftar { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.peringkat-baris {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 6px; border-radius: var(--r);
+  border-bottom: 1px solid var(--garis-2);
+}
+.peringkat-baris:last-child { border-bottom: 0; }
+.peringkat-baris:hover { background: var(--lapis); }
+.peringkat-no {
+  width: 22px; flex: 0 0 auto; text-align: center;
+  font-size: 13px; font-weight: 700; font-family: var(--angka);
+}
+.peringkat-avatar {
+  width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 13px;
+}
+.peringkat-tengah { flex: 1; min-width: 0; }
+.peringkat-nama {
+  font-size: 13px; font-weight: 600; margin: 0 0 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.peringkat-bar {
+  height: 4px; border-radius: 3px; background: var(--garis-2);
+  overflow: hidden;
+}
+.peringkat-bar span { display: block; height: 100%; border-radius: 3px; }
+.peringkat-jumlah {
+  flex: 0 0 auto; font-size: 13px; font-weight: 700; font-family: var(--angka);
+  white-space: nowrap;
 }
