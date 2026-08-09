@@ -815,31 +815,49 @@ select.isian {
 
 /* ══════════════════════════════════════════════════════════
    Tema Kemerdekaan — aktif otomatis sepanjang Agustus (lihat
-   deteksi tanggal di index.html). Bunting bendera merah-putih
-   di tepi atas panel kanan, sengaja HALUS & tidak mengganggu
-   keterbacaan form login.
+   deteksi tanggal di index.html). Mengisi PENUH panel kanan:
+   pita judul besar, bunting bendera menggantung, garis diagonal
+   merah-putih sangat halus, dan watermark "MERDEKA" raksasa di
+   latar — semuanya tetap redup supaya form login tetap kebaca.
    ══════════════════════════════════════════════════════════ */
 .tema-kemerdekaan .masuk-panel {
   position: relative; overflow: hidden;
+  background:
+    repeating-linear-gradient(135deg,
+      rgba(196,43,28,.05) 0px, rgba(196,43,28,.05) 26px,
+      transparent 26px, transparent 52px),
+    var(--kartu);
 }
 .tema-kemerdekaan .masuk-panel::before {
-  content: "🇮🇩 Dirgahayu Republik Indonesia";
-  position: absolute; top: 0; left: 0; right: 0;
-  text-align: center; font-size: 11px; font-weight: 600;
+  content: "🇮🇩  D I R G A H A Y U   R E P U B L I K   I N D O N E S I A  🇮🇩";
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1;
+  text-align: center; font-size: 13px; font-weight: 700;
   color: #fff; background: #C42B1C;
-  padding: 5px 0; letter-spacing: .02em;
+  padding: 11px 6px; letter-spacing: .03em;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
 }
-.tema-kemerdekaan .masuk-panel-isi { margin-top: 22px; }
+.tema-kemerdekaan .masuk-panel::after {
+  /* Watermark besar di latar, mengisi ruang kosong panel */
+  content: "MERDEKA"; position: absolute; z-index: 0;
+  top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-14deg);
+  font-family: var(--papan); font-weight: 800;
+  font-size: min(20vw, 130px); line-height: 1;
+  color: rgba(196,43,28,.05); white-space: nowrap;
+  pointer-events: none;
+}
+.tema-kemerdekaan .masuk-panel-isi {
+  position: relative; z-index: 2; margin-top: 46px;
+}
 .tema-bunting {
-  position: absolute; top: 26px; left: -6px; right: -6px;
-  height: 26px; pointer-events: none;
-  display: none; justify-content: space-between; padding: 0 10px;
+  position: absolute; top: 44px; left: -6px; right: -6px; z-index: 1;
+  height: 30px; pointer-events: none;
+  display: none; justify-content: space-between; padding: 0 8px;
 }
 .tema-kemerdekaan .tema-bunting { display: flex; }
 .tema-bunting span {
   width: 0; height: 0; flex: 0 0 auto;
-  border-left: 9px solid transparent; border-right: 9px solid transparent;
-  border-top: 14px solid #C42B1C;
+  border-left: 10px solid transparent; border-right: 10px solid transparent;
+  border-top: 16px solid #C42B1C;
   animation: bunting-goyang 2.6s ease-in-out infinite;
   transform-origin: top center;
 }
@@ -853,6 +871,11 @@ select.isian {
 }
 @media (prefers-reduced-motion: reduce) {
   .tema-bunting span { animation: none; }
+}
+@media (max-width: 860px) {
+  .tema-kemerdekaan .masuk-panel::before { font-size: 11px; padding: 9px 6px; }
+  .tema-kemerdekaan .masuk-panel::after { font-size: min(26vw, 90px); }
+  .tema-kemerdekaan .masuk-panel-isi { margin-top: 38px; }
 }
 
 /* ══════════════════════════════════════════════════════════
