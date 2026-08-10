@@ -2,8 +2,8 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.3.1";
-import { daftarKodeUntuk } from "./akses.js?v=3.3.1";
+import { labelItem, labelGrup } from "./label.js?v=3.4.0";
+import { daftarKodeUntuk } from "./akses.js?v=3.4.0";
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
@@ -58,7 +58,6 @@ const SALES = { grup: "Sales", butir: [
 
 const SISTEM_LENGKAP = { grup: "Sistem", butir: [
   { label: "Database Konsumen", rute: "#/pelanggan", kode: "SYS-02" },
-  { label: "Ubah Nama Menu", rute: "#/label", kode: "SYS-08" },
   { label: "Log Aktivitas", rute: "#/log", kode: "SYS-09" },
   { label: "Panel Akses", rute: "#/akses", kode: "SYS-10" },
   { label: "Persetujuan Perubahan", rute: "#/persetujuan", kode: "SYS-11" },

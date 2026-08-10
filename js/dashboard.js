@@ -3,11 +3,11 @@
 // tombol, biar tampilan utamanya bersih — baru muncul kalau memang
 // mau menyaring datanya.
 
-import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.3.1";
-import { sesi } from "./auth.js?v=3.3.1";
-import { muatTipe } from "./tipe.js?v=3.3.1";
-import { rupiah, aman, namaTampilan } from "./ui.js?v=3.3.1";
-import { resolveNamaSales } from "./cetak.js?v=3.3.1";
+import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.4.0";
+import { sesi } from "./auth.js?v=3.4.0";
+import { muatTipe } from "./tipe.js?v=3.4.0";
+import { rupiah, aman, namaTampilan } from "./ui.js?v=3.4.0";
+import { resolveNamaSales, hargaEfektif } from "./cetak.js?v=3.4.0";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -318,12 +318,12 @@ export async function halamanDashboard(wadah) {
   function gambarUlang() {
     const terpilih = terapkanFilter();
 
-    const totalNilai = terpilih.reduce((s, t) => s + (t.hargaOtr || 0), 0);
+    const totalNilai = terpilih.reduce((s, t) => s + hargaEfektif(t), 0);
     const lunas = terpilih.filter((t) => t.statusBayar === "lunas").length;
     const rata = terpilih.length ? Math.round(totalNilai / terpilih.length) : 0;
     wadah.querySelector("#d-kpi").innerHTML =
       kartuKpi("Total SPK", terpilih.length, null, 0) +
-      kartuKpi("Total Nilai", rupiah(totalNilai), null, 1) +
+      kartuKpi("Total Nilai", rupiah(totalNilai), "Setelah diskon", 1) +
       kartuKpi("Unit Lunas", lunas, `dari ${terpilih.length} SPK`, 2) +
       kartuKpi("Rata-rata / SPK", rupiah(rata), null, 3);
 

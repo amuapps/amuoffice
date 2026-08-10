@@ -3,11 +3,30 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.3.1";
-import { VERSI } from "./config.js?v=3.3.1";
-import { aman } from "./ui.js?v=3.3.1";
+import { sesi } from "./auth.js?v=3.4.0";
+import { VERSI } from "./config.js?v=3.4.0";
+import { aman } from "./ui.js?v=3.4.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.4.0", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN BESAR: Diskon & Cashback Sekarang Benar-Benar Berfungsi",
+    butir: [
+      "\"Harga Efektif\" (OTR − Diskon yang sah) sekarang dipakai di SEMUA perhitungan uang — status Lunas/Belum, Sisa Tagihan (kuitansi & SPK), Tagihan ke Leasing, dan Total Nilai di Dashboard/Laporan. Sebelumnya Diskon cuma tampil sebagai baris tercetak di dokumen, tidak pernah benar-benar mengurangi apa pun — sekarang benar-benar mengurangi.",
+      "PENTING: angka \"Total Nilai\" di Dashboard & Laporan akan TURUN dibanding sebelumnya kalau ada SPK yang pakai Diskon — ini BUKAN bug baru, ini koreksi ke angka yang seharusnya (bersih setelah diskon, bukan OTR mentah).",
+      "PERBAIKAN BUG PENTING: form Ubah (Owner) sebelumnya membaca/menulis field \"cashback\" yang SALAH NAMA — beda total dari field \"cashbackDiajukan\"/\"cashbackDisetujui\" yang dipakai alur SPK Baru & Persetujuan. Akibatnya cashback yang disetujui Owner lewat Persetujuan tidak pernah muncul di form Ubah, dan sebaliknya. Sekarang disatukan pakai cashbackDisetujui di semua tempat.",
+      "Cashback sekarang punya status pembayaran (Sudah Dibayar / Belum, tanggal, via bank, catatan) — sama seperti pola Fee Agen — bisa ditandai Owner maupun Admin lewat tombol \"Tandai Sudah Dibayar\" di panel Detail Riwayat SPK.",
+      "Export Excel: kolom baru \"Diskon\" dan \"Harga Efektif\" ditambahkan supaya rinciannya transparan.",
+      "Firestore Rules: Admin diberi izin tambahan menulis field pembayaran Cashback (cashbackDibayarStatus, dst) — Sales tetap tidak bisa.",
+    ],
+  },
+  {
+    versi: "3.3.2", tanggal: "Agustus 2026",
+    judul: "Menu \"Ubah Nama Menu\" Dihapus",
+    butir: [
+      "Menu Sistem → \"Ubah Nama Menu\" dihapus dari sidebar dan rutenya ditutup — fitur ganti nama tampilan menu ini berisiko bikin bingung (Owner bisa lupa sudah mengganti nama menu, jadi tidak cocok lagi dengan panduan/instruksi). Nama-nama menu sekarang tetap baku, tidak bisa diubah lewat aplikasi.",
+    ],
+  },
   {
     versi: "3.3.1", tanggal: "Agustus 2026",
     judul: "Tema Kemerdekaan Diperbesar — Isi Penuh Panel Login",

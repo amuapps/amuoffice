@@ -11,24 +11,24 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.3.1";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.3.1";
-import { batasDiskon, PERAN } from "./roles.js?v=3.3.1";
-import { DP_MINIMUM } from "./config.js?v=3.3.1";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.3.1";
+} from "./db.js?v=3.4.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.4.0";
+import { batasDiskon, PERAN } from "./roles.js?v=3.4.0";
+import { DP_MINIMUM } from "./config.js?v=3.4.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.4.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.3.1";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.4.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.3.1";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.3.1";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.3.1";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.3.1";
-import { muatAgen, agenAktif } from "./agen.js?v=3.3.1";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.4.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.4.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.4.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.4.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.4.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi } from "./cetak.js?v=3.3.1";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.3.1";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.3.1";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.3.1";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.4.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.4.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.4.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.4.0";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -854,9 +854,13 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
 
     <label class="label label--gelap" for="e-diskon-${t.id}">Diskon (Rp)</label>
     <input class="isian" id="e-diskon-${t.id}" value="${rupiah(t.diskon || 0)}">
+    <p class="petunjuk">Sebagai Owner, diskon tidak dibatasi — langsung
+      berlaku setelah disimpan, ikut mengurangi Harga Efektif (dipakai
+      untuk hitung Lunas, Sisa Tagihan, dan Tagihan Leasing).</p>
 
-    <label class="label label--gelap" for="e-cashback-${t.id}">Cashback (Rp)</label>
-    <input class="isian" id="e-cashback-${t.id}" value="${rupiah(t.cashback || 0)}">
+    <label class="label label--gelap" for="e-cashback-${t.id}">Cashback (Rp)
+      <span class="kunci">langsung berlaku — Owner tidak perlu proses persetujuan</span></label>
+    <input class="isian" id="e-cashback-${t.id}" value="${rupiah(t.cashbackDisetujui || 0)}">
 
     <label class="label label--gelap" for="e-agen-${t.id}">Agen
       <span class="kunci">opsional</span></label>
@@ -1248,7 +1252,12 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       dataBaru.rekeningId = rekeningBaru;
       dataBaru.kredit = kreditBaru;
       dataBaru.diskon = diskonBaru;
-      dataBaru.cashback = cashbackBaru;
+      dataBaru.cashbackDisetujui = cashbackBaru;
+      // Owner mengedit langsung tanpa lewat alur pengajuan — begitu
+      // disimpan, cashback ini otomatis dianggap "disetujui" (bukan
+      // "menunggu"), konsisten dengan cashbackDiajukan/Status yang
+      // dipakai alur SPK Baru & Persetujuan Perubahan.
+      dataBaru.cashbackStatus = cashbackBaru > 0 ? "disetujui" : null;
       dataBaru.catatan = catatanBaru;
       dataBaru.salesUid = salesUidBaru;
       dataBaru.salesNama = salesNamaBaru;
@@ -1278,7 +1287,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           JSON.stringify([...caraBayarLama].sort())) fatal = true;
       if ((kreditBaru?.leasingId || null) !== (kredit.leasingId || null)) fatal = true;
       if (diskonBaru !== (t.diskon || 0)) fatal = true;
-      if (cashbackBaru !== (t.cashback || 0)) fatal = true;
+      if (cashbackBaru !== (t.cashbackDisetujui || 0)) fatal = true;
       if (tipeBerubah || warnaBerubah) fatal = true;
       if (salesUidBaru !== (t.salesUid || sesi.uid)) fatal = true;
       if (agenIdBaru !== (t.agenId || null)) fatal = true;

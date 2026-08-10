@@ -1,16 +1,16 @@
 // laporan.js — daftar semua SPK (dengan hitungannya) dan ringkasan
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
-import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc }
-  from "./db.js?v=3.3.1";
-import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.3.1";
+import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
+  from "./db.js?v=3.4.0";
+import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.4.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf } from "./cetak.js?v=3.3.1";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.3.1";
-import { bolehAkses, sesi } from "./auth.js?v=3.3.1";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.3.1";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.3.1";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.4.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.4.0";
+import { bolehAkses, sesi } from "./auth.js?v=3.4.0";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.4.0";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.4.0";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -115,7 +115,7 @@ async function renderDetail(t) {
   }
 
   const totalDibayar = hitungTotalDibayar(t);
-  const sisa = Math.max((t.hargaOtr || 0) - totalDibayar, 0);
+  const sisa = Math.max(hargaEfektif(t) - totalDibayar, 0);
   const caraBayarTampil = (t.caraBayar || []).map((c) => LABEL_CARA_BAYAR[c] || c).join(", ") || "-";
 
   const baris2 = (label, isi) => `<div class="d-baris">
@@ -135,6 +135,9 @@ async function renderDetail(t) {
       <p class="d-judul">Pembayaran</p>
       ${baris2("Cara bayar", caraBayarTampil)}
       ${baris2("Rekening tujuan", rekeningTampil)}
+      ${baris2("Harga OTR", rupiah(t.hargaOtr || 0))}
+      ${t.diskon ? baris2("Diskon", `− ${rupiah(t.diskon)}`) : ""}
+      ${t.diskon ? baris2("Harga Efektif", rupiah(hargaEfektif(t))) : ""}
       ${baris2("Jumlah dibayar (awal)", rupiah(t.jumlahBayar || 0))}
       ${baris2("Total dibayar s/d ini", rupiah(totalDibayar))}
       ${baris2("Sisa tagihan", rupiah(sisa))}
@@ -143,7 +146,7 @@ async function renderDetail(t) {
     ${t.kredit ? `<div class="d-kolom">
       <p class="d-judul">Status Kredit (Leasing)</p>
       ${baris2("Leasing", aman(leasingNama))}
-      ${baris2("Tagihan ke leasing", rupiah(Math.max((t.hargaOtr || 0) - (t.jumlahBayar || 0), 0)))}
+      ${baris2("Tagihan ke leasing", rupiah(Math.max(hargaEfektif(t) - (t.jumlahBayar || 0), 0)))}
       ${baris2("Cicilan per bulan", rupiah(t.kredit.cicilan || 0))}
       ${baris2("Tenor", `${t.kredit.tenor || 0} bulan`)}
       ${baris2("Tanggal survey", t.kredit.tanggalSurvey ? tanggal(t.kredit.tanggalSurvey) : "-")}
@@ -151,11 +154,24 @@ async function renderDetail(t) {
     <div class="d-kolom">
       <p class="d-judul">Lainnya</p>
       ${baris2("Diskon", rupiah(t.diskon || 0))}
-      ${baris2("Cashback", rupiah(t.cashback || 0))}
+      ${baris2("Cashback", t.cashbackStatus === "menunggu"
+        ? `${rupiah(t.cashbackDiajukan || 0)} <span class="tanda tanda--uji" style="margin-left:4px">Menunggu</span>`
+        : rupiah(t.cashbackDisetujui || 0))}
+      ${t.cashbackDisetujui > 0 ? baris2("Status Bayar Cashback",
+          t.cashbackDibayarStatus === "sudah_dibayar"
+            ? `Sudah Dibayar (${aman(t.cashbackTanggalBayar || "-")})`
+            : "Belum Dibayar") : ""}
       ${baris2("Agen", aman(t.agenNama || "-"))}
       ${bolehAkses("kelola.pengguna") ? baris2("Fee Agen", rupiah(t.feeAgen || 0)) : ""}
       ${baris2("Catatan internal", aman(t.catatan || "-"))}
     </div>
+    ${bolehAkses("agen.lihat") && t.cashbackDisetujui > 0
+        && t.cashbackDibayarStatus !== "sudah_dibayar" ? `<div class="d-kolom">
+      <p class="d-judul">Tandai Cashback</p>
+      <button class="tombol tombol--kecil" data-tandai-cashback="${t.id}">
+        Tandai Sudah Dibayar</button>
+      <div data-wadah-bayar-cashback="${t.id}"></div>
+    </div>` : ""}
     ${riwayat.length ? `<div class="d-kolom" style="flex-basis:100%">
       <p class="d-judul">Riwayat Pembayaran</p>
       ${riwayat.map((r) => baris2(
@@ -164,6 +180,61 @@ async function renderDetail(t) {
       )).join("")}
     </div>` : ""}
   </div>`;
+}
+
+// Form "Tandai Cashback Sudah Dibayar" — polanya sama persis dengan
+// Bayar Fee Agen (tanggal, via bank, catatan) supaya konsisten.
+function formBayarCashback(id) {
+  return `<form id="form-bayar-cb-${id}" class="form" style="margin-top:8px">
+    <label class="label label--gelap" for="bc-tanggal-${id}">Tanggal dibayar</label>
+    <input class="isian isian--terang" id="bc-tanggal-${id}" type="date"
+           value="${new Date().toISOString().slice(0, 10)}">
+    <label class="label label--gelap" for="bc-bank-${id}">Via Bank</label>
+    <input class="isian isian--terang" id="bc-bank-${id}" placeholder="mis. Transfer BCA">
+    <label class="label label--gelap" for="bc-catatan-${id}">Catatan (opsional)</label>
+    <input class="isian isian--terang" id="bc-catatan-${id}" placeholder="No. referensi transfer, dsb.">
+    <div class="aksi">
+      <button class="tombol tombol--kecil tombol--isi" type="submit">Simpan</button>
+      <button class="tombol tombol--sunyi tombol--gelap" type="button"
+              id="batal-bayar-cb-${id}">Batal</button>
+    </div>
+  </form>`;
+}
+
+function pasangWiringCashback(target, t, muatUlangDetail) {
+  const tombolTandai = target.querySelector(`[data-tandai-cashback="${t.id}"]`);
+  if (!tombolTandai) return;
+  const wadahForm = target.querySelector(`[data-wadah-bayar-cashback="${t.id}"]`);
+  tombolTandai.addEventListener("click", () => {
+    wadahForm.innerHTML = formBayarCashback(t.id);
+    wadahForm.querySelector(`#batal-bayar-cb-${t.id}`)
+      .addEventListener("click", () => (wadahForm.innerHTML = ""));
+    wadahForm.querySelector(`#form-bayar-cb-${t.id}`).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const tgl = wadahForm.querySelector(`#bc-tanggal-${t.id}`).value;
+      const bank = wadahForm.querySelector(`#bc-bank-${t.id}`).value.trim();
+      const catatan = wadahForm.querySelector(`#bc-catatan-${t.id}`).value.trim();
+      if (!tgl || !bank) {
+        kabar("Tanggal dan Bank wajib diisi.", "rem");
+        return;
+      }
+      try {
+        await updateDoc(doc(dbase, "transaksi", t.id), {
+          cashbackDibayarStatus: "sudah_dibayar",
+          cashbackTanggalBayar: tgl,
+          cashbackBank: bank,
+          cashbackCatatan: catatan,
+        });
+        await catat("cashback_dibayar", {
+          koleksi: "transaksi", docId: t.id, ringkas: `${bank} · ${tgl}`,
+        });
+        kabar("Cashback ditandai sudah dibayar.", "netral");
+        await muatUlangDetail();
+      } catch (err) {
+        kabar("Gagal menyimpan: " + err.message, "rem");
+      }
+    });
+  });
 }
 
 export async function halamanLaporan(wadah) {
@@ -420,12 +491,12 @@ export async function halamanLaporan(wadah) {
       peringatanEl.innerHTML = "";
     }
 
-    const totalNilai = dataTampil.reduce((s, t) => s + (t.hargaOtr || 0), 0);
+    const totalNilai = dataTampil.reduce((s, t) => s + hargaEfektif(t), 0);
     const jmlReady = dataTampil.filter((t) => t.kondisiUnit === "ready").length;
     const jmlIndent = dataTampil.filter((t) => t.kondisiUnit === "indent").length;
 
     ringkasanEl.innerHTML =
-      kartuRingkas("Total SPK", dataTampil.length, rupiah(totalNilai) + " total nilai") +
+      kartuRingkas("Total SPK", dataTampil.length, rupiah(totalNilai) + " total nilai (setelah diskon)") +
       kartuRingkas("Unit terkunci (Dipesan)", jmlReady, "stok langsung tersedia") +
       kartuRingkas("Indent", jmlIndent, "menunggu unit tiba");
 
@@ -467,6 +538,11 @@ export async function halamanLaporan(wadah) {
         const t = dataTampil.find((x) => x.id === b.dataset.batalkan);
         mintaBatalkanSpk(t, muat);
       }));
+    async function bukaDetail(t, target) {
+      target.innerHTML = await renderDetail(t);
+      target.dataset.dimuat = "1";
+      pasangWiringCashback(target, t, () => bukaDetail(t, target));
+    }
     barisEl.querySelectorAll("[data-detail]").forEach((b) =>
       b.addEventListener("click", async () => {
         const t = dataTampil.find((x) => x.id === b.dataset.detail);
@@ -478,10 +554,7 @@ export async function halamanLaporan(wadah) {
           return;
         }
         barisSembunyi.hidden = false;
-        if (!target.dataset.dimuat) {
-          target.innerHTML = await renderDetail(t);
-          target.dataset.dimuat = "1";
-        }
+        if (!target.dataset.dimuat) await bukaDetail(t, target);
       }));
   }
 

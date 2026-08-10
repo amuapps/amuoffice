@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorBerikutnya } from "./db.js?v=3.3.1";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.3.1";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.3.1";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.3.1";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.3.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.3.1";
-import { konfirmasiPassword } from "./auth.js?v=3.3.1";
-import { buatNotifikasi } from "./notifikasi.js?v=3.3.1";
-import { kabar } from "./ui.js?v=3.3.1";
+  nomorBerikutnya } from "./db.js?v=3.4.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.4.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.4.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.4.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.4.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.4.0";
+import { konfirmasiPassword } from "./auth.js?v=3.4.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.4.0";
+import { kabar } from "./ui.js?v=3.4.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -36,9 +36,25 @@ export function hitungTotalDibayar(t) {
   }
   return t.jumlahBayar || 0;
 }
+
+// Harga yang SEBENARNYA harus dilunasi konsumen — OTR dikurangi
+// Diskon yang SUDAH SAH (t.diskon selalu berisi nilai yang sudah
+// berlaku: langsung dari awal kalau masih dalam batas peran, atau
+// baru terisi penuh setelah disetujui Owner — lihat diskon_spk di
+// persetujuan.js). Diskon yang MASIH menunggu persetujuan TIDAK
+// ikut mengurangi apa pun sampai benar-benar disetujui.
+//
+// Dokumen cetak SPK tetap menampilkan Harga OTR asli + baris Diskon
+// terpisah (tidak berubah) — cuma PERHITUNGAN uangnya (Lunas/Sisa
+// Tagihan/Tagihan Leasing/Total di Laporan) yang pakai angka ini.
+export function hargaEfektif(t) {
+  return Math.max((t.hargaOtr || 0) - (t.diskon || 0), 0);
+}
+
 export function sudahLunas(t) {
   const total = hitungTotalDibayar(t);
-  return (t.hargaOtr || 0) > 0 && total >= (t.hargaOtr || 0);
+  const efektif = hargaEfektif(t);
+  return efektif > 0 && total >= efektif;
 }
 
 // Label tombol yang konsisten di semua halaman (Riwayat SPK, Lihat
@@ -69,7 +85,7 @@ async function tentukanSumber(t) {
 // alamat, atau nomor telepon. Satu dokumen per LEMBAR PEMBAYARAN
 // (bukan per SPK) — DP dan pelunasan punya kode QR masing-masing.
 function dataKuitansiPublik(t, entri, totalSetelah) {
-  const sisa = Math.max((t.hargaOtr || 0) - totalSetelah, 0);
+  const sisa = Math.max(hargaEfektif(t) - totalSetelah, 0);
   return {
     kuitansiNo: entri.kuitansiNo, spkNo: t.spkNo, tipeNama: t.tipeNama,
     warna: t.warna, jumlahBayar: entri.jumlah, sisaTagihan: sisa,
@@ -439,7 +455,7 @@ export async function cetakSpk(t) {
           <tr><td>Leasing</td>
               <td class="c-kanan">${aman(leasing?.nama || "-")}</td></tr>
           <tr><td>Sisa Dibiayai Leasing</td>
-              <td class="c-kanan">${rupiah(Math.max(0, (t.hargaOtr || 0) - (t.jumlahBayar || 0)))}</td></tr>
+              <td class="c-kanan">${rupiah(Math.max(0, hargaEfektif(t) - (t.jumlahBayar || 0)))}</td></tr>
           <tr><td>Cicilan / bulan</td>
               <td class="c-kanan">${rupiah(t.kredit?.cicilan)}</td></tr>
           <tr><td>Lama cicilan</td>
@@ -513,7 +529,7 @@ export async function cetakTagihanLeasing(t) {
   const namaSalesTampil = await resolveNamaSales(t);
   const leasing = leasingDari(t.kredit.leasingId);
   const totalDibayar = hitungTotalDibayar(t);
-  const tagihan = Math.max((t.hargaOtr || 0) - totalDibayar, 0);
+  const tagihan = Math.max(hargaEfektif(t) - totalDibayar, 0);
 
   const isi = `<div class="lembar-cetak" id="lembar-tagihan-leasing">
 
@@ -629,10 +645,12 @@ function barisEkspor(t) {
     "Pembeli": t.pembeli?.nama || "", "No. HP": t.pembeli?.telepon || "",
     "Unit": t.tipeNama || "", "Warna": t.warna || "",
     "Harga OTR": t.hargaOtr || 0,
+    "Diskon": t.diskon || 0,
+    "Harga Efektif": hargaEfektif(t),
     "Cara Bayar": (t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash",
     "Status": batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas"),
     "Total Dibayar": hitungTotalDibayar(t),
-    "Sisa Tagihan": Math.max((t.hargaOtr || 0) - hitungTotalDibayar(t), 0),
+    "Sisa Tagihan": Math.max(hargaEfektif(t) - hitungTotalDibayar(t), 0),
     "Sales": t.salesNama || "", "Kondisi": t.kondisiUnit || "",
     "Alasan Batal": t.alasanBatal || "",
   };
@@ -734,7 +752,7 @@ export async function cetakTagihanLeasingBatch(daftar) {
     const namaSalesTampil = await resolveNamaSales(t);
     const leasing = leasingDari(t.kredit.leasingId);
     const totalDibayar = hitungTotalDibayar(t);
-    const tagihan = Math.max((t.hargaOtr || 0) - totalDibayar, 0);
+    const tagihan = Math.max(hargaEfektif(t) - totalDibayar, 0);
 
     potongan.push(`<div class="lembar-cetak">
       <header class="c-kop">
@@ -960,7 +978,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
       const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
       const kodeAman = kuitansiNo.replace(/\//g, "-");
       const jumlah = tKerja.jumlahBayar || 0;
-      const lunasSekarang = (tKerja.hargaOtr || 0) > 0 && jumlah >= (tKerja.hargaOtr || 0);
+      const lunasSekarang = hargaEfektif(tKerja) > 0 && jumlah >= hargaEfektif(tKerja);
       const entri = {
         kuitansiNo, kodeAman, jumlah, sumber: "konsumen",
         sumberNama: tKerja.pembeli?.nama || "-",
@@ -1009,7 +1027,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   // konfirmasi. Ini titik yang menyebabkan kasus SPK yang tercatat
   // pembayaran sama persis dua kali tanpa ada yang sempat sadar).
   const totalSaatIni = hitungTotalDibayar(tKerja);
-  const sisaSebelum = (tKerja.hargaOtr || 0) - totalSaatIni;
+  const sisaSebelum = hargaEfektif(tKerja) - totalSaatIni;
   const isian = await tanya({
     judul: "Catat Pembayaran",
     pesan: `Sisa tagihan SPK ${tKerja.spkNo}: ${rupiah(sisaSebelum)}. ` +
@@ -1064,7 +1082,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
     const kodeAman = kuitansiNo.replace(/\//g, "-");
     const { sumber, sumberNama } = await tentukanSumber(tKerja);
     const totalBaru = totalSaatIni + jumlahBaru;
-    const lunasBaru = (tKerja.hargaOtr || 0) > 0 && totalBaru >= (tKerja.hargaOtr || 0);
+    const lunasBaru = hargaEfektif(tKerja) > 0 && totalBaru >= hargaEfektif(tKerja);
     const entri = {
       kuitansiNo, kodeAman, jumlah: jumlahBaru, sumber, sumberNama,
       keterangan: lunasBaru ? "Pelunasan" : "Cicilan",
@@ -1108,7 +1126,7 @@ function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
   const urlValidasi = `${location.origin}${location.pathname}#/cek/${entri.kodeAman || ""}`;
   const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
     encodeURIComponent(urlValidasi);
-  const sisa = Math.max((t.hargaOtr || 0) - totalSetelah, 0);
+  const sisa = Math.max(hargaEfektif(t) - totalSetelah, 0);
   const labelDiterima = entri.sumber === "leasing"
     ? `DIBAYAR OLEH (${aman(entri.sumberNama).toUpperCase()})`
     : "DIBAYAR OLEH (KONSUMEN)";
