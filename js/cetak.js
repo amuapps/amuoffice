@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.6.2";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.6.2";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.6.2";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.6.2";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.6.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.2";
-import { konfirmasiPassword } from "./auth.js?v=3.6.2";
-import { buatNotifikasi } from "./notifikasi.js?v=3.6.2";
-import { kabar } from "./ui.js?v=3.6.2";
+  nomorKuitansiSpk } from "./db.js?v=3.6.4";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.6.4";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.6.4";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.6.4";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.6.4";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.4";
+import { konfirmasiPassword } from "./auth.js?v=3.6.4";
+import { buatNotifikasi } from "./notifikasi.js?v=3.6.4";
+import { kabar } from "./ui.js?v=3.6.4";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>

@@ -3,14 +3,28 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.2";
-import { VERSI } from "./config.js?v=3.6.2";
-import { aman, rupiah, kabar } from "./ui.js?v=3.6.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.4";
+import { VERSI } from "./config.js?v=3.6.4";
+import { aman, rupiah, kabar } from "./ui.js?v=3.6.4";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.4";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.2";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.4";
 
 const RIWAYAT = [
+  {
+    versi: "3.6.4", tanggal: "Agustus 2026",
+    judul: "Tunai+Transfer: Transfer Otomatis Terisi Sisanya",
+    butir: [
+      "SPK Baru, mode Cara Bayar Tunai+Transfer sekaligus: begitu isi kotak Tunai, kotak Transfer sekarang OTOMATIS terisi sisanya menuju Harga Efektif (OTR − Diskon) — contoh OTR 20jt, isi Tunai 5jt, Transfer otomatis terisi 15jt. Tetap bisa diedit manual kalau ternyata bukan pelunasan penuh (mis. cuma DP gabungan dua metode) — kalau totalnya belum mencapai Harga Efektif, sistem tetap otomatis anggap itu DP, bukan Lunas.",
+    ],
+  },
+  {
+    versi: "3.6.3", tanggal: "Agustus 2026",
+    judul: "Label \"Jumlah Dibayar Sekarang\" di Form Ubah Diperjelas",
+    butir: [
+      "Field \"Jumlah Dibayar Sekarang (DP)\" di form Ubah (Owner) — kata \"(DP)\" di labelnya dihapus, karena field ini bisa jadi DP ATAU pelunasan penuh tergantung angkanya, bukan selalu DP. Sistem yang menentukan otomatis, bukan labelnya. Form SPK Baru sudah benar dari awal (\"Jumlah dibayar sekarang\" tanpa embel-embel), cuma form Ubah yang perlu disamakan.",
+    ],
+  },
   {
     versi: "3.6.2", tanggal: "Agustus 2026",
     judul: "PERBAIKAN BUG SERIUS: Aplikasi Gagal Total Dimuat",
