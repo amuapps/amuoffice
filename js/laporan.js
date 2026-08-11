@@ -2,15 +2,15 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.4.0";
-import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.4.0";
+  from "./db.js?v=3.4.3";
+import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.4.3";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.4.0";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.4.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.4.0";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.4.0";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.4.0";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.4.3";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.4.3";
+import { bolehAkses, sesi } from "./auth.js?v=3.4.3";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.4.3";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.4.3";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -141,7 +141,7 @@ async function renderDetail(t) {
       ${baris2("Jumlah dibayar (awal)", rupiah(t.jumlahBayar || 0))}
       ${baris2("Total dibayar s/d ini", rupiah(totalDibayar))}
       ${baris2("Sisa tagihan", rupiah(sisa))}
-      ${baris2("Status", sudahLunas(t) ? "Lunas" : (t.kuitansiTercetak ? "DP/Cicilan" : "Belum ada kuitansi"))}
+      ${baris2("Status", sudahLunas(t) ? "Lunas" : (t.kuitansiTercetak ? "Belum Lunas" : "Belum ada kuitansi"))}
     </div>
     ${t.kredit ? `<div class="d-kolom">
       <p class="d-judul">Status Kredit (Leasing)</p>

@@ -6,9 +6,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { auth, dbase, doc, getDoc, catat,
-  EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "./db.js?v=3.4.0";
-import { PERAN, boleh } from "./roles.js?v=3.4.0";
-import { kabar } from "./ui.js?v=3.4.0";
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "./db.js?v=3.4.3";
+import { PERAN, boleh } from "./roles.js?v=3.4.3";
+import { kabar } from "./ui.js?v=3.4.3";
 
 export let sesi = null; // { uid, email, nama, peran, aktif }
 

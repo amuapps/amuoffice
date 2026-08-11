@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorBerikutnya } from "./db.js?v=3.4.0";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.4.0";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.4.0";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.4.0";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.4.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.4.0";
-import { konfirmasiPassword } from "./auth.js?v=3.4.0";
-import { buatNotifikasi } from "./notifikasi.js?v=3.4.0";
-import { kabar } from "./ui.js?v=3.4.0";
+  nomorBerikutnya } from "./db.js?v=3.4.3";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.4.3";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.4.3";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.4.3";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.4.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.4.3";
+import { konfirmasiPassword } from "./auth.js?v=3.4.3";
+import { buatNotifikasi } from "./notifikasi.js?v=3.4.3";
+import { kabar } from "./ui.js?v=3.4.3";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -49,6 +49,17 @@ export function hitungTotalDibayar(t) {
 // Tagihan/Tagihan Leasing/Total di Laporan) yang pakai angka ini.
 export function hargaEfektif(t) {
   return Math.max((t.hargaOtr || 0) - (t.diskon || 0), 0);
+}
+
+// Label untuk pembayaran BELUM lunas selain DP pertama. SENGAJA
+// tidak pernah pakai kata "Cicilan" — itu istilah hubungan
+// konsumen-ke-LEASING, bukan konsumen/leasing-ke-SHOWROOM. Showroom
+// cuma pernah terima: DP (dari konsumen), atau Pelunasan (satu kali
+// cair, dari konsumen langsung kalau Cash, atau dari Leasing kalau
+// Kredit).
+export function labelPembayaranBelumLunas(t) {
+  return (t.caraBayar || []).includes("kredit")
+    ? "Pembayaran Leasing" : "Pembayaran Tambahan";
 }
 
 export function sudahLunas(t) {
@@ -422,6 +433,8 @@ export async function cetakSpk(t) {
               <td class="c-kanan"><b>${rupiah(t.hargaOtr)}</b></td></tr>
           ${t.diskon ? `<tr><td>Diskon</td>
               <td class="c-kanan">− ${rupiah(t.diskon)}</td></tr>` : ""}
+          ${t.cashbackDisetujui ? `<tr><td>Cashback</td>
+              <td class="c-kanan">${rupiah(t.cashbackDisetujui)}</td></tr>` : ""}
         </table>
         <p class="c-terbilang">${aman(terbilang(t.hargaOtr || 0))}</p>
         ${t.catatan ? `<p class="c-kecil">Catatan: ${aman(t.catatan)}</p>` : ""}
@@ -1085,7 +1098,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
     const lunasBaru = hargaEfektif(tKerja) > 0 && totalBaru >= hargaEfektif(tKerja);
     const entri = {
       kuitansiNo, kodeAman, jumlah: jumlahBaru, sumber, sumberNama,
-      keterangan: lunasBaru ? "Pelunasan" : "Cicilan",
+      keterangan: lunasBaru ? "Pelunasan" : labelPembayaranBelumLunas(tKerja),
       tanggal: new Date(),
     };
     const riwayatBaru = [...(tKerja.riwayatBayar || []), entri];
@@ -1127,13 +1140,24 @@ function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
   const qrSrc = "https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=" +
     encodeURIComponent(urlValidasi);
   const sisa = Math.max(hargaEfektif(t) - totalSetelah, 0);
+  // Label "KETERANGAN" & kalimat "Untuk pembayaran" DIHITUNG ULANG
+  // di sini (bukan trust entri.keterangan yang dibekukan saat
+  // pembayaran itu dicatat dulu) — supaya kalau Diskon SPK berubah
+  // BELAKANGAN (lewat form Ubah), cetak ulang kuitansi lama tetap
+  // konsisten dengan status Lunas/Belum yang sebenarnya SEKARANG,
+  // bukan menampilkan "Cicilan" di atas tapi "LUNAS" di bawah.
+  const totalSebelumEntriIni = totalSetelah - (entri.jumlah || 0);
+  const lunasSaatIni = sisa <= 0;
+  const keteranganAktual = lunasSaatIni
+    ? (totalSebelumEntriIni <= 0 ? "Lunas" : "Pelunasan")
+    : (totalSebelumEntriIni <= 0 ? "DP" : labelPembayaranBelumLunas(t));
+
   const labelDiterima = entri.sumber === "leasing"
     ? `DIBAYAR OLEH (${aman(entri.sumberNama).toUpperCase()})`
     : "DIBAYAR OLEH (KONSUMEN)";
   // "Lunas" dibaca janggal dalam kalimat ("Untuk pembayaran: Lunas 1
-  // unit...") — disebut "Pelunasan" di kalimat ini saja, field
-  // entri.keterangan aslinya TIDAK diubah (tetap "Lunas" di data).
-  const labelPembayaranKalimat = entri.keterangan === "Lunas" ? "Pelunasan" : entri.keterangan;
+  // unit...") — disebut "Pelunasan" di kalimat ini saja.
+  const labelPembayaranKalimat = keteranganAktual === "Lunas" ? "Pelunasan" : keteranganAktual;
   const namaUnitLengkap = `${aman(t.tipeNama)} ${aman(t.warna)}`.trim();
 
   return `
@@ -1148,7 +1172,7 @@ function satuKuitansi(t, unit, entri, totalSetelah, namaSalesTampil) {
           </div>
         </div>
         <table class="k-jenis-tabel">
-          <tr><td>KETERANGAN</td><td>${aman(entri.keterangan)}</td></tr>
+          <tr><td>KETERANGAN</td><td>${aman(keteranganAktual)}</td></tr>
         </table>
         <img class="k-qr" src="${qrSrc}" alt="QR validasi kuitansi">
       </div>

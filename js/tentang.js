@@ -3,11 +3,35 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.4.0";
-import { VERSI } from "./config.js?v=3.4.0";
-import { aman } from "./ui.js?v=3.4.0";
+import { sesi } from "./auth.js?v=3.4.3";
+import { VERSI } from "./config.js?v=3.4.3";
+import { aman } from "./ui.js?v=3.4.3";
 
 const RIWAYAT = [
+  {
+    versi: "3.4.3", tanggal: "Agustus 2026",
+    judul: "Cashback Sekarang Ditampilkan di Dokumen SPK",
+    butir: [
+      "Dokumen SPK cetak sekarang menampilkan baris \"Cashback\" (di bawah Diskon) kalau ada isian yang sudah disetujui — sama seperti Diskon, cuma muncul kalau nilainya lebih dari 0. Harga OTR tetap tampil apa adanya, tidak dikurangi Cashback.",
+    ],
+  },
+  {
+    versi: "3.4.2", tanggal: "Agustus 2026",
+    judul: "Istilah \"Cicilan\" Dihapus dari Kuitansi Showroom",
+    butir: [
+      "Kata \"Cicilan\" tidak lagi dipakai di kuitansi/label pembayaran manapun — istilah itu cuma berlaku untuk hubungan konsumen-ke-LEASING, bukan konsumen/leasing-ke-showroom. Showroom cuma pernah terima dua jenis uang: DP (dari konsumen, Cash maupun Kredit) dan Pelunasan (satu kali cair — langsung dari konsumen kalau Cash, atau dari Leasing kalau Kredit).",
+      "Pembayaran belum-lunas selain DP sekarang berlabel \"Pembayaran Leasing\" (untuk SPK Kredit) atau \"Pembayaran Tambahan\" (untuk SPK Cash) — bukan \"Cicilan\" lagi.",
+      "\"Cicilan per bulan\" di form Kredit & Detail SPK TETAP dipakai — itu istilah yang benar, karena memang keterangan rencana cicilan konsumen ke leasing, bukan ke showroom.",
+    ],
+  },
+  {
+    versi: "3.4.1", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Label Kuitansi Bisa Tidak Sinkron dengan Status Lunas",
+    butir: [
+      "PERBAIKAN BUG: kalau Diskon SPK diubah SETELAH ada pembayaran tercatat, kuitansi lama yang dicetak ulang bisa menampilkan label \"KETERANGAN: Cicilan\" di atas tapi \"LUNAS\" di bawah — dua-duanya tidak sinkron. Penyebabnya label diambil dari teks yang dibekukan saat pembayaran dicatat, sementara status Lunas dihitung ulang pakai Diskon terbaru.",
+      "Sekarang label (DP/Cicilan/Pelunasan/Lunas) DIHITUNG ULANG tiap kali kuitansi dicetak/dicetak-ulang, konsisten dengan status Lunas yang sebenarnya saat itu — bukan lagi trust teks lama yang bisa basi.",
+    ],
+  },
   {
     versi: "3.4.0", tanggal: "Agustus 2026",
     judul: "PERBAIKAN BESAR: Diskon & Cashback Sekarang Benar-Benar Berfungsi",
