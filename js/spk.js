@@ -11,24 +11,24 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.5.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.5.0";
-import { batasDiskon, PERAN } from "./roles.js?v=3.5.0";
-import { DP_MINIMUM } from "./config.js?v=3.5.0";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.5.0";
+} from "./db.js?v=3.5.2";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.5.2";
+import { batasDiskon, PERAN } from "./roles.js?v=3.5.2";
+import { DP_MINIMUM } from "./config.js?v=3.5.2";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.5.2";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.5.0";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.5.2";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.5.0";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.5.0";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.5.0";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.5.0";
-import { muatAgen, agenAktif } from "./agen.js?v=3.5.0";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.5.2";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.5.2";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.5.2";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.5.2";
+import { muatAgen, agenAktif } from "./agen.js?v=3.5.2";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.5.0";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.5.0";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.5.0";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.5.0";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.5.2";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.5.2";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.5.2";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.5.2";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -1560,7 +1560,22 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           const totalBaru = riwayatBaru.reduce((s, r) => s + (r.jumlah || 0), 0);
           dataBaru.riwayatBayar = riwayatBaru;
           dataBaru.totalDibayar = totalBaru;
-          dataBaru.statusBayar = totalBaru >= (dataBaru.hargaOtr || t.hargaOtr || 0) ? "lunas" : "dp";
+          // PAKAI Harga Efektif (OTR − Diskon), BUKAN OTR mentah —
+          // konsisten dengan sudahLunas()/hargaEfektif() di cetak.js.
+          const efektifSaatIni = Math.max(
+            (dataBaru.hargaOtr ?? t.hargaOtr ?? 0) - (dataBaru.diskon ?? t.diskon ?? 0), 0);
+          dataBaru.statusBayar = efektifSaatIni > 0 && totalBaru >= efektifSaatIni ? "lunas" : "dp";
+          // Kalau koreksi ini bikin SPK jadi Lunas, unit fisiknya (kalau
+          // ada) ikut ditandai Terjual — konsisten dengan alur "Terima
+          // Pembayaran" biasa yang juga melakukan ini otomatis.
+          if (dataBaru.statusBayar === "lunas") {
+            const unitIdEfektif = dataBaru.unitId !== undefined ? dataBaru.unitId : t.unitId;
+            if (unitIdEfektif) {
+              try {
+                await updateDoc(doc(dbase, "units", unitIdEfektif), { status: "terjual" });
+              } catch { /* tidak fatal, lanjut simpan SPK-nya */ }
+            }
+          }
         }
 
         try {

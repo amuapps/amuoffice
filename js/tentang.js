@@ -3,11 +3,26 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.5.0";
-import { VERSI } from "./config.js?v=3.5.0";
-import { aman } from "./ui.js?v=3.5.0";
+import { sesi } from "./auth.js?v=3.5.2";
+import { VERSI } from "./config.js?v=3.5.2";
+import { aman } from "./ui.js?v=3.5.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.5.2", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Koreksi DP di Form Ubah Sekarang Pakai Harga Efektif",
+    butir: [
+      "PERBAIKAN BUG: saat Owner mengoreksi DP/riwayat pembayaran lewat form Ubah, status Lunas/Belum sempat dihitung pakai Harga OTR mentah (bukan Harga Efektif setelah Diskon) — jadi kalau SPK punya Diskon, koreksi bisa salah menyimpulkan status Lunasnya. Sekarang konsisten pakai Harga Efektif seperti di semua tempat lain.",
+      "Kalau koreksi ini bikin SPK jadi Lunas, unit fisiknya (kalau ada) sekarang otomatis ditandai Terjual juga — sebelumnya cuma alur \"Terima Pembayaran\" biasa yang melakukan ini, form Ubah belum.",
+    ],
+  },
+  {
+    versi: "3.5.1", tanggal: "Agustus 2026",
+    judul: "Perbaikan Bug: \"tanggal is not defined\" di Form Ubah",
+    butir: [
+      "PERBAIKAN BUG: bagian \"Riwayat Pembayaran Lainnya\" yang baru ditambahkan di v3.5.0 lupa mengimpor fungsi tanggal() — menyebabkan error \"tanggal is not defined\" muncul di beberapa halaman (Riwayat & Laporan SPK) begitu ada SPK yang riwayat pembayarannya dimuat. Sudah diperbaiki.",
+    ],
+  },
   {
     versi: "3.5.0", tanggal: "Agustus 2026",
     judul: "Form Ubah: Sekarang Bisa Hapus/Koreksi Riwayat Pembayaran Langsung",
