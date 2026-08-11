@@ -162,15 +162,26 @@ service cloud.firestore {
          request.resource.data.salesUid == request.auth.uid);
       // Owner boleh ubah field APA PUN (unit, harga, cara bayar,
       // kredit, diskon, cashback, dst — lewat form "Ubah" khusus
-      // Owner). Admin/Sales HANYA boleh menyentuh field pencatatan
-      // pembayaran/kuitansi (satu-satunya alur updateDoc yang mereka
-      // pakai secara sah — lihat mintaCetakKuitansi di cetak.js).
-      // Field lain (unitId, hargaOtr, caraBayar, kredit, diskon,
-      // cashback, salesUid, pembeli, dst) TERTUTUP buat mereka di
-      // level server, bukan cuma disembunyikan di form.
+      // Owner). Admin tambahan boleh menandai Cashback sudah
+      // dibayar (sama seperti Fee Agen — Owner & Admin yang urus
+      // pembayaran ke pihak luar). Sales HANYA boleh menyentuh
+      // field pencatatan pembayaran/kuitansi (satu-satunya alur
+      // updateDoc yang mereka pakai secara sah — lihat
+      // mintaCetakKuitansi di cetak.js). Field lain (unitId,
+      // hargaOtr, caraBayar, kredit, diskon, cashback, salesUid,
+      // pembeli, dst) TERTUTUP buat Admin/Sales di level server,
+      // bukan cuma disembunyikan di form.
       allow update: if salahSatu(['owner']) ||
-        (salahSatu(['admin', 'sales']) &&
-         (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid) &&
+        (salahSatu(['admin']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+           'riwayatBayar', 'totalDibayar', 'statusBayar',
+           'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
+           'kuitansiTercetakPada',
+           'cashbackDibayarStatus', 'cashbackTanggalBayar',
+           'cashbackBank', 'cashbackCatatan',
+         ])) ||
+        (salahSatu(['sales']) &&
+         resource.data.salesUid == request.auth.uid &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
            'riwayatBayar', 'totalDibayar', 'statusBayar',
            'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
