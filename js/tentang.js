@@ -3,11 +3,39 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.5.2";
-import { VERSI } from "./config.js?v=3.5.2";
-import { aman } from "./ui.js?v=3.5.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.1";
+import { VERSI } from "./config.js?v=3.6.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.6.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.1";
+import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.6.1", tanggal: "Agustus 2026",
+    judul: "Alat Migrasi Nomor Kuitansi Lama ke Format Baru",
+    butir: [
+      "Menu Tentang Aplikasi (Owner) sekarang punya tombol \"Jalankan Migrasi\" — sekali klik, semua nomor kuitansi lama (format global KWT/2026/NNNN) diubah ke format baru yang ikut nomor SPK (KWT/2026/NNNN-N). Aman dijalankan berkali-kali, yang sudah format baru otomatis dilewati.",
+      "Ikut memindahkan data QR verifikasi publik (kuitansi_publik) ke kode baru, dan menyesuaikan penghitung per-SPK supaya kuitansi berikutnya lanjut dari nomor yang benar.",
+      "PENTING: cuma dipakai kalau kuitansi lama masih di tangan showroom (belum ada yang diserahkan ke konsumen) — kalau sudah beredar, nomor di kertas fisik akan tidak cocok lagi dengan sistem setelah migrasi.",
+    ],
+  },
+  {
+    versi: "3.6.0", tanggal: "Agustus 2026",
+    judul: "Nomor Kuitansi Sekarang Ikut Nomor SPK",
+    butir: [
+      "Nomor kuitansi diubah dari urutan global (KWT/2026/0001, 0002, 0003... lintas semua SPK) jadi mengikuti nomor SPK-nya masing-masing: KWT/2026/0002-1, KWT/2026/0002-2, dst — jadi langsung kelihatan dari nomornya itu kuitansi ke berapa untuk SPK yang mana, tidak perlu buka datanya dulu.",
+      "Tetap atomik (aman dari dua kuitansi kebagian nomor sama walau dicetak dari dua perangkat hampir bersamaan) — counter-nya sekarang per-SPK, bukan satu counter global.",
+      "Kuitansi lama (format KWT/2026/NNNN) TIDAK ikut berubah nomornya — cuma kuitansi BARU yang pakai format ini.",
+    ],
+  },
+  {
+    versi: "3.5.3", tanggal: "Agustus 2026",
+    judul: "Perbaikan Bug: Gagal Simpan Kalau Hapus Lebih dari 1 Entri Sekaligus",
+    butir: [
+      "PERBAIKAN BUG: di form Ubah bagian \"Riwayat Pembayaran Lainnya\", menghapus/mengubah LEBIH DARI SATU entri sekaligus dalam satu kali Simpan Perubahan menyebabkan error \"Cannot read properties of null (reading 'kuitansiNo')\" dan gagal tersimpan. Sudah diperbaiki — sekarang aman menghapus/mengubah beberapa entri sekaligus dalam satu kali simpan.",
+    ],
+  },
   {
     versi: "3.5.2", tanggal: "Agustus 2026",
     judul: "Perbaikan: Koreksi DP di Form Ubah Sekarang Pakai Harga Efektif",
@@ -434,7 +462,101 @@ const RIWAYAT = [
   },
 ];
 
-export async function halamanTentang(wadah) {
+// ── Migrasi Nomor Kuitansi Lama → Format Baru (KWT/2026/NNNN-N) ──
+// Alat sekali-jalan, khusus Owner. AMAN dipakai kapan saja karena
+// idempotent — SPK yang kuitansinya sudah format baru otomatis
+// dilewati, tidak diproses ulang.
+function formatBaru(kuitansiNo) {
+  // Format baru selalu punya tanda "-" di akhir (mis. "...-1"),
+  // format lama tidak. Ini yang dipakai buat deteksi "sudah
+  // dimigrasi apa belum" tanpa perlu tandai terpisah.
+  return /-\d+$/.test(kuitansiNo || "");
+}
+
+async function jalankanMigrasiKuitansi(wadahHasil) {
+  const snap = await getDocs(query(
+    collection(dbase, "transaksi"), where("kuitansiTercetak", "==", true)));
+
+  let jumlahSpkDiproses = 0;
+  let jumlahKuitansiDiubah = 0;
+  const detailLog = [];
+
+  for (const dokumen of snap.docs) {
+    const t = { id: dokumen.id, ...dokumen.data() };
+    const riwayat = Array.isArray(t.riwayatBayar) && t.riwayatBayar.length
+      ? [...t.riwayatBayar]
+      : [{ kuitansiNo: t.kuitansiNo, kodeAman: t.kuitansiKode,
+           jumlah: t.jumlahBayar || 0, sumber: "konsumen",
+           sumberNama: t.pembeli?.nama || "-",
+           keterangan: t.statusBayar === "lunas" ? "Lunas" : "DP",
+           tanggal: t.kuitansiTercetakPada || t.dibuatPada }];
+
+    // Lewati SPK yang kuitansi pertamanya SUDAH format baru — berarti
+    // seluruh riwayatnya juga sudah baru semua (format baru dipakai
+    // sejak v3.6.0, berurutan, tidak mungkin campur lama-baru).
+    if (formatBaru(riwayat[0]?.kuitansiNo)) continue;
+
+    const bagian = (t.spkNo || "").split("/").slice(1).join("/") || "0000/0000";
+    let adaPerubahan = false;
+
+    for (let i = 0; i < riwayat.length; i++) {
+      const lama = riwayat[i];
+      if (formatBaru(lama.kuitansiNo)) continue; // entri ini sendiri sudah baru
+      const nomorBaru = `KWT/${bagian}-${i + 1}`;
+      const kodeBaru = nomorBaru.replace(/\//g, "-");
+      const kodeLama = lama.kodeAman;
+
+      // Pindahkan dokumen kuitansi_publik (QR) ke kode baru — Firestore
+      // tidak bisa "rename" doc ID, jadi baca-tulis-hapus.
+      if (kodeLama) {
+        try {
+          const snapPublik = await getDoc(doc(dbase, "kuitansi_publik", kodeLama));
+          if (snapPublik.exists()) {
+            await setDoc(doc(dbase, "kuitansi_publik", kodeBaru),
+              { ...snapPublik.data(), kuitansiNo: nomorBaru });
+            await deleteDoc(doc(dbase, "kuitansi_publik", kodeLama));
+          }
+        } catch { /* kalau gagal pindah QR publik, tetap lanjut — bukan fatal */ }
+      }
+
+      riwayat[i] = { ...lama, kuitansiNo: nomorBaru, kodeAman: kodeBaru };
+      adaPerubahan = true;
+      jumlahKuitansiDiubah++;
+      detailLog.push(`${t.spkNo}: ${lama.kuitansiNo || "-"} → ${nomorBaru}`);
+    }
+
+    if (adaPerubahan) {
+      await updateDoc(doc(dbase, "transaksi", t.id), {
+        riwayatBayar: riwayat,
+        kuitansiNo: riwayat[0].kuitansiNo,
+        kuitansiKode: riwayat[0].kodeAman,
+      });
+      // Set counter per-SPK supaya kuitansi BARU berikutnya (kalau
+      // ada pembayaran lagi) lanjut dari nomor yang benar, bukan
+      // mulai dari 1 lagi.
+      await setDoc(doc(dbase, "counters", `kuitansi_${t.id}`),
+        { terakhir: riwayat.length, diubah: new Date() }, { merge: true });
+      jumlahSpkDiproses++;
+    }
+  }
+
+  await catat("migrasi_nomor_kuitansi", {
+    ringkas: `${jumlahSpkDiproses} SPK, ${jumlahKuitansiDiubah} kuitansi diubah`,
+  });
+
+  wadahHasil.innerHTML = `<div class="hampa">
+    <p><b>Selesai.</b> ${jumlahSpkDiproses} SPK diproses,
+      ${jumlahKuitansiDiubah} nomor kuitansi diubah ke format baru.</p>
+    ${detailLog.length ? `<p style="text-align:left;font-family:monospace;
+      font-size:11px;margin-top:8px">${detailLog.map(aman).join("<br>")}</p>` : ""}
+    <p style="margin-top:10px"><b>PENTING:</b> kertas kuitansi yang SUDAH
+      dicetak sebelumnya masih tertulis nomor LAMA — cetak ulang lewat
+      menu Riwayat SPK ▾ Cetak ▾ Cetak Ulang Kuitansi supaya kertasnya
+      cocok dengan nomor baru di sistem.</p>
+  </div>`;
+}
+
+
   if (!sesi || sesi.peran !== "owner") {
     wadah.innerHTML = `<section class="lembar">
       <div class="hampa"><p>Halaman ini cuma tersedia untuk Owner.</p></div>
@@ -449,6 +571,20 @@ export async function halamanTentang(wadah) {
     <div class="lembar" style="margin:10px 0 16px;text-align:center">
       <p class="kartu-sub" style="margin:0">Versi yang sedang berjalan</p>
       <p class="angka-besar" style="margin:2px 0 0">v${aman(VERSI)}</p>
+    </div>
+
+    <div class="lembar" style="margin-bottom:16px">
+      <h3 class="judul" style="font-size:15px">Migrasi Nomor Kuitansi Lama</h3>
+      <p class="petunjuk">Ubah nomor kuitansi lama (format KWT/2026/NNNN
+        global) jadi format baru yang ikut nomor SPK-nya (KWT/2026/NNNN-N).
+        Aman dijalankan berkali-kali — yang sudah format baru otomatis
+        dilewati. <b>Cuma jalankan kalau kuitansi lama masih di tangan
+        showroom</b> (belum ada yang diserahkan ke konsumen) — lihat
+        penjelasan di riwayat v3.6.0 di bawah kalau butuh alasan
+        lengkapnya.</p>
+      <button class="tombol tombol--kecil" id="tombol-migrasi-kuitansi">
+        Jalankan Migrasi</button>
+      <div id="hasil-migrasi-kuitansi" style="margin-top:10px"></div>
     </div>
 
     <h3 class="judul" style="font-size:15px;margin-bottom:8px">Riwayat Pembaruan</h3>
@@ -468,4 +604,43 @@ export async function halamanTentang(wadah) {
       </div>`).join("")}
     </div>
   </section>`;
+
+  wadah.querySelector("#tombol-migrasi-kuitansi").addEventListener("click", async () => {
+    const lanjut = await konfirmasi({
+      judul: "Migrasi Nomor Kuitansi?",
+      pesan: "Ini akan mengubah nomor kuitansi LAMA jadi format baru " +
+             "(ikut nomor SPK) untuk SEMUA SPK sekaligus. Pastikan tidak " +
+             "ada kertas kuitansi lama yang sudah diserahkan ke konsumen — " +
+             "kalau sudah ada yang beredar, JANGAN lanjutkan, nomor di " +
+             "kertas itu akan tidak cocok lagi dengan sistem.",
+      oke: "Ya, Jalankan Migrasi", bahaya: true,
+    });
+    if (!lanjut) return;
+
+    const password = await tanya({
+      judul: "Konfirmasi Password",
+      pesan: "Ini mengubah data di banyak SPK sekaligus. Masukkan password untuk konfirmasi.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+    } catch {
+      kabar("Password salah. Migrasi dibatalkan.", "rem");
+      return;
+    }
+
+    const tombol = wadah.querySelector("#tombol-migrasi-kuitansi");
+    const wadahHasil = wadah.querySelector("#hasil-migrasi-kuitansi");
+    tombol.disabled = true;
+    tombol.textContent = "Memproses…";
+    wadahHasil.innerHTML = `<p class="hampa">Sedang memproses, jangan tutup halaman ini…</p>`;
+    try {
+      await jalankanMigrasiKuitansi(wadahHasil);
+    } catch (err) {
+      wadahHasil.innerHTML = `<p class="hampa">Gagal: ${aman(err.message)}</p>`;
+    }
+    tombol.disabled = false;
+    tombol.textContent = "Jalankan Migrasi";
+  });
 }

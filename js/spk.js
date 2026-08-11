@@ -11,24 +11,24 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.5.2";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.5.2";
-import { batasDiskon, PERAN } from "./roles.js?v=3.5.2";
-import { DP_MINIMUM } from "./config.js?v=3.5.2";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.5.2";
+} from "./db.js?v=3.6.1";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.6.1";
+import { batasDiskon, PERAN } from "./roles.js?v=3.6.1";
+import { DP_MINIMUM } from "./config.js?v=3.6.1";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.6.1";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.5.2";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.6.1";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.5.2";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.5.2";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.5.2";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.5.2";
-import { muatAgen, agenAktif } from "./agen.js?v=3.5.2";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.6.1";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.6.1";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.6.1";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.6.1";
+import { muatAgen, agenAktif } from "./agen.js?v=3.6.1";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.5.2";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.5.2";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.5.2";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.5.2";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.6.1";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.6.1";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.6.1";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.6.1";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -1537,8 +1537,8 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
             // persis (r.asli === entri di riwayatBaru) supaya aman
             // walau index-nya bergeser gara-gara entri lain dihapus.
             riwayatLainAksi.forEach((aksi) => {
-              const idx = riwayatBaru.findIndex((r) => r === aksi.asli ||
-                (r.kuitansiNo === aksi.asli.kuitansiNo && r.jumlah === aksi.asli.jumlah));
+              const idx = riwayatBaru.findIndex((r) => r && (r === aksi.asli ||
+                (r.kuitansiNo === aksi.asli.kuitansiNo && r.jumlah === aksi.asli.jumlah)));
               if (idx === -1) return;
               if (aksi.hapus) riwayatBaru[idx] = null; // ditandai dulu, difilter di bawah
               else riwayatBaru[idx] = { ...riwayatBaru[idx], jumlah: aksi.jumlahBaru };

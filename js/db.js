@@ -13,7 +13,7 @@ import {
 import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { FIREBASE, MODE_UJI } from "./config.js?v=3.5.2";
+import { FIREBASE, MODE_UJI } from "./config.js?v=3.6.1";
 
 export const app = initializeApp(FIREBASE);
 export const auth = getAuth(app);
@@ -88,6 +88,28 @@ export async function nomorBerikutnya(kunci, awalan) {
   });
   const thn = new Date().getFullYear();
   return `${awalan}/${thn}/${String(angka).padStart(4, "0")}`;
+}
+
+// Nomor kuitansi yang IKUT nomor SPK-nya — KWT/2026/0002-1,
+// KWT/2026/0002-2, dst (bukan urutan global lintas-SPK) — supaya
+// dari nomornya saja sudah kelihatan itu punya SPK yang mana.
+// Counter-nya per-SPK (kunci unik per dokumen transaksi), tetap
+// atomik lewat runTransaction — jadi dua kuitansi tidak bisa
+// kebagian angka urut yang sama persis buat SPK yang sama, sekalipun
+// dicetak dari dua perangkat berbeda hampir bersamaan.
+export async function nomorKuitansiSpk(spkId, spkNo) {
+  const ref = doc(dbase, "counters", `kuitansi_${spkId}`);
+  const urut = await runTransaction(dbase, async (t) => {
+    const snap = await t.get(ref);
+    const berikut = (snap.exists() ? snap.data().terakhir : 0) + 1;
+    t.set(ref, { terakhir: berikut, diubah: serverTimestamp() },
+          { merge: true });
+    return berikut;
+  });
+  // spkNo formatnya "SPK/2026/0002" — ambil bagian setelah "SPK/"
+  // (yaitu "2026/0002"), ganti awalannya jadi "KWT".
+  const bagian = (spkNo || "").split("/").slice(1).join("/") || "0000/0000";
+  return `KWT/${bagian}-${urut}`;
 }
 
 // ── Indeks unik ───────────────────────────────────────────────

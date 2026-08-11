@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorBerikutnya } from "./db.js?v=3.5.2";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.5.2";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.5.2";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.5.2";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.5.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.5.2";
-import { konfirmasiPassword } from "./auth.js?v=3.5.2";
-import { buatNotifikasi } from "./notifikasi.js?v=3.5.2";
-import { kabar } from "./ui.js?v=3.5.2";
+  nomorKuitansiSpk } from "./db.js?v=3.6.1";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.6.1";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.6.1";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.6.1";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.6.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.1";
+import { konfirmasiPassword } from "./auth.js?v=3.6.1";
+import { buatNotifikasi } from "./notifikasi.js?v=3.6.1";
+import { kabar } from "./ui.js?v=3.6.1";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -988,7 +988,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
     }
 
     try {
-      const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
+      const kuitansiNo = await nomorKuitansiSpk(t.id, tKerja.spkNo);
       const kodeAman = kuitansiNo.replace(/\//g, "-");
       const jumlah = tKerja.jumlahBayar || 0;
       const lunasSekarang = hargaEfektif(tKerja) > 0 && jumlah >= hargaEfektif(tKerja);
@@ -1124,7 +1124,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   sedangMemprosesPembayaran.add(t.id);
 
   try {
-    const kuitansiNo = await nomorBerikutnya("kuitansi", "KWT");
+    const kuitansiNo = await nomorKuitansiSpk(t.id, tKerja.spkNo);
     const kodeAman = kuitansiNo.replace(/\//g, "-");
     const { sumber, sumberNama } = await tentukanSumber(tKerja);
     const totalBaru = totalSaatIni + jumlahBaru;
