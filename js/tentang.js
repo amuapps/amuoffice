@@ -3,14 +3,31 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.4";
-import { VERSI } from "./config.js?v=3.6.4";
-import { aman, rupiah, kabar } from "./ui.js?v=3.6.4";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.4";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.6";
+import { VERSI } from "./config.js?v=3.6.6";
+import { aman, rupiah, kabar } from "./ui.js?v=3.6.6";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.6";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.4";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.6";
 
 const RIWAYAT = [
+  {
+    versi: "3.6.6", tanggal: "Agustus 2026",
+    judul: "Pengecekan Bug Menyeluruh: 2 Bug Ketemu & Diperbaiki",
+    butir: [
+      "PERBAIKAN BUG: laporan.js memakai fungsi kabar() di banyak tempat (fitur Hapus Entri & Tandai Cashback Sudah Dibayar) tapi lupa mengimpornya — akan error \"kabar is not defined\" begitu kedua fitur itu dipakai. Sudah diperbaiki.",
+      "PERBAIKAN BUG: spk.js memakai fungsi sudahLunas() di alur koreksi riwayat pembayaran untuk SPK format lama, tapi lupa mengimpornya. Sudah diperbaiki.",
+      "Dilakukan pengecekan menyeluruh ke semua 30 file — sintaks, keseimbangan kurung, fungsi yang dipakai tapi tidak diimpor, fungsi yang didefinisikan tapi tidak pernah dipanggil, ID elemen HTML yang tidak cocok, dan nama field Firestore yang tidak konsisten. Semua bersih setelah dua perbaikan di atas.",
+    ],
+  },
+  {
+    versi: "3.6.5", tanggal: "Agustus 2026",
+    judul: "Form Ubah: Field Tunai/Transfer Terpisah, Sama Seperti SPK Baru",
+    butir: [
+      "Tab Payment Info di form Ubah (Owner) sekarang punya field terpisah \"Jumlah tunai\" dan \"Jumlah transfer\" begitu Cara Bayar Tunai+Transfer sekaligus dicentang — sebelumnya cuma ada satu kotak gabungan, beda dari SPK Baru yang sudah lebih dulu punya field terpisah ini.",
+      "Isi Tunai, Transfer otomatis terisi sisanya menuju Harga Efektif — perilaku sama persis seperti SPK Baru (v3.6.4). \"Jumlah Dibayar Sekarang\" gabungan otomatis terkunci & tersinkron selama mode ini aktif, tidak perlu diisi manual dobel.",
+    ],
+  },
   {
     versi: "3.6.4", tanggal: "Agustus 2026",
     judul: "Tunai+Transfer: Transfer Otomatis Terisi Sisanya",

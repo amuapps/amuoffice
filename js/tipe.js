@@ -6,13 +6,13 @@
 import {
   dbase, collection, doc, getDocs, setDoc, query, orderBy,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.6.4";
-import { bolehAkses } from "./auth.js?v=3.6.4";
-import { MEREK_UTAMA } from "./config.js?v=3.6.4";
-import { muatSaranTipe, muatSaranWarna } from "./referensi.js?v=3.6.4";
+} from "./db.js?v=3.6.6";
+import { bolehAkses } from "./auth.js?v=3.6.6";
+import { MEREK_UTAMA } from "./config.js?v=3.6.6";
+import { muatSaranTipe, muatSaranWarna } from "./referensi.js?v=3.6.6";
 import {
   rupiah, aman, kabar, pasangFormatUang, bacaAngka,
-} from "./ui.js?v=3.6.4";
+} from "./ui.js?v=3.6.6";
 
 let cache = [];
 

@@ -7,14 +7,14 @@
 import {
   dbase, doc, collection, getDoc, getDocs, updateDoc, query, where,
   writeBatch, catat, sertakanLog, serverTimestamp, increment,
-} from "./db.js?v=3.6.4";
-import { bolehAkses, konfirmasiPassword, sesi } from "./auth.js?v=3.6.4";
-import { simpanPelangganOtomatis } from "./pelanggan.js?v=3.6.4";
-import { terapkanPerubahanUnit } from "./stok.js?v=3.6.4";
-import { hitungTotalDibayar } from "./cetak.js?v=3.6.4";
-import { buatNotifikasi } from "./notifikasi.js?v=3.6.4";
-import { tanya, konfirmasi } from "./dialog.js?v=3.6.4";
-import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js?v=3.6.4";
+} from "./db.js?v=3.6.6";
+import { bolehAkses, konfirmasiPassword, sesi } from "./auth.js?v=3.6.6";
+import { simpanPelangganOtomatis } from "./pelanggan.js?v=3.6.6";
+import { terapkanPerubahanUnit } from "./stok.js?v=3.6.6";
+import { hitungTotalDibayar } from "./cetak.js?v=3.6.6";
+import { buatNotifikasi } from "./notifikasi.js?v=3.6.6";
+import { tanya, konfirmasi } from "./dialog.js?v=3.6.6";
+import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js?v=3.6.6";
 
 const LABEL_JENIS = {
   pelanggan_spk: "Perubahan Data Pembeli/Pemakai",

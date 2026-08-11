@@ -6,14 +6,14 @@
 import {
   dbase, collection, doc, getDocs, setDoc, query, where, orderBy, limit,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.6.4";
-import { bolehAkses, sesi } from "./auth.js?v=3.6.4";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.6.4";
+} from "./db.js?v=3.6.6";
+import { bolehAkses, sesi } from "./auth.js?v=3.6.6";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.6.6";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.6.4";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.6.4";
+  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.6.6";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.6.6";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
-  from "./referensi.js?v=3.6.4";
+  from "./referensi.js?v=3.6.6";
 
 let cache = [];
 

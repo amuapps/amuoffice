@@ -11,24 +11,25 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.6.4";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.6.4";
-import { batasDiskon, PERAN } from "./roles.js?v=3.6.4";
-import { DP_MINIMUM } from "./config.js?v=3.6.4";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.6.4";
+} from "./db.js?v=3.6.6";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.6.6";
+import { batasDiskon, PERAN } from "./roles.js?v=3.6.6";
+import { DP_MINIMUM } from "./config.js?v=3.6.6";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.6.6";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.6.4";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.6.6";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.6.4";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.6.4";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.6.4";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.6.4";
-import { muatAgen, agenAktif } from "./agen.js?v=3.6.4";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.6.6";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.6.6";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.6.6";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.6.6";
+import { muatAgen, agenAktif } from "./agen.js?v=3.6.6";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.6.4";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.6.4";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.6.4";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.6.4";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
+  sudahLunas } from "./cetak.js?v=3.6.6";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.6.6";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.6.6";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.6.6";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -963,8 +964,26 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     <label class="label label--gelap" for="e-bayar-${t.id}" style="margin-top:8px">
       Jumlah Dibayar Sekarang
       <span class="kunci">DP kalau belum menutupi Harga Efektif, atau
-        Lunas kalau sudah — sistem yang tentukan otomatis, bukan field ini</span></label>
-    <input class="isian" id="e-bayar-${t.id}" value="${rupiah(dpSaatIni)}">
+        Lunas kalau sudah — sistem yang tentukan otomatis, bukan field ini
+        ${caraBayarLama.includes("tunai") && caraBayarLama.includes("transfer")
+          ? " — total tunai + transfer di bawah" : ""}</span></label>
+    <input class="isian" id="e-bayar-${t.id}" value="${rupiah(dpSaatIni)}"
+      ${caraBayarLama.includes("tunai") && caraBayarLama.includes("transfer") ? "disabled" : ""}>
+
+    <div id="e-wadah-tunai-transfer-${t.id}"
+      ${!(caraBayarLama.includes("tunai") && caraBayarLama.includes("transfer")) ? "hidden" : ""}>
+      <div class="dua">
+        <div>
+          <label class="label label--gelap">Jumlah tunai</label>
+          <input class="isian" id="e-jml-tunai-${t.id}" value="${rupiah(t.jumlahTunai || 0)}">
+        </div>
+        <div>
+          <label class="label label--gelap">Jumlah transfer
+            <span class="kunci">terisi otomatis sisanya</span></label>
+          <input class="isian" id="e-jml-transfer-${t.id}" value="${rupiah(t.jumlahTransfer || 0)}">
+        </div>
+      </div>
+    </div>
     ${!t.kuitansiTercetak ? `<p class="petunjuk">Kuitansi belum pernah dicetak
         untuk SPK ini — angka ini masih bisa diubah bebas, langsung tersimpan.</p>`
       : `<p class="petunjuk"><b>Kuitansi pertama SUDAH pernah dicetak</b>
@@ -1097,11 +1116,14 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const cicilanEl = kontainer.querySelector(`#e-cicilan-${t.id}`);
     const bayarEl = kontainer.querySelector(`#e-bayar-${t.id}`);
     const feeAgenEl = kontainer.querySelector(`#e-fee-agen-${t.id}`);
+    const jmlTunaiEl = kontainer.querySelector(`#e-jml-tunai-${t.id}`);
+    const jmlTransferEl = kontainer.querySelector(`#e-jml-transfer-${t.id}`);
+    const wadahTT = kontainer.querySelector(`#e-wadah-tunai-transfer-${t.id}`);
     const tagihanLeasingEl = kontainer.querySelector(`#e-tagihan-leasing-${t.id}`);
     const riwayatEls = riwayatBayarLain.map((_, i) =>
       kontainer.querySelector(`#e-riwayat-${i}-${t.id}`));
-    [otrEl, diskonEl, cashbackEl, cicilanEl, bayarEl, feeAgenEl, ...riwayatEls]
-      .forEach(pasangFormatUang);
+    [otrEl, diskonEl, cashbackEl, cicilanEl, bayarEl, feeAgenEl, jmlTunaiEl,
+     jmlTransferEl, ...riwayatEls].forEach((el) => el && pasangFormatUang(el));
 
     function perbaruiTagihanLeasingEdit() {
       const otr = bacaAngka(otrEl);
@@ -1115,9 +1137,30 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const kreditEl = kontainer.querySelector(`#e-kredit-${t.id}`);
     const wadahRekening = kontainer.querySelector(`#e-wadah-rekening-${t.id}`);
     const wadahKredit = kontainer.querySelector(`#e-wadah-kredit-${t.id}`);
+
+    // Begitu isi Tunai (saat Tunai+Transfer sekaligus dicentang), kotak
+    // Transfer OTOMATIS terisi sisanya menuju Harga Efektif — sama
+    // persis perilaku SPK Baru. "Jumlah Dibayar Sekarang" gabungan
+    // dikunci (disabled) selama mode ini aktif, karena nilainya
+    // otomatis = tunai + transfer, bukan diketik manual lagi.
+    function perbaruiTransferOtomatisEdit() {
+      if (wadahTT.hidden) return;
+      const efektif = Math.max(bacaAngka(otrEl) - bacaAngka(diskonEl), 0);
+      const tunai = bacaAngka(jmlTunaiEl);
+      jmlTransferEl.value = rupiah(Math.max(efektif - tunai, 0));
+      bayarEl.value = rupiah(tunai + bacaAngka(jmlTransferEl));
+      perbaruiTagihanLeasingEdit();
+    }
+    jmlTunaiEl && jmlTunaiEl.addEventListener("input", perbaruiTransferOtomatisEdit);
+    diskonEl.addEventListener("input", perbaruiTransferOtomatisEdit);
+
     [tunaiEl, transferEl, kreditEl].forEach((el) => el.addEventListener("change", () => {
       wadahRekening.hidden = !transferEl.checked;
       wadahKredit.hidden = !kreditEl.checked;
+      const duaDuanya = tunaiEl.checked && transferEl.checked;
+      wadahTT.hidden = !duaDuanya;
+      bayarEl.disabled = duaDuanya;
+      if (duaDuanya) perbaruiTransferOtomatisEdit();
     }));
 
     // ── Tabel pilih unit fisik (persis pola SPK Baru: pilih tipe →
@@ -1322,6 +1365,15 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       dpBaru = bacaAngka(kontainer.querySelector(`#e-bayar-${t.id}`));
       dpBerubah = dpBaru !== dpLama;
       if (dpBerubah) fatal = true;
+      // Simpan juga rincian Tunai/Transfer (kalau mode itu aktif) —
+      // dipakai di dokumen SPK cetak & laporan, konsisten dengan SPK Baru.
+      if (caraBayarBaru.includes("tunai") && caraBayarBaru.includes("transfer")) {
+        dataBaru.jumlahTunai = bacaAngka(kontainer.querySelector(`#e-jml-tunai-${t.id}`));
+        dataBaru.jumlahTransfer = bacaAngka(kontainer.querySelector(`#e-jml-transfer-${t.id}`));
+      } else {
+        dataBaru.jumlahTunai = caraBayarBaru.includes("tunai") ? dpBaru : 0;
+        dataBaru.jumlahTransfer = caraBayarBaru.includes("transfer") ? dpBaru : 0;
+      }
       if (!t.kuitansiTercetak) {
         // Belum ada kuitansi sama sekali — aman diedit bebas,
         // dipakai nanti sebagai DP saat kuitansi pertama dicetak.
