@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorBerikutnya } from "./db.js?v=3.4.3";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.4.3";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.4.3";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.4.3";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.4.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.4.3";
-import { konfirmasiPassword } from "./auth.js?v=3.4.3";
-import { buatNotifikasi } from "./notifikasi.js?v=3.4.3";
-import { kabar } from "./ui.js?v=3.4.3";
+  nomorBerikutnya } from "./db.js?v=3.5.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.5.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.5.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.5.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.5.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.5.0";
+import { konfirmasiPassword } from "./auth.js?v=3.5.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.5.0";
+import { kabar } from "./ui.js?v=3.5.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -1039,19 +1039,52 @@ export async function mintaCetakKuitansi(t, muatUlang) {
   // sekali di sini — beda dari pembayaran pertama yang sudah punya
   // konfirmasi. Ini titik yang menyebabkan kasus SPK yang tercatat
   // pembayaran sama persis dua kali tanpa ada yang sempat sadar).
+  // Field diisi OTOMATIS dengan Sisa Tagihan yang benar (bukan
+  // kosong) — supaya jalur paling gampang (klik OK begitu saja)
+  // adalah jalur yang BENAR (Pelunasan penuh). Showroom cuma pernah
+  // terima DP dan Pelunasan (tidak ada "cicilan" bertahap ke
+  // showroom — lihat labelPembayaranBelumLunas) — jadi kalau
+  // seseorang sengaja MENGUBAH angka ini jadi bukan pelunasan penuh,
+  // itu kejadian tidak biasa dan wajib alasan tambahan.
   const totalSaatIni = hitungTotalDibayar(tKerja);
   const sisaSebelum = hargaEfektif(tKerja) - totalSaatIni;
   const isian = await tanya({
-    judul: "Catat Pembayaran",
-    pesan: `Sisa tagihan SPK ${tKerja.spkNo}: ${rupiah(sisaSebelum)}. ` +
-           `Masukkan jumlah yang diterima sekarang (Rp).`,
-    petunjuk: "Contoh: 20000000",
+    judul: "Catat Pembayaran (Pelunasan)",
+    pesan: `Sisa tagihan SPK ${tKerja.spkNo}: ${rupiah(sisaSebelum)}. Field di ` +
+           `bawah sudah otomatis diisi sesuai Pelunasan penuh — cukup klik ` +
+           `OK kalau memang segini yang diterima. Showroom cuma pernah ` +
+           `menerima DP dan Pelunasan (tidak ada pembayaran bertahap lain) — ` +
+           `kalau angkanya perlu diubah jadi BUKAN pelunasan penuh, sistem ` +
+           `akan minta alasan tambahan.`,
+    nilai: String(Math.max(sisaSebelum, 0)),
+    tipeIsian: "number",
   });
   if (isian === null) return;
   const jumlahBaru = Number(String(isian).replace(/\D/g, "")) || 0;
   if (jumlahBaru <= 0) {
     kabar("Jumlah harus lebih dari 0.", "rem");
     return;
+  }
+
+  // Kalau BUKAN pelunasan penuh persis sesuai sisa tagihan (baik
+  // kurang maupun lebih), ini kejadian tidak biasa — wajib alasan
+  // eksplisit, supaya tidak ada lagi angka "asal ketik" tanpa jejak
+  // kenapa itu diketik.
+  let alasanBeda = "";
+  if (jumlahBaru !== Math.max(sisaSebelum, 0)) {
+    alasanBeda = await tanya({
+      judul: "⚠️ Bukan Pelunasan Penuh — Alasan?",
+      pesan: `Sisa tagihan seharusnya ${rupiah(sisaSebelum)}, tapi yang ` +
+             `dicatat ${rupiah(jumlahBaru)}. Jelaskan alasannya (wajib, akan ` +
+             `tercatat di log) — mis. pembayaran sebagian, ada kelebihan ` +
+             `bayar, dsb.`,
+      petunjuk: "mis. Konsumen baru bayar sebagian, sisanya menyusul",
+    });
+    if (alasanBeda === null) return;
+    if (!alasanBeda.trim()) {
+      kabar("Alasan wajib diisi kalau jumlahnya bukan pelunasan penuh.", "rem");
+      return;
+    }
   }
 
   // Deteksi kemungkinan input dobel — jumlah PERSIS sama dengan
@@ -1100,6 +1133,7 @@ export async function mintaCetakKuitansi(t, muatUlang) {
       kuitansiNo, kodeAman, jumlah: jumlahBaru, sumber, sumberNama,
       keterangan: lunasBaru ? "Pelunasan" : labelPembayaranBelumLunas(tKerja),
       tanggal: new Date(),
+      ...(alasanBeda ? { catatanBedaPelunasan: alasanBeda.trim() } : {}),
     };
     const riwayatBaru = [...(tKerja.riwayatBayar || []), entri];
 
@@ -1116,7 +1150,9 @@ export async function mintaCetakKuitansi(t, muatUlang) {
       dataKuitansiPublik(tKerja, entri, totalBaru));
     await catat("pembayaran_dicatat", {
       koleksi: "transaksi", docId: t.id,
-      ringkas: `${tKerja.spkNo} · ${kuitansiNo} · ${rupiah(jumlahBaru)}`,
+      ringkas: `${tKerja.spkNo} · ${kuitansiNo} · ${rupiah(jumlahBaru)}` +
+               (alasanBeda ? ` · BUKAN pelunasan penuh (seharusnya ${rupiah(sisaSebelum)}). ` +
+                 `Alasan: ${alasanBeda.trim()}` : ""),
     });
     kabar(`Pembayaran ${rupiah(jumlahBaru)} tercatat (${kuitansiNo}).`, "netral");
     await buatNotifikasi(tKerja.salesUid, "Pembayaran Tercatat",

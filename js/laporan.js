@@ -2,15 +2,16 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.4.3";
-import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.4.3";
+  from "./db.js?v=3.5.0";
+import { rupiah, aman, tanggal, namaTampilan } from "./ui.js?v=3.5.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.4.3";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.4.3";
-import { bolehAkses, sesi } from "./auth.js?v=3.4.3";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.4.3";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.4.3";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.5.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.5.0";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.5.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.5.0";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.5.0";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.5.0";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -93,6 +94,7 @@ function baris(t) {
 // (bukan sekaligus semua baris), supaya tidak boros baca Firestore
 // (unit & leasing) waktu tabel berisi banyak baris.
 async function renderDetail(t) {
+  const owner = sesi && sesi.peran === "owner";
   let unit = null;
   if (t.unitId) {
     try {
@@ -174,10 +176,20 @@ async function renderDetail(t) {
     </div>` : ""}
     ${riwayat.length ? `<div class="d-kolom" style="flex-basis:100%">
       <p class="d-judul">Riwayat Pembayaran</p>
-      ${riwayat.map((r) => baris2(
-        `${aman(r.keterangan)} · ${r.tanggal ? tanggal(r.tanggal) : "-"}`,
-        `${rupiah(r.jumlah)} (${aman(r.kuitansiNo || "-")}, dari ${aman(r.sumberNama || "-")})`
-      )).join("")}
+      ${riwayat.map((r, i) => `<div class="d-baris">
+        <span class="d-label">${aman(r.keterangan)} · ${r.tanggal ? tanggal(r.tanggal) : "-"}</span>
+        <span class="d-isi">${rupiah(r.jumlah)} (${aman(r.kuitansiNo || "-")},
+          dari ${aman(r.sumberNama || "-")})
+          ${owner ? `<button class="tombol tombol--kecil tombol--gelap"
+            style="margin-left:6px;padding:2px 8px;min-height:auto"
+            data-hapus-entri="${t.id}" data-entri-idx="${i}">Hapus</button>` : ""}
+        </span>
+      </div>`).join("")}
+      <p class="petunjuk" style="margin-top:6px">Hapus entri dipakai kalau ada
+        pembayaran yang salah/tidak seharusnya tercatat (mis. salah ketik,
+        dicatat dua kali) — TIDAK menarik kembali kertas kuitansi yang sudah
+        di tangan konsumen, cuma mengoreksi catatan di sistem. Total & status
+        Lunas otomatis dihitung ulang setelahnya.</p>
     </div>` : ""}
   </div>`;
 }
@@ -232,6 +244,86 @@ function pasangWiringCashback(target, t, muatUlangDetail) {
         await muatUlangDetail();
       } catch (err) {
         kabar("Gagal menyimpan: " + err.message, "rem");
+      }
+    });
+  });
+}
+
+// Hapus SATU entri dari riwayatBayar — buat kasus pembayaran yang
+// salah/tidak seharusnya tercatat (salah ketik, dobel input, dsb).
+// Owner-only, wajib alasan + password. TIDAK menyentuh kertas
+// kuitansi yang sudah tercetak/di tangan konsumen (tidak bisa
+// ditarik balik) — cuma mengoreksi angka di sistem, lalu
+// menghitung ulang total & status Lunas dari nol.
+function pasangWiringHapusEntri(target, t, muatUlangDetail) {
+  target.querySelectorAll("[data-hapus-entri]").forEach((tombol) => {
+    tombol.addEventListener("click", async () => {
+      const idx = Number(tombol.dataset.entriIdx);
+      const riwayat = Array.isArray(t.riwayatBayar) ? t.riwayatBayar : [];
+      const entri = riwayat[idx];
+      if (!entri) return;
+
+      const lanjut = await konfirmasi({
+        judul: "Hapus Entri Pembayaran?",
+        pesan: `SPK ${t.spkNo} — pembeli ${aman(t.pembeli?.nama || "-")}. ` +
+               `Akan dihapus: ${entri.keterangan} ${rupiah(entri.jumlah)} ` +
+               `(${entri.kuitansiNo || "-"}, ${entri.tanggal ? tanggal(entri.tanggal) : "-"}). ` +
+               `Total & status Lunas SPK ini akan dihitung ulang tanpa entri ` +
+               `ini. Kuitansi kertas yang sudah dicetak/di tangan konsumen ` +
+               `TIDAK ikut ditarik — ini cuma koreksi catatan di sistem.`,
+        oke: "Lanjutkan", bahaya: true,
+      });
+      if (!lanjut) return;
+
+      const alasan = await tanya({
+        judul: "Alasan Penghapusan",
+        pesan: "Wajib diisi, akan tercatat di log aktivitas.",
+        petunjuk: "mis. Salah input, tercatat dua kali",
+      });
+      if (alasan === null) return;
+      if (!alasan.trim()) {
+        kabar("Alasan wajib diisi.", "rem");
+        return;
+      }
+
+      const password = await tanya({
+        judul: "Konfirmasi Password",
+        pesan: "Masukkan password untuk konfirmasi penghapusan.",
+        petunjuk: "Password", tipeIsian: "password",
+      });
+      if (password === null) return;
+      try {
+        await konfirmasiPassword(password);
+      } catch {
+        kabar("Password salah. Penghapusan dibatalkan.", "rem");
+        return;
+      }
+
+      try {
+        const riwayatBaru = riwayat.filter((_, i) => i !== idx);
+        const totalBaru = riwayatBaru.reduce((s, r) => s + (r.jumlah || 0), 0);
+        const efektif = hargaEfektif(t);
+        const statusBaru = efektif > 0 && totalBaru >= efektif ? "lunas" : "dp";
+        await updateDoc(doc(dbase, "transaksi", t.id), {
+          riwayatBayar: riwayatBaru,
+          totalDibayar: totalBaru,
+          statusBayar: statusBaru,
+        });
+        // Perbarui juga obyek t di memori (dipakai dataTampil & saat
+        // render ulang panel ini) — supaya tidak perlu muat ulang
+        // seluruh tabel cuma buat lihat hasil hapusnya.
+        t.riwayatBayar = riwayatBaru;
+        t.totalDibayar = totalBaru;
+        t.statusBayar = statusBaru;
+        await catat("entri_pembayaran_dihapus", {
+          koleksi: "transaksi", docId: t.id,
+          ringkas: `${t.spkNo} · ${entri.keterangan} ${rupiah(entri.jumlah)} ` +
+                   `(${entri.kuitansiNo || "-"}) · Alasan: ${alasan.trim()}`,
+        });
+        kabar("Entri pembayaran dihapus, total dihitung ulang.", "netral");
+        await muatUlangDetail();
+      } catch (err) {
+        kabar("Gagal menghapus: " + err.message, "rem");
       }
     });
   });
@@ -542,6 +634,7 @@ export async function halamanLaporan(wadah) {
       target.innerHTML = await renderDetail(t);
       target.dataset.dimuat = "1";
       pasangWiringCashback(target, t, () => bukaDetail(t, target));
+      pasangWiringHapusEntri(target, t, () => bukaDetail(t, target));
     }
     barisEl.querySelectorAll("[data-detail]").forEach((b) =>
       b.addEventListener("click", async () => {

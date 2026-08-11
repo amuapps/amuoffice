@@ -11,24 +11,24 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.4.3";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.4.3";
-import { batasDiskon, PERAN } from "./roles.js?v=3.4.3";
-import { DP_MINIMUM } from "./config.js?v=3.4.3";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.4.3";
+} from "./db.js?v=3.5.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.5.0";
+import { batasDiskon, PERAN } from "./roles.js?v=3.5.0";
+import { DP_MINIMUM } from "./config.js?v=3.5.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.5.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.4.3";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.5.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.4.3";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.4.3";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.4.3";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.4.3";
-import { muatAgen, agenAktif } from "./agen.js?v=3.4.3";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.5.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.5.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.5.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.5.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.5.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
-  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.4.3";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.4.3";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.4.3";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.4.3";
+  hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif } from "./cetak.js?v=3.5.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.5.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.5.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan } from "./ui.js?v=3.5.0";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -820,6 +820,12 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
   // kuitansi pertama SUDAH tercetak atau belum (lihat submit handler
   // di bawah untuk alur revisinya).
   const dpSaatIni = t.jumlahBayar || 0;
+  // Entri riwayat SELAIN DP (index 0) — pembayaran ke-2 dst, yang
+  // baru bisa dihapus/diubah lewat panel Detail sebelum ini. Field
+  // "index" di sini dipakai buat cocokkan kembali ke posisi ASLI di
+  // riwayatBayar saat submit (lihat penjelasan idxAsli di bawah).
+  const riwayatBayarLain = (Array.isArray(t.riwayatBayar) ? t.riwayatBayar : [])
+    .slice(1);
 
   // ── TAB: Customer Info ─────────────────────────────────────────
   const tabCustomer = `<div class="tab-panel" data-panel="ecustomer">
@@ -946,6 +952,25 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         <b>Kuitansi Revisi</b> bernomor sama + kode REV, supaya kuitansi asli
         yang sudah di tangan konsumen tetap punya jejak riwayatnya.</p>`}
 
+    ${riwayatBayarLain.length ? `
+    <h4 class="judul" style="font-size:14px;margin-top:14px">Riwayat Pembayaran Lainnya</h4>
+    <p class="petunjuk">Selain DP di atas. Ubah angkanya kalau salah ketik,
+      atau centang "Hapus" kalau entrinya memang tidak seharusnya ada
+      (mis. tercatat dobel). Wajib alasan + password, sama seperti koreksi
+      DP — kuitansi kertas yang sudah tercetak TIDAK ikut ditarik.</p>
+    ${riwayatBayarLain.map((r, i) => `<div class="dua" style="align-items:flex-end">
+      <div>
+        <label class="label label--gelap">${aman(r.keterangan)} ·
+          ${r.tanggal ? tanggal(r.tanggal) : "-"} (${aman(r.kuitansiNo || "-")})</label>
+        <input class="isian" id="e-riwayat-${i}-${t.id}" value="${rupiah(r.jumlah || 0)}">
+      </div>
+      <label class="pilihan" style="margin-top:0;margin-bottom:8px">
+        <input type="checkbox" id="e-riwayat-hapus-${i}-${t.id}">
+        <span>Hapus entri ini</span>
+      </label>
+    </div>`).join("")}
+    ` : ""}
+
     <div id="e-wadah-rekening-${t.id}" ${!caraBayarLama.includes("transfer") ? "hidden" : ""}>
       <label class="label">Rekening tujuan
         <select id="e-rekening-${t.id}" class="isian">
@@ -1051,7 +1076,10 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const bayarEl = kontainer.querySelector(`#e-bayar-${t.id}`);
     const feeAgenEl = kontainer.querySelector(`#e-fee-agen-${t.id}`);
     const tagihanLeasingEl = kontainer.querySelector(`#e-tagihan-leasing-${t.id}`);
-    [otrEl, diskonEl, cashbackEl, cicilanEl, bayarEl, feeAgenEl].forEach(pasangFormatUang);
+    const riwayatEls = riwayatBayarLain.map((_, i) =>
+      kontainer.querySelector(`#e-riwayat-${i}-${t.id}`));
+    [otrEl, diskonEl, cashbackEl, cicilanEl, bayarEl, feeAgenEl, ...riwayatEls]
+      .forEach(pasangFormatUang);
 
     function perbaruiTagihanLeasingEdit() {
       const otr = bacaAngka(otrEl);
@@ -1176,6 +1204,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     let fatal = false; // apa pun di luar pembeli/pemakai dianggap "fatal"
     let perluGantiUnit = false, lepasUnitDiminta = false, unitIdDipilihManual = null;
     let dpBerubah = false, dpBaru = 0, dpLama = 0;
+    let riwayatLainAksi = [];
     if (owner) {
       // Internal Info: Sales, Diskon, Cashback, Agen/Fee Agen, Catatan
       const salesIdBaru = kontainer.querySelector(`#e-sales-${t.id}`).value;
@@ -1282,6 +1311,21 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       // kuitansi ASLI yang sudah di tangan konsumen tidak diam-diam
       // "berubah" tanpa jejak.
 
+      // ── Riwayat Pembayaran Lainnya (index 1 dst) — hapus/ubah ────
+      // Baca perubahan dari field-field yang tadi dibuat per entri.
+      // Disimpan sebagai daftar "aksi" dulu, baru benar-benar
+      // diterapkan ke riwayatBayar setelah password (di bawah),
+      // supaya urutan konfirmasinya konsisten dengan aksi lain.
+      riwayatLainAksi = riwayatBayarLain.map((r, i) => {
+        const hapusEl = kontainer.querySelector(`#e-riwayat-hapus-${i}-${t.id}`);
+        const jumlahEl = kontainer.querySelector(`#e-riwayat-${i}-${t.id}`);
+        const jumlahBaruEntri = jumlahEl ? bacaAngka(jumlahEl) : (r.jumlah || 0);
+        const hapus = hapusEl ? hapusEl.checked : false;
+        const berubah = hapus || jumlahBaruEntri !== (r.jumlah || 0);
+        return { asli: r, jumlahBaru: jumlahBaruEntri, hapus, berubah };
+      }).filter((a) => a.berubah);
+      if (riwayatLainAksi.length) fatal = true;
+
       if (otrBaru !== (t.hargaOtr || 0)) fatal = true;
       if (JSON.stringify([...caraBayarBaru].sort()) !==
           JSON.stringify([...caraBayarLama].sort())) fatal = true;
@@ -1353,6 +1397,32 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         }
         if (!alasanRevisiDp.trim()) {
           kabar("Alasan koreksi wajib diisi.", "rem");
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+      }
+
+      // ── Alasan untuk perubahan/hapus di Riwayat Pembayaran Lainnya ──
+      let alasanRiwayatLain = "";
+      if (riwayatLainAksi.length) {
+        const ringkasAksi = riwayatLainAksi.map((a) =>
+          a.hapus
+            ? `Hapus ${rupiah(a.asli.jumlah)} (${a.asli.kuitansiNo || "-"})`
+            : `${rupiah(a.asli.jumlah)} → ${rupiah(a.jumlahBaru)} (${a.asli.kuitansiNo || "-"})`
+        ).join("; ");
+        alasanRiwayatLain = await tanya({
+          judul: "Alasan Koreksi Riwayat Pembayaran",
+          pesan: `Perubahan: ${ringkasAksi}. Kuitansi kertas yang sudah ` +
+                 `tercetak TIDAK ikut ditarik — ini cuma koreksi catatan di ` +
+                 `sistem. Jelaskan alasannya (wajib).`,
+          petunjuk: "mis. Salah ketik, tercatat dua kali",
+        });
+        if (alasanRiwayatLain === null) {
+          tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
+          return;
+        }
+        if (!alasanRiwayatLain.trim()) {
+          kabar("Alasan wajib diisi.", "rem");
           tombol.disabled = false; tombol.textContent = "Simpan Perubahan";
           return;
         }
@@ -1431,37 +1501,66 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           }
         }
 
-        // ── Revisi DP (kalau kuitansi pertama sudah tercetak) ────────
-        // Bukan menimpa entri lama — angka pembayaran pertama di
-        // riwayatBayar dikoreksi, TAPI kuitansi ASLI (kertas yang
-        // sudah di tangan konsumen) tidak diubah/ditarik. Sistem
-        // mencatat siapa/kapan/kenapa dikoreksi di kuitansiRevisi,
-        // dan mencetak dokumen Kuitansi Revisi terpisah sebagai bukti
-        // resmi koreksinya.
+        // ── Riwayat Pembayaran: Revisi DP + Hapus/Ubah entri lain ────
+        // Digabung satu tempat supaya keduanya (kalau dua-duanya
+        // terjadi sekaligus) diterapkan konsisten ke array yang sama,
+        // bukan saling menimpa. Revisi DP TIDAK menimpa kuitansi asli
+        // (kertas di tangan konsumen tetap sah) — cuma catatan sistem
+        // yang dikoreksi, dan dokumen Kuitansi Revisi dicetak sebagai
+        // bukti resmi tiap koreksi.
         let entriRevisiUntukCetak = null;
-        if (perluRevisiDp) {
-          const riwayatBaru = Array.isArray(t.riwayatBayar) && t.riwayatBayar.length
+        if (perluRevisiDp || riwayatLainAksi.length) {
+          let riwayatBaru = Array.isArray(t.riwayatBayar) && t.riwayatBayar.length
             ? [...t.riwayatBayar]
-            : [{ kuitansiNo: t.kuitansiNo, kodeAman: t.kuitansiKode, jumlah: dpLama,
+            : [{ kuitansiNo: t.kuitansiNo, kodeAman: t.kuitansiKode, jumlah: dpLama || t.jumlahBayar || 0,
                  sumber: "konsumen", sumberNama: t.pembeli?.nama || "-",
                  keterangan: sudahLunas(t) ? "Lunas" : "DP", tanggal: t.kuitansiTercetakPada || new Date() }];
-          riwayatBaru[0] = { ...riwayatBaru[0], jumlah: dpBaru };
+
+          if (perluRevisiDp) {
+            riwayatBaru[0] = { ...riwayatBaru[0], jumlah: dpBaru };
+            const revisiLama = Array.isArray(t.kuitansiRevisi) ? t.kuitansiRevisi : [];
+            const revKe = revisiLama.length + 1;
+            const catatanRevisi = {
+              revKe, nomorRevisi: `${t.kuitansiNo}-REV${revKe}`,
+              dariJumlah: dpLama, keJumlah: dpBaru,
+              alasan: alasanRevisiDp.trim(), olehUid: sesi.uid, olehNama: sesi.nama,
+              pada: new Date(),
+            };
+            dataBaru.kuitansiRevisi = [...revisiLama, catatanRevisi];
+            entriRevisiUntukCetak = catatanRevisi;
+            dataBaru.jumlahBayar = dpBaru; // supaya cetak ULANG dokumen SPK ikut tampilkan angka terkoreksi
+          }
+
+          if (riwayatLainAksi.length) {
+            // Cocokkan tiap aksi kembali ke entri ASLINYA di array (bukan
+            // asumsi index tetap) — pakai referensi obyek yang sama
+            // persis (r.asli === entri di riwayatBaru) supaya aman
+            // walau index-nya bergeser gara-gara entri lain dihapus.
+            riwayatLainAksi.forEach((aksi) => {
+              const idx = riwayatBaru.findIndex((r) => r === aksi.asli ||
+                (r.kuitansiNo === aksi.asli.kuitansiNo && r.jumlah === aksi.asli.jumlah));
+              if (idx === -1) return;
+              if (aksi.hapus) riwayatBaru[idx] = null; // ditandai dulu, difilter di bawah
+              else riwayatBaru[idx] = { ...riwayatBaru[idx], jumlah: aksi.jumlahBaru };
+            });
+            riwayatBaru = riwayatBaru.filter((r) => r !== null);
+            dataBaru.riwayatKoreksi = [
+              ...(Array.isArray(t.riwayatKoreksi) ? t.riwayatKoreksi : []),
+              ...riwayatLainAksi.map((a) => ({
+                kuitansiNo: a.asli.kuitansiNo || null,
+                aksi: a.hapus ? "hapus" : "ubah_jumlah",
+                dariJumlah: a.asli.jumlah || 0,
+                keJumlah: a.hapus ? null : a.jumlahBaru,
+                alasan: alasanRiwayatLain.trim(),
+                olehUid: sesi.uid, olehNama: sesi.nama, pada: new Date(),
+              })),
+            ];
+          }
+
           const totalBaru = riwayatBaru.reduce((s, r) => s + (r.jumlah || 0), 0);
           dataBaru.riwayatBayar = riwayatBaru;
           dataBaru.totalDibayar = totalBaru;
           dataBaru.statusBayar = totalBaru >= (dataBaru.hargaOtr || t.hargaOtr || 0) ? "lunas" : "dp";
-          dataBaru.jumlahBayar = dpBaru; // supaya cetak ULANG dokumen SPK ikut tampilkan angka terkoreksi
-
-          const revisiLama = Array.isArray(t.kuitansiRevisi) ? t.kuitansiRevisi : [];
-          const revKe = revisiLama.length + 1;
-          const nomorRevisi = `${t.kuitansiNo}-REV${revKe}`;
-          const catatanRevisi = {
-            revKe, nomorRevisi, dariJumlah: dpLama, keJumlah: dpBaru,
-            alasan: alasanRevisiDp.trim(), olehUid: sesi.uid, olehNama: sesi.nama,
-            pada: new Date(),
-          };
-          dataBaru.kuitansiRevisi = [...revisiLama, catatanRevisi];
-          entriRevisiUntukCetak = catatanRevisi;
         }
 
         try {
@@ -1469,7 +1568,8 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
           batch.update(doc(dbase, "transaksi", t.id), dataBaru);
           sertakanLog(batch, fatal ? "perubahan_spk_fatal_owner" : "perubahan_spk_diterapkan_owner", {
             koleksi: "transaksi", docId: t.id,
-            ringkas: `${t.spkNo} · ${catatanPerubahan}`,
+            ringkas: `${t.spkNo} · ${catatanPerubahan}` +
+                     (riwayatLainAksi.length ? ` · Koreksi riwayat: ${alasanRiwayatLain.trim()}` : ""),
           });
           await batch.commit();
         } catch (errBatch) {

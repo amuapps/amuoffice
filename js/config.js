@@ -82,7 +82,7 @@ export function pecahHarga(otr, mewah = false) {
 // ── Penanda versi ─────────────────────────────────────────────
 // Naikkan angkanya setiap kali deploy supaya browser tidak
 // menyajikan file lama dari cache.
-export const VERSI = "3.4.3";
+export const VERSI = "3.5.0";
 
 // Zona waktu untuk semua tampilan tanggal.
 // Firestore menyimpan waktu dalam UTC — ini yang menerjemahkannya.

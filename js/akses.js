@@ -10,9 +10,9 @@
 // dicoba, tidak langsung mengunci siapa pun sebelum owner benar-
 // benar menyimpan sesuatu.
 
-import { dbase, doc, getDoc, setDoc, serverTimestamp, catat } from "./db.js?v=3.4.3";
-import { bolehAkses } from "./auth.js?v=3.4.3";
-import { aman, kabar } from "./ui.js?v=3.4.3";
+import { dbase, doc, getDoc, setDoc, serverTimestamp, catat } from "./db.js?v=3.5.0";
+import { bolehAkses } from "./auth.js?v=3.5.0";
+import { aman, kabar } from "./ui.js?v=3.5.0";
 
 let override = null; // null = belum dimuat sama sekali
 let sudahDimuat = false;

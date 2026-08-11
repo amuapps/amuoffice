@@ -3,11 +3,36 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi } from "./auth.js?v=3.4.3";
-import { VERSI } from "./config.js?v=3.4.3";
-import { aman } from "./ui.js?v=3.4.3";
+import { sesi } from "./auth.js?v=3.5.0";
+import { VERSI } from "./config.js?v=3.5.0";
+import { aman } from "./ui.js?v=3.5.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.5.0", tanggal: "Agustus 2026",
+    judul: "Form Ubah: Sekarang Bisa Hapus/Koreksi Riwayat Pembayaran Langsung",
+    butir: [
+      "Tab Payment Info di form Ubah (Owner) sekarang punya bagian \"Riwayat Pembayaran Lainnya\" — daftar semua pembayaran SELAIN DP, masing-masing bisa diubah jumlahnya atau dicentang \"Hapus\". Sebelumnya cuma bisa lewat panel Detail terpisah di Riwayat SPK — sekarang bisa langsung di form Ubah yang sama tempat mengoreksi DP.",
+      "Sama seperti koreksi lainnya: wajib alasan tertulis + konfirmasi password, tercatat di Log Aktivitas, dan TIDAK menarik kembali kuitansi kertas yang sudah di tangan konsumen — cuma mengoreksi catatan di sistem. Total & status Lunas dihitung ulang otomatis.",
+      "Tombol \"Hapus\" di panel Detail Riwayat SPK (v3.4.4) tetap ada — dua jalan menuju fitur yang sama, pilih mana yang lebih nyaman.",
+    ],
+  },
+  {
+    versi: "3.4.5", tanggal: "Agustus 2026",
+    judul: "Terima Pembayaran: Angka Otomatis Terisi, Wajib Alasan Kalau Diubah",
+    butir: [
+      "\"Terima Pembayaran\" sekarang otomatis mengisi field jumlahnya dengan Sisa Tagihan yang sebenarnya (bukan kotak kosong lagi) — supaya jalur paling gampang (klik OK saja) adalah jalur yang BENAR (pelunasan penuh). Showroom cuma pernah menerima DP dan Pelunasan, tidak ada pembayaran bertahap lain.",
+      "Kalau angkanya SENGAJA diubah jadi bukan pelunasan penuh (kurang atau lebih dari sisa tagihan), sistem sekarang WAJIB minta alasan tertulis dulu — tercatat di Log Aktivitas lengkap dengan angka yang seharusnya vs yang benar-benar dicatat. Ini menutup celah yang menyebabkan angka \"asal ketik\" tanpa jejak kenapa itu diketik.",
+    ],
+  },
+  {
+    versi: "3.4.4", tanggal: "Agustus 2026",
+    judul: "Owner Bisa Hapus Entri Pembayaran yang Salah/Tidak Sesuai",
+    butir: [
+      "Panel Detail Riwayat SPK sekarang punya tombol \"Hapus\" di tiap baris Riwayat Pembayaran (khusus Owner) — untuk mengoreksi pembayaran yang salah tercatat (salah ketik, tercatat dua kali, dsb). Wajib isi alasan + konfirmasi password. Total & status Lunas otomatis dihitung ulang tanpa entri yang dihapus.",
+      "Fitur ini TIDAK menarik kembali kuitansi kertas yang sudah dicetak/di tangan konsumen — cuma mengoreksi catatan di sistem. Semua penghapusan tercatat di Log Aktivitas lengkap dengan alasannya.",
+    ],
+  },
   {
     versi: "3.4.3", tanggal: "Agustus 2026",
     judul: "Cashback Sekarang Ditampilkan di Dokumen SPK",
