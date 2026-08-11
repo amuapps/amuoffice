@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.1";
-import { VERSI } from "./config.js?v=3.6.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.6.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.2";
+import { VERSI } from "./config.js?v=3.6.2";
+import { aman, rupiah, kabar } from "./ui.js?v=3.6.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.6.2";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.6.2", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN BUG SERIUS: Aplikasi Gagal Total Dimuat",
+    butir: [
+      "PERBAIKAN BUG PENTING: perubahan v3.6.1 (Alat Migrasi Kuitansi) sempat menghapus baris deklarasi fungsi halaman Tentang Aplikasi secara tidak sengaja — menyebabkan SELURUH APLIKASI gagal dimuat sama sekali (\"Uncaught SyntaxError: Illegal return statement\"), bukan cuma halaman Tentang Aplikasi. Sudah diperbaiki.",
+      "Mohon maaf atas gangguan ini — untuk sesi berikutnya, setiap penyisipan kode akan dicek ulang keseimbangan tanda kurungnya sebelum dipaketkan, bukan cuma dites sintaksnya saja.",
+    ],
+  },
   {
     versi: "3.6.1", tanggal: "Agustus 2026",
     judul: "Alat Migrasi Nomor Kuitansi Lama ke Format Baru",
@@ -556,7 +564,7 @@ async function jalankanMigrasiKuitansi(wadahHasil) {
   </div>`;
 }
 
-
+export async function halamanTentang(wadah) {
   if (!sesi || sesi.peran !== "owner") {
     wadah.innerHTML = `<section class="lembar">
       <div class="hampa"><p>Halaman ini cuma tersedia untuk Owner.</p></div>
