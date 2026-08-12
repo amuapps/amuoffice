@@ -11,25 +11,25 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.6.6";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.6.6";
-import { batasDiskon, PERAN } from "./roles.js?v=3.6.6";
-import { DP_MINIMUM } from "./config.js?v=3.6.6";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.6.6";
+} from "./db.js?v=3.7.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.7.0";
+import { batasDiskon, PERAN } from "./roles.js?v=3.7.0";
+import { DP_MINIMUM } from "./config.js?v=3.7.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.7.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.6.6";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.7.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.6.6";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.6.6";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.6.6";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.6.6";
-import { muatAgen, agenAktif } from "./agen.js?v=3.6.6";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.7.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.7.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.7.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.7.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.7.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
-  sudahLunas } from "./cetak.js?v=3.6.6";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.6.6";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.6.6";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.6.6";
+  sudahLunas } from "./cetak.js?v=3.7.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.7.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.7.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.7.0";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -1661,6 +1661,16 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
                      (riwayatLainAksi.length ? ` · Koreksi riwayat: ${alasanRiwayatLain.trim()}` : ""),
           });
           await batch.commit();
+          // Sinkronkan juga ke koleksi "pelanggan" (Database Konsumen)
+          // — SEBELUM ini, koreksi nama/data pembeli lewat form Ubah
+          // cuma tersimpan di transaksi.pembeli, tidak pernah ikut ke
+          // catatan konsumen terpisah yang dipakai halaman Database
+          // Konsumen, jadi dua tempat itu bisa beda data. Dicocokkan
+          // lewat NIK/telepon yang sama, sama seperti saat SPK dibuat.
+          try {
+            await simpanPelangganOtomatis(pembeli);
+            if (!sama && pemakai) await simpanPelangganOtomatis(pemakai);
+          } catch { /* jangan sampai gagal di sini menggagalkan SPK yang sudah tersimpan */ }
         } catch (errBatch) {
           // Batch gagal SETELAH unit sempat diubah — balikkan lagi
           // supaya tidak ada unit menggantung salah status.

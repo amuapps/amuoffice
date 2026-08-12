@@ -6,14 +6,15 @@
 import {
   dbase, collection, doc, getDocs, setDoc, query, where, orderBy, limit,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.6.6";
-import { bolehAkses, sesi } from "./auth.js?v=3.6.6";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.6.6";
+} from "./db.js?v=3.7.0";
+import { bolehAkses, sesi } from "./auth.js?v=3.7.0";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.7.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.6.6";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.6.6";
+  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.7.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.0";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
-  from "./referensi.js?v=3.6.6";
+  from "./referensi.js?v=3.7.0";
 
 let cache = [];
 
@@ -438,7 +439,10 @@ export async function halamanPelanggan(wadah) {
         (pesanan.length
           ? `<div class="pemisah">Riwayat Pesanan (${pesanan.length})</div>` +
             pesanan.map(kartuPesanan).join("")
-          : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`);
+          : `<p class="hampa">Belum ada pesanan/SPK untuk konsumen ini.</p>`) +
+        (sesi && sesi.peran === "owner"
+          ? htmlRiwayatDokumen(await muatRiwayatDokumen("pelanggan", id))
+          : "");
       wadahPesanan.querySelectorAll("[data-cetak-pesanan]").forEach((b) =>
         b.addEventListener("click", () =>
           cetakSpk(pesanan.find((x) => x.id === b.dataset.cetakPesanan))));

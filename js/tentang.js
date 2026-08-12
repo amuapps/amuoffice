@@ -3,14 +3,45 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.6.6";
-import { VERSI } from "./config.js?v=3.6.6";
-import { aman, rupiah, kabar } from "./ui.js?v=3.6.6";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.6";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.0";
+import { VERSI } from "./config.js?v=3.7.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.7.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.6.6";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.7.0", tanggal: "Agustus 2026",
+    judul: "Riwayat Perubahan Langsung di Panel Detail SPK & Konsumen",
+    butir: [
+      "Panel Detail Riwayat SPK dan Detail Konsumen (Owner) sekarang menampilkan \"Riwayat Perubahan\" — daftar aksi/perubahan yang tercatat khusus untuk record itu saja (siapa, kapan, apa yang dilakukan), diambil dari Log Aktivitas. Tidak perlu lagi buka halaman Log Aktivitas terpisah dan cari manual.",
+      "Tidak jadi dibuat: panel login \"Dewa\"/reset total sebagai peran terpisah — untuk reset data sebelum pemakaian sungguhan, disarankan pakai fitur \"Delete collection\" bawaan Firebase Console (lebih aman, di luar aplikasi, tidak menambah risiko permanen ke sistem).",
+    ],
+  },
+  {
+    versi: "3.6.9", tanggal: "Agustus 2026",
+    judul: "Perbaikan: DP Tidak Bisa Lagi Dihapus Langsung dari Panel Detail",
+    butir: [
+      "PERBAIKAN INKONSISTENSI: sebelumnya tombol \"Hapus\" di panel Detail Riwayat SPK muncul di SEMUA baris riwayat pembayaran, termasuk pembayaran PERTAMA (DP) — kalau dihapus dari situ, tidak lewat alur Revisi Kuitansi resmi (tidak cetak dokumen REV), beda perlakuan dari kalau dikoreksi lewat \"Ubah\". Sekarang baris DP di panel Detail tidak lagi punya tombol Hapus — koreksi DP cuma bisa lewat \"Ubah\" (field Jumlah Dibayar Sekarang), supaya selalu konsisten lewat alur Revisi Kuitansi.",
+      "Pembayaran ke-2 dst tetap bisa dikoreksi/dihapus lewat DUA jalur (Ubah maupun Detail) — keduanya melakukan hal yang sama, silakan pakai yang lebih nyaman.",
+    ],
+  },
+  {
+    versi: "3.6.8", tanggal: "Agustus 2026",
+    judul: "Label \"Total dibayar s/d ini\" Diperjelas",
+    butir: [
+      "Panel Detail Riwayat SPK — label \"Total dibayar s/d ini\" (singkatan yang kurang jelas) diganti jadi \"Total Sudah Dibayar (semua pembayaran dijumlahkan)\", supaya langsung jelas maksudnya: jumlah SELURUH pembayaran yang tercatat untuk SPK itu, bukan cuma pembayaran terakhir.",
+    ],
+  },
+  {
+    versi: "3.6.7", tanggal: "Agustus 2026",
+    judul: "Perbaikan: Koreksi Nama Pembeli di Ubah SPK Sekarang Ikut ke Database Konsumen",
+    butir: [
+      "PERBAIKAN BUG: mengoreksi data Pembeli/Pemakai lewat form Ubah (Owner) sebelumnya cuma tersimpan di dalam SPK-nya sendiri — tidak pernah ikut memperbarui catatan konsumen terpisah yang dipakai halaman Database Konsumen, jadi dua tempat itu bisa tampil beda data (mis. nama sudah benar di Riwayat SPK, tapi masih salah di Database Konsumen). Sudah disambungkan sekarang.",
+      "Alur Persetujuan Perubahan (Admin/Sales mengajukan, Owner menyetujui) sudah benar dari awal, tidak kena masalah ini — cuma jalur Owner mengedit langsung yang perlu diperbaiki.",
+    ],
+  },
   {
     versi: "3.6.6", tanggal: "Agustus 2026",
     judul: "Pengecekan Bug Menyeluruh: 2 Bug Ketemu & Diperbaiki",

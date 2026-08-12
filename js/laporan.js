@@ -2,16 +2,17 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.6.6";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.6.6";
+  from "./db.js?v=3.7.0";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.6.6";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.6.6";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.6.6";
-import { konfirmasi, tanya } from "./dialog.js?v=3.6.6";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.6.6";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.6.6";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.0";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.0";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.0";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.0";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -141,7 +142,7 @@ async function renderDetail(t) {
       ${t.diskon ? baris2("Diskon", `− ${rupiah(t.diskon)}`) : ""}
       ${t.diskon ? baris2("Harga Efektif", rupiah(hargaEfektif(t))) : ""}
       ${baris2("Jumlah dibayar (awal)", rupiah(t.jumlahBayar || 0))}
-      ${baris2("Total dibayar s/d ini", rupiah(totalDibayar))}
+      ${baris2("Total Sudah Dibayar (semua pembayaran dijumlahkan)", rupiah(totalDibayar))}
       ${baris2("Sisa tagihan", rupiah(sisa))}
       ${baris2("Status", sudahLunas(t) ? "Lunas" : (t.kuitansiTercetak ? "Belum Lunas" : "Belum ada kuitansi"))}
     </div>
@@ -177,10 +178,11 @@ async function renderDetail(t) {
     ${riwayat.length ? `<div class="d-kolom" style="flex-basis:100%">
       <p class="d-judul">Riwayat Pembayaran</p>
       ${riwayat.map((r, i) => `<div class="d-baris">
-        <span class="d-label">${aman(r.keterangan)} · ${r.tanggal ? tanggal(r.tanggal) : "-"}</span>
+        <span class="d-label">${aman(r.keterangan)} · ${r.tanggal ? tanggal(r.tanggal) : "-"}
+          ${i === 0 ? ` <span class="kunci">koreksi lewat "Ubah"</span>` : ""}</span>
         <span class="d-isi">${rupiah(r.jumlah)} (${aman(r.kuitansiNo || "-")},
           dari ${aman(r.sumberNama || "-")})
-          ${owner ? `<button class="tombol tombol--kecil tombol--gelap"
+          ${owner && i > 0 ? `<button class="tombol tombol--kecil tombol--gelap"
             style="margin-left:6px;padding:2px 8px;min-height:auto"
             data-hapus-entri="${t.id}" data-entri-idx="${i}">Hapus</button>` : ""}
         </span>
@@ -189,8 +191,12 @@ async function renderDetail(t) {
         pembayaran yang salah/tidak seharusnya tercatat (mis. salah ketik,
         dicatat dua kali) — TIDAK menarik kembali kertas kuitansi yang sudah
         di tangan konsumen, cuma mengoreksi catatan di sistem. Total & status
-        Lunas otomatis dihitung ulang setelahnya.</p>
+        Lunas otomatis dihitung ulang setelahnya. Pembayaran PERTAMA (DP)
+        cuma bisa dikoreksi lewat "Ubah" (field Jumlah Dibayar Sekarang) —
+        supaya selalu lewat alur Revisi Kuitansi resmi, bukan dihapus begitu
+        saja dari sini.</p>
     </div>` : ""}
+    ${owner ? htmlRiwayatDokumen(await muatRiwayatDokumen("transaksi", t.id)) : ""}
   </div>`;
 }
 

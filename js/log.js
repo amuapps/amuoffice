@@ -4,14 +4,14 @@
 // menampilkannya, tidak menulis apa pun ke sana.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
-  from "./db.js?v=3.6.6";
-import { bolehAkses } from "./auth.js?v=3.6.6";
-import { aman, tanggalJam } from "./ui.js?v=3.6.6";
+  from "./db.js?v=3.7.0";
+import { bolehAkses } from "./auth.js?v=3.7.0";
+import { aman, tanggalJam } from "./ui.js?v=3.7.0";
 
 // Nama aksi teknis → kalimat yang gampang dibaca. Aksi yang belum
 // ada di sini tetap tampil (pakai nama aslinya) supaya tidak ada
 // yang "hilang" cuma karena belum sempat diberi label.
-const LABEL_AKSI = {
+export const LABEL_AKSI = {
   login: "Masuk ke sistem",
   logout: "Keluar dari sistem",
   login_ditolak_nonaktif: "Percobaan masuk ditolak (akun nonaktif)",
@@ -75,6 +75,44 @@ function baris(l) {
     <td>${aman(LABEL_AKSI[l.aksi] || l.aksi)}</td>
     <td>${aman(detail)}</td>
   </tr>`;
+}
+
+// Riwayat perubahan untuk SATU dokumen spesifik (mis. satu SPK atau
+// satu konsumen) — dipakai buat mini-riwayat di panel Detail,
+// bukan halaman Log Aktivitas penuh. Cuma Owner yang boleh lihat
+// (sama seperti Log Aktivitas biasa).
+export async function muatRiwayatDokumen(koleksi, docId, maks = 15) {
+  if (!bolehAkses("log.lihat")) return [];
+  try {
+    // SENGAJA tidak orderBy di query-nya (biar tidak butuh index
+    // gabungan tambahan di Firestore) — diurutkan di sini saja
+    // setelah datanya diambil.
+    const snap = await getDocs(query(
+      collection(dbase, "audit_log"),
+      where("koleksi", "==", koleksi), where("docId", "==", docId),
+      limit(maks * 3) // ambil agak banyak dulu, baru dipotong setelah diurutkan
+    ));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.pada?.seconds || 0) - (a.pada?.seconds || 0))
+      .slice(0, maks);
+  } catch {
+    return []; // gagal diam-diam — ini cuma info tambahan, jangan sampai gagalkan Detail-nya
+  }
+}
+
+// Render mini-riwayat jadi HTML siap pakai — dipakai bareng dengan
+// muatRiwayatDokumen di atas dari laporan.js/pelanggan.js.
+export function htmlRiwayatDokumen(daftar) {
+  if (!daftar.length) return "";
+  return `<div class="d-kolom" style="flex-basis:100%">
+    <p class="d-judul">Riwayat Perubahan</p>
+    ${daftar.map((l) => `<div class="d-baris">
+      <span class="d-label">${aman(tanggalJam(l.pada))}
+        · ${aman(l.email || "-")}</span>
+      <span class="d-isi">${aman(LABEL_AKSI[l.aksi] || l.aksi)}
+        ${l.ringkas ? ` — ${aman(l.ringkas)}` : ""}</span>
+    </div>`).join("")}
+  </div>`;
 }
 
 export async function halamanLog(wadah) {

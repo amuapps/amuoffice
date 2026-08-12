@@ -13,7 +13,7 @@ import {
 import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { FIREBASE, MODE_UJI } from "./config.js?v=3.6.6";
+import { FIREBASE, MODE_UJI } from "./config.js?v=3.7.0";
 
 export const app = initializeApp(FIREBASE);
 export const auth = getAuth(app);
