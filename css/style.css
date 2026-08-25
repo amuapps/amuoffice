@@ -292,7 +292,12 @@ button, input, select { font: inherit; }
 /* ── Area kerja ──────────────────────────────────────────── */
 .konten {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 18px 20px 28px; max-width: 860px; width: 100%;
+  padding: 18px 20px 28px; max-width: 1200px; width: 100%;
+  /* Dinaikkan dari 860px — di layar laptop/PC lebar, batas sempit
+     bikin banyak ruang terbuang di kanan & scrollbar vertikalnya
+     jadi menggantung di tengah layar (bukan di ujung kanan jendela
+     seperti wajarnya), apalagi buat halaman tabel lebar seperti
+     Riwayat & Laporan SPK. */
 }
 .lembar { background: none; border: 0; border-radius: 0; padding: 0;
   /* Sama seperti .form — .lembar juga dipakai buat panel Ubah/Detail
@@ -382,7 +387,7 @@ button, input, select { font: inherit; }
   display: flex; flex-direction: column; gap: 2px;
   background: var(--lapis);
   border: 1px solid var(--garis); border-radius: var(--r-besar);
-  padding: 18px; margin-bottom: 16px;
+  padding: 18px; margin-bottom: 16px; max-width: 640px;
   /* Form "Ubah" SPK ditaruh di dalam <td> tabel (colspan) — .tabel td
      punya white-space: nowrap yang DIWARISKAN turun ke semua anaknya
      (label, <p>, textarea, dst), memaksa semuanya coba muat dalam
