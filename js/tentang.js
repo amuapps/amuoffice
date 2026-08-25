@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.2";
-import { VERSI } from "./config.js?v=3.7.2";
-import { aman, rupiah, kabar } from "./ui.js?v=3.7.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.3";
+import { VERSI } from "./config.js?v=3.7.3";
+import { aman, rupiah, kabar } from "./ui.js?v=3.7.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.2";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.3";
 
 const RIWAYAT = [
+  {
+    versi: "3.7.3", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN BUG SERIUS: Aplikasi Gagal Total Dimuat (lagi)",
+    butir: [
+      "PERBAIKAN BUG PENTING: perubahan v3.7.2 (kolom No. Rangka/Mesin) menaruh kode \"await\" di dalam fungsi yang bukan async — menyebabkan SELURUH APLIKASI gagal dimuat total (\"Uncaught SyntaxError: Unexpected reserved word\"), sama seperti kejadian di v3.6.2. Sudah diperbaiki.",
+      "Ditemukan juga: cara pengecekan kode sebelumnya (node --check biasa) TERNYATA tidak selalu bisa menangkap jenis kesalahan ini — mulai versi ini, setiap file dicek ulang dengan cara yang lebih ketat (dipaksa mode modul murni) sebelum dipaketkan, supaya kejadian seperti ini tidak lolos lagi ke depannya.",
+    ],
+  },
   {
     versi: "3.7.2", tanggal: "Agustus 2026",
     judul: "Area Konten Diperlebar, Kolom No. Rangka/Mesin di Riwayat SPK",

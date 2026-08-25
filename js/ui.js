@@ -1,6 +1,6 @@
 // ui.js — pembantu tampilan yang dipakai di seluruh aplikasi.
 
-import { ZONA } from "./config.js?v=3.7.2";
+import { ZONA } from "./config.js?v=3.7.3";
 
 // ── Uang ──────────────────────────────────────────────────────
 export function rupiah(n) {

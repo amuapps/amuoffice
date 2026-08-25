@@ -2,17 +2,17 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.7.2";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.2";
+  from "./db.js?v=3.7.3";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.3";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.2";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.2";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.2";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.2";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.2";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.2";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.3";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.3";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.3";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.3";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.3";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -542,6 +542,10 @@ export async function halamanLaporan(wadah) {
       salesTerpakai.map(([uid, nama]) =>
         `<option value="${aman(uid)}">${aman(nama)}</option>`).join("");
 
+    // Peta No. Rangka/Mesin dimuat DI SINI (bukan di dalam gambarTabel,
+    // yang bukan fungsi async) — supaya siap sebelum tabelnya dirender.
+    await muatPetaUnitUntuk(dataSpk);
+
     terapkanFilter();
   }
 
@@ -613,8 +617,6 @@ export async function halamanLaporan(wadah) {
     const totalNilai = dataTampil.reduce((s, t) => s + hargaEfektif(t), 0);
     const jmlReady = dataTampil.filter((t) => t.kondisiUnit === "ready").length;
     const jmlIndent = dataTampil.filter((t) => t.kondisiUnit === "indent").length;
-
-    await muatPetaUnitUntuk(dataTampil);
 
     ringkasanEl.innerHTML =
       kartuRingkas("Total SPK", dataTampil.length, rupiah(totalNilai) + " total nilai (setelah diskon)") +
