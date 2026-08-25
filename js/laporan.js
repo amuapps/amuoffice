@@ -2,22 +2,40 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.7.0";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.0";
+  from "./db.js?v=3.7.2";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.2";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.0";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.0";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.0";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.0";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.0";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.2";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.2";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.2";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.2";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.2";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.2";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
-
 const LABEL_KONDISI = { ready: "Dipesan (unit terkunci)", indent: "Indent" };
+
+// Peta unitId → {noRangka, noMesin} — diisi sekali tiap kali tabel
+// dimuat ulang (lihat muat()), dibaca oleh baris() saat merender
+// kolom No. Rangka/Mesin. Diambil satu-per-satu lewat getDoc
+// (bukan query massal) karena unit yang dirujuk SPK bisa berstatus
+// apa saja (ready/booked/terjual) — muatSemuaUnitReadyRingkas cuma
+// mencakup yang status-nya "ready".
+let petaUnitRingkas = new Map();
+async function muatPetaUnitUntuk(daftarSpk) {
+  const idUnik = [...new Set(daftarSpk.map((t) => t.unitId).filter(Boolean))];
+  const peta = new Map();
+  await Promise.all(idUnik.map(async (id) => {
+    try {
+      const snap = await getDoc(doc(dbase, "units", id));
+      if (snap.exists()) peta.set(id, snap.data());
+    } catch { /* satu unit gagal dimuat bukan alasan gagalkan semuanya */ }
+  }));
+  petaUnitRingkas = peta;
+}
 
 function badgeCaraBayar(t) {
   const kredit = (t.caraBayar || []).includes("kredit");
@@ -56,6 +74,8 @@ function baris(t) {
     <td>${tanggal(t.dibuatPada)}</td>
     <td>${aman(t.pembeli?.nama)}</td>
     <td>${aman(t.tipeNama)} · ${aman(t.warna)}</td>
+    <td class="mono">${aman(petaUnitRingkas.get(t.unitId)?.noRangka || "-")}</td>
+    <td class="mono">${aman(petaUnitRingkas.get(t.unitId)?.noMesin || "-")}</td>
     <td>${rupiah(t.hargaOtr)}</td>
     <td>${batal ? "-" : badgeCaraBayar(t)}</td>
     <td>${batal
@@ -84,10 +104,10 @@ function baris(t) {
     </td>
   </tr>
   <tr data-baris-edit="${t.id}" hidden>
-    <td colspan="8"><div data-wadah-edit="${t.id}"></div></td>
+    <td colspan="10"><div data-wadah-edit="${t.id}"></div></td>
   </tr>
   <tr data-baris-detail="${t.id}" hidden>
-    <td colspan="8"><div data-wadah-detail="${t.id}" class="hampa">Memuat…</div></td>
+    <td colspan="10"><div data-wadah-detail="${t.id}" class="hampa">Memuat…</div></td>
   </tr>`;
 }
 
@@ -412,11 +432,12 @@ export async function halamanLaporan(wadah) {
         <thead>
           <tr>
             <th>No. SPK</th><th>Tanggal</th><th>Pembeli</th><th>Unit</th>
+            <th>No. Rangka</th><th>No. Mesin</th>
             <th>Harga OTR</th><th>Cara Bayar</th><th>Kondisi</th><th></th>
           </tr>
         </thead>
         <tbody id="l-baris">
-          <tr><td colspan="8" class="hampa">Memuat…</td></tr>
+          <tr><td colspan="10" class="hampa">Memuat…</td></tr>
         </tbody>
       </table>
     </div>
@@ -455,7 +476,7 @@ export async function halamanLaporan(wadah) {
   }
 
   async function muat(ambilSemua = false) {
-    barisEl.innerHTML = `<tr><td colspan="8" class="hampa">Memuat…</td></tr>`;
+    barisEl.innerHTML = `<tr><td colspan="10" class="hampa">Memuat…</td></tr>`;
     const dari = new Date(dariEl.value + "T00:00:00");
     const sampai = new Date(sampaiEl.value + "T23:59:59");
     const sales = sesi && sesi.peran === "sales";
@@ -498,7 +519,7 @@ export async function halamanLaporan(wadah) {
       // sekali — orang bisa mengira tabel sudah berisi semuanya.
       kemungkinanTerpotong = dataSpk.length >= batas;
     } catch (err) {
-      barisEl.innerHTML = `<tr><td colspan="8" class="hampa">
+      barisEl.innerHTML = `<tr><td colspan="10" class="hampa">
         Gagal memuat: ${aman(err.message)}</td></tr>`;
       return;
     }
@@ -593,6 +614,8 @@ export async function halamanLaporan(wadah) {
     const jmlReady = dataTampil.filter((t) => t.kondisiUnit === "ready").length;
     const jmlIndent = dataTampil.filter((t) => t.kondisiUnit === "indent").length;
 
+    await muatPetaUnitUntuk(dataTampil);
+
     ringkasanEl.innerHTML =
       kartuRingkas("Total SPK", dataTampil.length, rupiah(totalNilai) + " total nilai (setelah diskon)") +
       kartuRingkas("Unit terkunci (Dipesan)", jmlReady, "stok langsung tersedia") +
@@ -600,7 +623,7 @@ export async function halamanLaporan(wadah) {
 
     barisEl.innerHTML = dataTampil.length
       ? dataTampil.map(baris).join("")
-      : `<tr><td colspan="8" class="hampa">Tidak ada SPK di rentang ini.</td></tr>`;
+      : `<tr><td colspan="10" class="hampa">Tidak ada SPK di rentang ini.</td></tr>`;
 
     barisEl.querySelectorAll("[data-kuitansi]").forEach((b) =>
       b.addEventListener("click", () => {

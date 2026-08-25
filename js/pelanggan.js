@@ -4,17 +4,18 @@
 // melengkapi faktur pajak.
 
 import {
-  dbase, collection, doc, getDocs, setDoc, query, where, orderBy, limit,
-  serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.7.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.7.0";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.7.0";
+  dbase, collection, doc, getDocs, setDoc, updateDoc, writeBatch, query, where,
+  orderBy, limit, serverTimestamp, catat, tandaBaru,
+} from "./db.js?v=3.7.2";
+import { bolehAkses, sesi } from "./auth.js?v=3.7.2";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.7.2";
+import { konfirmasi } from "./dialog.js?v=3.7.2";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.7.0";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.0";
+  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.7.2";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.2";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.2";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
-  from "./referensi.js?v=3.7.0";
+  from "./referensi.js?v=3.7.2";
 
 let cache = [];
 
@@ -47,6 +48,59 @@ export async function simpanPelanggan(data, id) {
   tambahSaranOtomatis("kota", data.kota);
   await muatPelanggan(true);
   return ref.id;
+}
+
+// ── Sinkronkan ke SPK terkait — SATU ARAH: Database Konsumen → SPK ──
+// (arah sebaliknya, SPK → Database Konsumen, sudah ada di spk.js
+// lewat simpanPelangganOtomatis). Cuma SPK yang kuitansinya BELUM
+// tercetak yang ikut diperbarui — yang SUDAH tercetak dianggap
+// dokumen resmi yang beku, tidak boleh diam-diam berubah dari sini.
+// Dipanggil SETELAH simpanPelanggan berhasil, cuma untuk konsumen
+// yang SUDAH ada sebelumnya (bukan baru ditambah — belum ada SPK
+// yang terkait kalau baru).
+export async function sinkronKePelangganTerkait(id, data) {
+  const [snapPembeli, snapPemakai] = await Promise.all([
+    getDocs(query(collection(dbase, "transaksi"), where("pembeliId", "==", id))),
+    getDocs(query(collection(dbase, "transaksi"), where("pemakaiId", "==", id))),
+  ]);
+  const perluDiubah = new Map(); // docId -> { sebagaiPembeli, sebagaiPemakai }
+  snapPembeli.docs.forEach((d) => {
+    const t = d.data();
+    if (t.kuitansiTercetak) return; // dilindungi, lewati
+    perluDiubah.set(d.id, { ...(perluDiubah.get(d.id) || {}), sebagaiPembeli: true });
+  });
+  snapPemakai.docs.forEach((d) => {
+    const t = d.data();
+    if (t.kuitansiTercetak) return;
+    if (t.pemakaiSamaDenganPembeli !== false) return; // pemakai = ikut pembeli, tidak ada objek pemakai terpisah
+    perluDiubah.set(d.id, { ...(perluDiubah.get(d.id) || {}), sebagaiPemakai: true });
+  });
+
+  if (!perluDiubah.size) return 0;
+
+  const lanjut = await konfirmasi({
+    judul: "Ikut Perbarui SPK Terkait?",
+    pesan: `Ada ${perluDiubah.size} SPK yang kuitansinya BELUM tercetak dan ` +
+           `memakai data konsumen ini — ikut diperbarui otomatis supaya konsisten? ` +
+           `SPK yang kuitansinya SUDAH tercetak TIDAK ikut berubah (dilindungi), ` +
+           `kalau perlu dikoreksi juga, lewat "Ubah" di SPK itu sendiri.`,
+    oke: `Ya, Perbarui ${perluDiubah.size} SPK`, batal: "Tidak, Cukup di Sini",
+  });
+  if (!lanjut) return 0;
+
+  const batch = writeBatch(dbase);
+  for (const [docId, tandai] of perluDiubah) {
+    const perubahan = {};
+    if (tandai.sebagaiPembeli) perubahan.pembeli = data;
+    if (tandai.sebagaiPemakai) perubahan.pemakai = data;
+    batch.update(doc(dbase, "transaksi", docId), perubahan);
+  }
+  await batch.commit();
+  await catat("pelanggan_sinkron_ke_spk", {
+    koleksi: "pelanggan", docId: id,
+    ringkas: `${data.nama} · ${perluDiubah.size} SPK diperbarui`,
+  });
+  return perluDiubah.size;
 }
 
 // ── Simpan otomatis dari transaksi ──────────────────────────────
@@ -509,10 +563,19 @@ export async function halamanPelanggan(wadah) {
         const data = bacaFormPelanggan(formEl);
         if (!data.nama) { kabar("Nama wajib diisi.", "rem"); return; }
         try {
-          await simpanPelanggan(data, p ? p.id : null);
+          const idTersimpan = await simpanPelanggan(data, p ? p.id : null);
           formEl.innerHTML = "";
           await gambar();
           kabar("Pelanggan tersimpan.", "netral");
+          // Sinkron ke SPK terkait cuma relevan buat konsumen yang
+          // SUDAH ada (baru ditambah = belum ada SPK apa pun) DAN
+          // cuma Owner (rules Firestore cuma izinkan Owner menulis
+          // field pembeli/pemakai ke transaksi — Admin/Sales dibatasi
+          // cuma field pembayaran, lihat firestore.rules).
+          if (p && sesi && sesi.peran === "owner") {
+            const jumlah = await sinkronKePelangganTerkait(idTersimpan, data);
+            if (jumlah > 0) kabar(`${jumlah} SPK ikut diperbarui.`, "netral");
+          }
         } catch (err) {
           kabar("Gagal menyimpan: " + err.message, "rem");
         }

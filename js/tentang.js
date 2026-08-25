@@ -3,14 +3,31 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.0";
-import { VERSI } from "./config.js?v=3.7.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.7.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.2";
+import { VERSI } from "./config.js?v=3.7.2";
+import { aman, rupiah, kabar } from "./ui.js?v=3.7.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.7.2";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.7.2", tanggal: "Agustus 2026",
+    judul: "Area Konten Diperlebar, Kolom No. Rangka/Mesin di Riwayat SPK",
+    butir: [
+      "Area konten diperlebar dari 860px jadi 1200px — di layar laptop/PC lebar, batas sempit sebelumnya bikin banyak ruang terbuang di kanan & scrollbar menggantung di tengah layar, bukan di ujung jendela. Form (SPK Baru/Ubah) tetap dibatasi 640px supaya tetap nyaman dibaca, cuma tabel/daftar yang memanfaatkan lebar baru ini.",
+      "Tabel Riwayat & Laporan SPK sekarang menampilkan kolom No. Rangka dan No. Mesin langsung di daftar utama — sebelumnya cuma kelihatan lewat panel Detail, sekarang bisa dilihat sekilas tanpa perlu klik.",
+    ],
+  },
+  {
+    versi: "3.7.1", tanggal: "Agustus 2026",
+    judul: "Database Konsumen ↔ SPK Sekarang Dua Arah (Owner)",
+    butir: [
+      "Owner mengoreksi data konsumen langsung di Database Konsumen sekarang bisa sekalian menyebarkannya ke SPK-SPK terkait — muncul konfirmasi \"ikut perbarui berapa SPK?\" sebelum diterapkan. Cuma SPK yang kuitansinya BELUM tercetak yang ikut berubah; yang sudah tercetak tetap dilindungi (dokumen resmi, harus dikoreksi lewat Ubah di SPK itu sendiri kalau perlu).",
+      "Arah sebaliknya (edit di SPK ikut ke Database Konsumen) sudah ada sejak v3.6.7 — sekarang dua arahnya lengkap.",
+      "Fitur ini Owner-only, mengikuti aturan Firestore yang memang cuma Owner boleh menulis data pembeli/pemakai ke banyak SPK sekaligus.",
+    ],
+  },
   {
     versi: "3.7.0", tanggal: "Agustus 2026",
     judul: "Riwayat Perubahan Langsung di Panel Detail SPK & Konsumen",
