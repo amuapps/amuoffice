@@ -145,6 +145,23 @@ service cloud.firestore {
       allow write: if salahSatu(['owner']);
     }
 
+    // ── Tracking Dokumen Kendaraan (STNK/BPKB/Plat) ─────────────
+    // Owner & Admin bebas. Biro Jasa CUMA boleh baca/tulis dokumen
+    // yang biroJasaId-nya cocok dengan biroJasaId di profil mereka
+    // sendiri — ditegakkan di sini, bukan cuma disembunyikan di
+    // tampilan, supaya satu akun Biro Jasa tidak bisa mengintip
+    // (apalagi mengubah) berkas milik Biro Jasa lain.
+    match /dokumen_kendaraan/{id} {
+      allow read: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['biro_jasa']) && resource.data.biroJasaId == profil().biroJasaId);
+      allow create: if salahSatu(['owner', 'admin']);
+      allow update: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['biro_jasa']) &&
+         resource.data.biroJasaId == profil().biroJasaId &&
+         request.resource.data.biroJasaId == profil().biroJasaId);
+      allow delete: if salahSatu(['owner']);
+    }
+
     // ── SPK / transaksi ───────────────────────────────────
     // Sales cuma boleh BACA SPK miliknya sendiri (salesUid dia) —
     // Owner/Admin tetap bisa baca semua. Ini yang menegakkan
