@@ -5,18 +5,27 @@ import {
   dbase, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru, catat, runTransaction,
-} from "./db.js?v=3.7.3";
-import { bolehAkses, sesi } from "./auth.js?v=3.7.3";
-import { PERAN } from "./roles.js?v=3.7.3";
-import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js?v=3.7.3";
-import { pecahHarga } from "./config.js?v=3.7.3";
-import { beritahu } from "./dialog.js?v=3.7.3";
-import { muatSupplier, supplierAktif } from "./supplier.js?v=3.7.3";
-import { beriTahuSemuaOwner } from "./notifikasi.js?v=3.7.3";
-import { hitungTotalDibayar } from "./cetak.js?v=3.7.3";
+} from "./db.js?v=3.8.0";
+import { bolehAkses, sesi } from "./auth.js?v=3.8.0";
+import { PERAN } from "./roles.js?v=3.8.0";
+import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js?v=3.8.0";
+import { pecahHarga } from "./config.js?v=3.8.0";
+import { beritahu } from "./dialog.js?v=3.8.0";
+import { muatSupplier, supplierAktif } from "./supplier.js?v=3.8.0";
+import { beriTahuSemuaOwner } from "./notifikasi.js?v=3.8.0";
+import { hitungTotalDibayar } from "./cetak.js?v=3.8.0";
 import {
-  rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka,
-} from "./ui.js?v=3.7.3";
+  rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka, pasangBersihkanKode,
+} from "./ui.js?v=3.8.0";
+
+// No. Rangka & No. Mesin sering diketik dengan spasi yang tidak
+// konsisten (mis. "MD17M 5027277" vs "MD17M5027277") — kalau cuma
+// di-uppercase tanpa buang spasi, dua penulisan itu dianggap BEDA
+// oleh pengecekan keunikan, jadi celah duplikat bisa lolos. Semua
+// pemakaian No. Rangka/Mesin WAJIB lewat fungsi ini dulu.
+function bersihkanKode(s) {
+  return String(s || "").trim().toUpperCase().replace(/\s+/g, "");
+}
 
 const LABEL_STATUS = {
   ready: "Ready",
@@ -383,6 +392,8 @@ export async function halamanStok(wadah) {
     formEl.querySelector("#u-tgl").value =
       new Date().toISOString().slice(0, 10);
     if (bisaLihatHarga) pasangFormatUang(formEl.querySelector("#u-tebus"));
+    pasangBersihkanKode(formEl.querySelector("#u-rangka"));
+    pasangBersihkanKode(formEl.querySelector("#u-mesin"));
 
     pilihTipe.addEventListener("change", () => {
       const t = tipeDari(pilihTipe.value);
@@ -400,8 +411,8 @@ export async function halamanStok(wadah) {
   async function simpan(e) {
     e.preventDefault();
     const tipeId = formEl.querySelector("#u-tipe").value;
-    const noRangka = formEl.querySelector("#u-rangka").value
-      .trim().toUpperCase();
+    const noRangka = bersihkanKode(formEl.querySelector("#u-rangka").value);
+    const noMesin = bersihkanKode(formEl.querySelector("#u-mesin").value);
     if (!tipeId) { kabar("Pilih tipe motornya dulu.", "rem"); return; }
     if (!noRangka) { kabar("Nomor rangka wajib diisi.", "rem"); return; }
 
@@ -409,9 +420,20 @@ export async function halamanStok(wadah) {
     const ref = doc(collection(dbase, "units"));
 
     try {
-      // Menahan nomor rangka lebih dulu. Kalau nomor ini sudah
-      // terdaftar, penyimpanan dibatalkan sebelum apa pun berubah.
+      // Menahan nomor rangka (& mesin, kalau diisi) lebih dulu. Kalau
+      // salah satunya sudah terdaftar, penyimpanan dibatalkan sebelum
+      // apa pun berubah.
       await pakaiNilaiUnik("indeks_rangka", noRangka, ref.id);
+      if (noMesin) {
+        try {
+          await pakaiNilaiUnik("indeks_mesin", noMesin, ref.id);
+        } catch (errMesin) {
+          // Rangka SUDAH terlanjur ditahan di atas — lepas lagi
+          // supaya tidak menggantung kalau ternyata mesinnya dobel.
+          try { await deleteDoc(doc(dbase, "indeks_rangka", noRangka)); } catch { /* biarkan */ }
+          throw errMesin;
+        }
+      }
 
       const batch = writeBatch(dbase);
       const elSupplier = formEl.querySelector("#u-supplier");
@@ -423,7 +445,7 @@ export async function halamanStok(wadah) {
         warna: formEl.querySelector("#u-warna").value,
         tahun: Number(formEl.querySelector("#u-tahun").value || 0),
         noRangka,
-        noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
+        noMesin,
         noDo: formEl.querySelector("#u-do").value.trim(),
         supplierId: supplierTerpilih ? supplierTerpilih.id : null,
         supplierNama: supplierTerpilih ? supplierTerpilih.nama : null,
@@ -531,6 +553,9 @@ export async function halamanStok(wadah) {
       ? u.tglMasuk.toDate().toISOString().slice(0, 10)
       : new Date().toISOString().slice(0, 10);
 
+    pasangBersihkanKode(formEl.querySelector("#u-rangka"));
+    pasangBersihkanKode(formEl.querySelector("#u-mesin"));
+
     if (bisaLihatHarga) {
       const tebusEl = formEl.querySelector("#u-tebus");
       pasangFormatUang(tebusEl);
@@ -559,8 +584,7 @@ export async function halamanStok(wadah) {
   async function simpanUbah(e, u, owner) {
     e.preventDefault();
     const tipeId = formEl.querySelector("#u-tipe").value;
-    const noRangkaBaru = formEl.querySelector("#u-rangka").value
-      .trim().toUpperCase();
+    const noRangkaBaru = bersihkanKode(formEl.querySelector("#u-rangka").value);
     if (!tipeId) { kabar("Pilih tipe motornya dulu.", "rem"); return; }
     if (!noRangkaBaru) { kabar("Nomor rangka wajib diisi.", "rem"); return; }
 
@@ -574,7 +598,7 @@ export async function halamanStok(wadah) {
       warna: formEl.querySelector("#u-warna").value,
       tahun: Number(formEl.querySelector("#u-tahun").value || 0),
       noRangka: noRangkaBaru,
-      noMesin: formEl.querySelector("#u-mesin").value.trim().toUpperCase(),
+      noMesin: bersihkanKode(formEl.querySelector("#u-mesin").value),
       noDo: formEl.querySelector("#u-do").value.trim(),
       supplierId: supplierTerpilihUbah ? supplierTerpilihUbah.id : null,
       supplierNama: supplierTerpilihUbah ? supplierTerpilihUbah.nama : null,
@@ -779,6 +803,22 @@ export async function lepasUnitTransaksi(unitId) {
   });
 }
 
+// Sama seperti lepasUnitTransaksi, TAPI juga menangani unit yang
+// statusnya sudah "terjual" (bukan cuma "booked") — dipakai khusus
+// oleh "Hapus SPK Permanen", yang justru paling sering dipakai untuk
+// SPK yang SUDAH Lunas & unitnya sudah Terjual (satu-satunya kondisi
+// yang tidak bisa dibereskan lewat "Batalkan" biasa).
+export async function lepasUnitPermanen(unitId) {
+  await runTransaction(dbase, async (trx) => {
+    const refUnit = doc(dbase, "units", unitId);
+    const snap = await trx.get(refUnit);
+    if (!snap.exists()) return;
+    if (snap.data().status === "ready") return; // sudah Ready, tidak usah diapa-apakan
+    trx.update(refUnit, { status: "ready", spkId: null });
+    trx.update(doc(dbase, "tipe_motor", snap.data().tipeId), { jumlahReady: increment(1) });
+  });
+}
+
 // ── Terapkan perubahan identitas unit ───────────────────────────
 // Dipakai di DUA tempat: (1) Owner mengubah langsung dari halaman
 // ini, (2) Persetujuan Perubahan, saat Owner menyetujui pengajuan
@@ -786,10 +826,21 @@ export async function lepasUnitTransaksi(unitId) {
 // kalau tipe berubah) cuma ditulis sekali, tidak dobel.
 export async function terapkanPerubahanUnit(u, dataBaru) {
   const rangkaBerubah = dataBaru.noRangka !== u.noRangka;
+  const mesinBerubah = dataBaru.noMesin !== u.noMesin;
   const tipeBerubah = dataBaru.tipeId !== u.tipeId;
 
   if (rangkaBerubah) {
     await pakaiNilaiUnik("indeks_rangka", dataBaru.noRangka, u.id);
+  }
+  if (mesinBerubah && dataBaru.noMesin) {
+    try {
+      await pakaiNilaiUnik("indeks_mesin", dataBaru.noMesin, u.id);
+    } catch (errMesin) {
+      if (rangkaBerubah) {
+        try { await deleteDoc(doc(dbase, "indeks_rangka", dataBaru.noRangka)); } catch { /* biarkan */ }
+      }
+      throw errMesin;
+    }
   }
 
   const batch = writeBatch(dbase);
@@ -807,13 +858,18 @@ export async function terapkanPerubahanUnit(u, dataBaru) {
 
   await batch.commit();
 
-  // Lepas indeks rangka LAMA baru setelah batch utama berhasil —
-  // supaya kalau batch di atas gagal, nomor lama tidak sampai
-  // kelanjur terlepas padahal datanya belum benar-benar berubah.
+  // Lepas indeks LAMA (rangka & mesin) baru setelah batch utama
+  // berhasil — supaya kalau batch di atas gagal, nomor lama tidak
+  // sampai kelanjur terlepas padahal datanya belum benar-benar berubah.
   if (rangkaBerubah && u.noRangka) {
     try {
       await deleteDoc(doc(dbase, "indeks_rangka", u.noRangka.toUpperCase()));
     } catch { /* tidak fatal — nomor lama tertinggal terkunci, bisa dibetulkan manual */ }
+  }
+  if (mesinBerubah && u.noMesin) {
+    try {
+      await deleteDoc(doc(dbase, "indeks_mesin", u.noMesin.toUpperCase()));
+    } catch { /* tidak fatal */ }
   }
 
   await sinkronKatalog();

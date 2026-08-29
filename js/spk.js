@@ -11,25 +11,25 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.7.3";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.7.3";
-import { batasDiskon, PERAN } from "./roles.js?v=3.7.3";
-import { DP_MINIMUM } from "./config.js?v=3.7.3";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.7.3";
+} from "./db.js?v=3.8.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.8.0";
+import { batasDiskon, PERAN } from "./roles.js?v=3.8.0";
+import { DP_MINIMUM } from "./config.js?v=3.8.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.8.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.7.3";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.8.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.7.3";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.7.3";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.7.3";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.7.3";
-import { muatAgen, agenAktif } from "./agen.js?v=3.7.3";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.8.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.8.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.8.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.8.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.8.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
-  sudahLunas } from "./cetak.js?v=3.7.3";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.7.3";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.7.3";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.7.3";
+  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.8.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.8.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.8.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.8.0";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>
@@ -1270,6 +1270,7 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     let perluGantiUnit = false, lepasUnitDiminta = false, unitIdDipilihManual = null;
     let dpBerubah = false, dpBaru = 0, dpLama = 0;
     let riwayatLainAksi = [];
+    let koreksiRiwayatLainUntukCetak = null;
     if (owner) {
       // Internal Info: Sales, Diskon, Cashback, Agen/Fee Agen, Catatan
       const salesIdBaru = kontainer.querySelector(`#e-sales-${t.id}`).value;
@@ -1618,16 +1619,17 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
               else riwayatBaru[idx] = { ...riwayatBaru[idx], jumlah: aksi.jumlahBaru };
             });
             riwayatBaru = riwayatBaru.filter((r) => r !== null);
+            koreksiRiwayatLainUntukCetak = riwayatLainAksi.map((a) => ({
+              kuitansiNo: a.asli.kuitansiNo || null,
+              aksi: a.hapus ? "hapus" : "ubah_jumlah",
+              dariJumlah: a.asli.jumlah || 0,
+              keJumlah: a.hapus ? null : a.jumlahBaru,
+              alasan: alasanRiwayatLain.trim(),
+              olehUid: sesi.uid, olehNama: sesi.nama, pada: new Date(),
+            }));
             dataBaru.riwayatKoreksi = [
               ...(Array.isArray(t.riwayatKoreksi) ? t.riwayatKoreksi : []),
-              ...riwayatLainAksi.map((a) => ({
-                kuitansiNo: a.asli.kuitansiNo || null,
-                aksi: a.hapus ? "hapus" : "ubah_jumlah",
-                dariJumlah: a.asli.jumlah || 0,
-                keJumlah: a.hapus ? null : a.jumlahBaru,
-                alasan: alasanRiwayatLain.trim(),
-                olehUid: sesi.uid, olehNama: sesi.nama, pada: new Date(),
-              })),
+              ...koreksiRiwayatLainUntukCetak,
             ];
           }
 
@@ -1687,6 +1689,11 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         if (muatUlang) await muatUlang();
         if (entriRevisiUntukCetak) {
           await cetakKuitansiRevisi({ ...t, ...dataBaru, id: t.id }, entriRevisiUntukCetak);
+        }
+        if (koreksiRiwayatLainUntukCetak) {
+          for (const koreksi of koreksiRiwayatLainUntukCetak) {
+            await cetakKoreksiRiwayatBayar({ ...t, ...dataBaru, id: t.id }, koreksi);
+          }
         }
       } catch (err) {
         kabar("Gagal menyimpan: " + err.message, "rem");
@@ -1854,28 +1861,19 @@ export async function mintaBatalkanSpk(t, muatUlang) {
         dibatalkanPada: serverTimestamp(),
         dibatalkanOleh: sesi.uid,
       });
-      // Unit yang masih terkunci (Dipesan, belum Lunas) dikembalikan
-      // ke Ready — dicek langsung ke dokumen unitnya, bukan cuma
-      // percaya field kondisiUnit yang tersimpan di SPK (bisa saja
-      // sudah tidak sinkron).
-      if (t.unitId) {
-        try {
-          const snapUnit = await getDoc(doc(dbase, "units", t.unitId));
-          if (snapUnit.exists() && snapUnit.data().status === "booked") {
-            batch.update(doc(dbase, "units", t.unitId), {
-              status: "ready", spkId: null,
-            });
-            batch.update(doc(dbase, "tipe_motor", t.tipeId), {
-              jumlahReady: increment(1),
-            });
-          }
-        } catch { /* kalau gagal cek unit, tetap lanjut batalkan SPK-nya */ }
-      }
       sertakanLog(batch, "spk_dibatalkan", {
         koleksi: "transaksi", docId: t.id,
         ringkas: `${t.spkNo} · ${alasan.trim()}`,
       });
       await batch.commit();
+      // Lepas unit (kalau ada) SETELAH status SPK-nya berhasil
+      // tersimpan — pakai lepasUnitTransaksi yang atomik (baca-ulang
+      // + tulis dalam SATU runTransaction), konsisten dengan
+      // kunciUnitTransaksi/lepasUnitTransaksi di tempat lain, bukan
+      // baca-lalu-tulis manual yang rawan race condition.
+      if (t.unitId) {
+        try { await lepasUnitTransaksi(t.unitId); } catch { /* unit mungkin sudah bukan booked, abaikan */ }
+      }
       kabar(`SPK ${t.spkNo} dibatalkan.`, "netral");
       // Beri tahu sales pemilik SPK ini, kalau bukan dia sendiri yang
       // membatalkan (mis. Owner yang membatalkan SPK milik Sales lain).

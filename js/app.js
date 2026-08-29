@@ -8,35 +8,35 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.7.3";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.8.0";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.7.3";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.7.3";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.7.3";
+  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.8.0";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.8.0";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.8.0";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.7.3";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.7.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
-import { halamanStok } from "./stok.js?v=3.7.3";
-import { halamanTipe } from "./tipe.js?v=3.7.3";
-import { halamanReferensi } from "./referensi.js?v=3.7.3";
-import { halamanPengguna } from "./pengaturan.js?v=3.7.3";
-import { halamanPelanggan } from "./pelanggan.js?v=3.7.3";
-import { halamanLeasing } from "./leasing.js?v=3.7.3";
-import { halamanRekening } from "./rekening.js?v=3.7.3";
-import { halamanSpk } from "./spk.js?v=3.7.3";
-import { halamanLaporan } from "./laporan.js?v=3.7.3";
-import { muatLabelKustom } from "./label.js?v=3.7.3";
-import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.7.3";
-import { halamanLog } from "./log.js?v=3.7.3";
-import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.7.3";
-import { halamanAgen } from "./agen.js?v=3.7.3";
-import { halamanBiro } from "./biro.js?v=3.7.3";
-import { halamanSupplier } from "./supplier.js?v=3.7.3";
-import { halamanDashboard } from "./dashboard.js?v=3.7.3";
-import { halamanTentang } from "./tentang.js?v=3.7.3";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.7.3";
-import { halamanSegera } from "./segera.js?v=3.7.3";
+  from "./router.js?v=3.8.0";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.8.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
+import { halamanStok } from "./stok.js?v=3.8.0";
+import { halamanTipe } from "./tipe.js?v=3.8.0";
+import { halamanReferensi } from "./referensi.js?v=3.8.0";
+import { halamanPengguna } from "./pengaturan.js?v=3.8.0";
+import { halamanPelanggan } from "./pelanggan.js?v=3.8.0";
+import { halamanLeasing } from "./leasing.js?v=3.8.0";
+import { halamanRekening } from "./rekening.js?v=3.8.0";
+import { halamanSpk } from "./spk.js?v=3.8.0";
+import { halamanLaporan } from "./laporan.js?v=3.8.0";
+import { muatLabelKustom } from "./label.js?v=3.8.0";
+import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.8.0";
+import { halamanLog } from "./log.js?v=3.8.0";
+import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.8.0";
+import { halamanAgen } from "./agen.js?v=3.8.0";
+import { halamanBiro } from "./biro.js?v=3.8.0";
+import { halamanSupplier } from "./supplier.js?v=3.8.0";
+import { halamanDashboard } from "./dashboard.js?v=3.8.0";
+import { halamanTentang } from "./tentang.js?v=3.8.0";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.8.0";
+import { halamanSegera } from "./segera.js?v=3.8.0";
 
 const el = (id) => document.getElementById(id);
 
@@ -498,18 +498,32 @@ function selesaiMemuat() {
 let uidSesiAktif = null;
 
 // ── Auto-logout kalau tidak ada aktivitas ────────────────────────
-// 5 menit tanpa interaksi (klik, ketik, scroll, sentuh) → otomatis
+// 10 menit tanpa interaksi (klik, ketik, scroll, sentuh) → otomatis
 // keluar, supaya HP yang lupa di-logout tidak jadi celah keamanan
-// kalau ditinggal di meja/berpindah tangan.
-const BATAS_IDLE_MS = 5 * 60 * 1000;
+// kalau ditinggal di meja/berpindah tangan. Ada peringatan 1 menit
+// sebelumnya, supaya tidak tiba-tiba keluar sendiri saat lagi
+// benar-benar dipakai tapi kebetulan tangan berhenti sebentar
+// (mis. lagi baca/mikir isi form panjang).
+const BATAS_IDLE_MS = 10 * 60 * 1000;
+const PERINGATAN_SEBELUM_MS = 60 * 1000; // 1 menit sebelum logout
 let timerIdle = null;
+let timerPeringatan = null;
+let sudahPeringatanKaliIni = false;
 
 function resetTimerIdle() {
   if (!timerIdle) return; // belum login / sudah logout, tidak perlu jalan
   clearTimeout(timerIdle);
+  clearTimeout(timerPeringatan);
+  sudahPeringatanKaliIni = false;
+  timerPeringatan = setTimeout(() => {
+    if (sudahPeringatanKaliIni) return;
+    sudahPeringatanKaliIni = true;
+    kabar("Tidak ada aktivitas — akan keluar otomatis dalam 1 menit " +
+      "kalau tidak ada gerakan lagi.", "rem");
+  }, BATAS_IDLE_MS - PERINGATAN_SEBELUM_MS);
   timerIdle = setTimeout(async () => {
     await keluar();
-    kabar("Anda keluar otomatis karena tidak ada aktivitas selama 5 menit.", "rem");
+    kabar("Anda keluar otomatis karena tidak ada aktivitas selama 10 menit.", "rem");
   }, BATAS_IDLE_MS);
 }
 
@@ -522,6 +536,7 @@ function mulaiTimerIdle() {
 }
 function hentikanTimerIdle() {
   clearTimeout(timerIdle);
+  clearTimeout(timerPeringatan);
   timerIdle = null;
 }
 

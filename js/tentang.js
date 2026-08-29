@@ -3,14 +3,26 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.7.3";
-import { VERSI } from "./config.js?v=3.7.3";
-import { aman, rupiah, kabar } from "./ui.js?v=3.7.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.8.0";
+import { VERSI } from "./config.js?v=3.8.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.8.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.7.3";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.8.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.8.0", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN BUG PENTING + 5 Fitur Baru Sekaligus",
+    butir: [
+      "PERBAIKAN BUG SERIUS: SPK Cash yang dibayar LUNAS langsung di awal (misal Tunai penuh saat tanda tangan) — tombol \"Terima Pembayaran & Cetak Kuitansi\" hilang SEBELUM sempat diklik sama sekali, karena sistem sudah menganggapnya \"Lunas\" duluan sebelum kuitansi pertamanya sempat dicetak. Ini bisa kena BANYAK SPK sekaligus. Sudah diperbaiki — tombol sekarang tetap muncul selama kuitansi belum pernah dicetak, apa pun status Lunas-nya.",
+      "\"Hapus SPK Permanen\" (Owner) — beda dari Batalkan, ini benar-benar menghapus SPK dari sistem, termasuk yang sudah Lunas & Terjual (yang sebelumnya tidak bisa dibatalkan sama sekali lewat aplikasi, harus manual di Firestore). Wajib ketik ulang nomor SPK + alasan + password. Unit terkait otomatis kembali jadi Ready.",
+      "No. Rangka & No. Mesin sekarang otomatis dibersihkan dari spasi saat diketik (\"MD17M 5027277\" dan \"MD17M5027277\" dianggap SAMA) — mencegah duplikat lolos gara-gara beda spasi. No. Mesin sekarang juga punya proteksi keunikan sendiri (sebelumnya cuma No. Rangka).",
+      "Auto-logout dinaikkan dari 5 ke 10 menit, ditambah peringatan 1 menit sebelum benar-benar keluar.",
+      "\"Batalkan SPK\" sekarang pakai mekanisme atomik untuk melepas unit (konsisten dengan fitur lain), bukan cara lama yang rawan race condition.",
+      "Koreksi pembayaran ke-2 dst (hapus/ubah lewat Ubah atau Detail) sekarang mencetak dokumen resmi \"Koreksi Pembayaran\" — sebelumnya cuma tercatat di Log Aktivitas tanpa bukti cetak, beda dari koreksi DP yang sudah punya Kuitansi Revisi.",
+    ],
+  },
   {
     versi: "3.7.3", tanggal: "Agustus 2026",
     judul: "PERBAIKAN BUG SERIUS: Aplikasi Gagal Total Dimuat (lagi)",

@@ -1,18 +1,20 @@
 // laporan.js — daftar semua SPK (dengan hitungannya) dan ringkasan
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
-import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, catat }
-  from "./db.js?v=3.7.3";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.7.3";
+import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, deleteDoc, writeBatch, catat }
+  from "./db.js?v=3.8.0";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.8.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
-  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif } from "./cetak.js?v=3.7.3";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.7.3";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.7.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.7.3";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.7.3";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.7.3";
+  cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif,
+  cetakKoreksiRiwayatBayar } from "./cetak.js?v=3.8.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.8.0";
+import { lepasUnitPermanen } from "./stok.js?v=3.8.0";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.8.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.8.0";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.8.0";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.8.0";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -84,7 +86,7 @@ function baris(t) {
           ${LABEL_KONDISI[t.kondisiUnit] || t.kondisiUnit}</span>`}</td>
     <td style="white-space:nowrap">
       ${batal ? aman(t.alasanBatal || "-") : `
-        ${!lunas ? `<button class="tombol tombol--kecil" data-kuitansi="${t.id}">
+        ${(!lunas || !t.kuitansiTercetak) ? `<button class="tombol tombol--kecil" data-kuitansi="${t.id}">
             ${labelTombolKuitansi(t)}</button>` : ""}
         ${bolehAkses("cetak.dokumen") ? `
           <select class="isian isian--kecil" style="width:auto;display:inline-block"
@@ -216,8 +218,92 @@ async function renderDetail(t) {
         supaya selalu lewat alur Revisi Kuitansi resmi, bukan dihapus begitu
         saja dari sini.</p>
     </div>` : ""}
+    ${owner ? `<div class="d-kolom" style="flex-basis:100%;border-top:1px dashed #e0a0a0;margin-top:6px;padding-top:8px">
+      <p class="d-judul" style="color:var(--merah)">Zona Berbahaya</p>
+      <p class="petunjuk">Hapus SPK ini SEPENUHNYA dari sistem — beda dari
+        "Batalkan" (yang cuma mengubah status, datanya tetap ada). Dipakai
+        khusus untuk SPK yang benar-benar salah input dari awal (mis. unit
+        salah dealer, transaksi tercatat dobel). TIDAK BISA DIURUNGKAN.
+        Unit fisiknya (kalau ada) otomatis dikembalikan jadi Ready terlebih
+        dulu — apa pun status SPK-nya sekarang (termasuk yang sudah Lunas
+        &amp; Terjual, yang tidak bisa dibatalkan lewat tombol biasa).</p>
+      <button class="tombol tombol--kecil tombol--bahaya"
+        data-hapus-permanen="${t.id}">Hapus SPK Permanen</button>
+    </div>` : ""}
     ${owner ? htmlRiwayatDokumen(await muatRiwayatDokumen("transaksi", t.id)) : ""}
   </div>`;
+}
+
+// "Hapus SPK Permanen" — Owner-only, buat SPK yang benar-benar salah
+// input dari awal (bukan sekadar dibatalkan). Wajib ketik ulang
+// nomor SPK + alasan + password, supaya tidak ada yang kepencet
+// tidak sengaja. Melepas unit terkait (apa pun statusnya, termasuk
+// yang sudah Terjual) kembali jadi Ready, lalu menghapus dokumen
+// SPK-nya sepenuhnya.
+async function mintaHapusSpkPermanen(t, muatUlang) {
+  const ketik = await tanya({
+    judul: "⚠️ Hapus SPK Permanen",
+    pesan: `Ini akan MENGHAPUS SELURUH DATA SPK ${t.spkNo} (${aman(t.pembeli?.nama || "-")}) ` +
+           `secara permanen — TIDAK BISA DIURUNGKAN. Unit fisiknya (kalau ada) ` +
+           `otomatis dikembalikan jadi Ready. Untuk konfirmasi, ketik ULANG ` +
+           `persis nomor SPK-nya: ${t.spkNo}`,
+    petunjuk: t.spkNo,
+  });
+  if (ketik === null) return;
+  if (ketik.trim() !== t.spkNo) {
+    kabar("Nomor SPK yang diketik tidak cocok. Dibatalkan.", "rem");
+    return;
+  }
+
+  const alasan = await tanya({
+    judul: "Alasan Penghapusan",
+    pesan: "Wajib diisi, akan tercatat di Log Aktivitas sebagai jejak permanen.",
+    petunjuk: "mis. Salah input unit, seharusnya dealer lain",
+  });
+  if (alasan === null) return;
+  if (!alasan.trim()) {
+    kabar("Alasan wajib diisi.", "rem");
+    return;
+  }
+
+  const password = await tanya({
+    judul: "Konfirmasi Password",
+    pesan: "Langkah terakhir — masukkan password untuk benar-benar menghapus.",
+    petunjuk: "Password", tipeIsian: "password",
+  });
+  if (password === null) return;
+  try {
+    await konfirmasiPassword(password);
+  } catch {
+    kabar("Password salah. Penghapusan dibatalkan.", "rem");
+    return;
+  }
+
+  try {
+    if (t.unitId) {
+      try { await lepasUnitPermanen(t.unitId); } catch { /* unit mungkin sudah tidak ada, lanjutkan */ }
+    }
+    // Bersihkan kuitansi_publik terkait (QR) — dikumpulkan dari
+    // riwayatBayar, bukan cuma kuitansiKode utama, supaya kuitansi
+    // ke-2 dst juga ikut terhapus.
+    const kodeSemua = [
+      t.kuitansiKode,
+      ...((Array.isArray(t.riwayatBayar) ? t.riwayatBayar : []).map((r) => r.kodeAman)),
+    ].filter(Boolean);
+    await Promise.all(kodeSemua.map((kode) =>
+      deleteDoc(doc(dbase, "kuitansi_publik", kode)).catch(() => { /* abaikan kalau tidak ada */ })));
+
+    await catat("spk_dihapus_permanen", {
+      koleksi: "transaksi", docId: t.id,
+      ringkas: `${t.spkNo} · ${aman(t.pembeli?.nama || "-")} · Alasan: ${alasan.trim()}`,
+    });
+    await deleteDoc(doc(dbase, "transaksi", t.id));
+
+    kabar(`${t.spkNo} berhasil dihapus permanen.`, "netral");
+    if (muatUlang) await muatUlang();
+  } catch (err) {
+    kabar("Gagal menghapus: " + err.message, "rem");
+  }
 }
 
 // Form "Tandai Cashback Sudah Dibayar" — polanya sama persis dengan
@@ -330,10 +416,17 @@ function pasangWiringHapusEntri(target, t, muatUlangDetail) {
         const totalBaru = riwayatBaru.reduce((s, r) => s + (r.jumlah || 0), 0);
         const efektif = hargaEfektif(t);
         const statusBaru = efektif > 0 && totalBaru >= efektif ? "lunas" : "dp";
+        const catatanKoreksi = {
+          kuitansiNo: entri.kuitansiNo || null, aksi: "hapus",
+          dariJumlah: entri.jumlah || 0, keJumlah: null,
+          alasan: alasan.trim(), olehUid: sesi.uid, olehNama: sesi.nama,
+          pada: new Date(),
+        };
         await updateDoc(doc(dbase, "transaksi", t.id), {
           riwayatBayar: riwayatBaru,
           totalDibayar: totalBaru,
           statusBayar: statusBaru,
+          riwayatKoreksi: [...(Array.isArray(t.riwayatKoreksi) ? t.riwayatKoreksi : []), catatanKoreksi],
         });
         // Perbarui juga obyek t di memori (dipakai dataTampil & saat
         // render ulang panel ini) — supaya tidak perlu muat ulang
@@ -348,6 +441,7 @@ function pasangWiringHapusEntri(target, t, muatUlangDetail) {
         });
         kabar("Entri pembayaran dihapus, total dihitung ulang.", "netral");
         await muatUlangDetail();
+        await cetakKoreksiRiwayatBayar(t, catatanKoreksi);
       } catch (err) {
         kabar("Gagal menghapus: " + err.message, "rem");
       }
@@ -666,6 +760,14 @@ export async function halamanLaporan(wadah) {
       target.dataset.dimuat = "1";
       pasangWiringCashback(target, t, () => bukaDetail(t, target));
       pasangWiringHapusEntri(target, t, () => bukaDetail(t, target));
+      const tombolHapusPermanen = target.querySelector(`[data-hapus-permanen="${t.id}"]`);
+      if (tombolHapusPermanen) {
+        tombolHapusPermanen.addEventListener("click", () =>
+          // Setelah berhasil, SPK-nya sudah tidak ada — muat ULANG
+          // SELURUH tabel (bukan cuma render ulang detail ini, yang
+          // datanya sudah tidak ada lagi).
+          mintaHapusSpkPermanen(t, muat));
+      }
     }
     barisEl.querySelectorAll("[data-detail]").forEach((b) =>
       b.addEventListener("click", async () => {

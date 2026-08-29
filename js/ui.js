@@ -1,6 +1,6 @@
 // ui.js — pembantu tampilan yang dipakai di seluruh aplikasi.
 
-import { ZONA } from "./config.js?v=3.7.3";
+import { ZONA } from "./config.js?v=3.8.0";
 
 // ── Uang ──────────────────────────────────────────────────────
 export function rupiah(n) {
@@ -27,6 +27,22 @@ export function pasangHurufBesar(input) {
     const posisi = input.selectionStart;
     input.value = input.value.toUpperCase();
     input.setSelectionRange(posisi, posisi);
+  });
+}
+
+// Sama seperti pasangHurufBesar, tapi SEKALIGUS buang semua spasi
+// sambil mengetik — dipakai khusus No. Rangka/No. Mesin, supaya
+// "MD17M 5027277" dan "MD17M5027277" tidak pernah bisa tersimpan
+// beda gara-gara spasi yang tidak konsisten (celah proteksi
+// keunikan kalau cuma dibersihkan pas submit doang).
+export function pasangBersihkanKode(input) {
+  if (!input) return;
+  input.addEventListener("input", () => {
+    const posisi = input.selectionStart;
+    const spasiSebelumKursor = (input.value.slice(0, posisi).match(/\s/g) || []).length;
+    input.value = input.value.toUpperCase().replace(/\s+/g, "");
+    const posisiBaru = Math.max(posisi - spasiSebelumKursor, 0);
+    input.setSelectionRange(posisiBaru, posisiBaru);
   });
 }
 

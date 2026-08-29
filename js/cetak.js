@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.7.3";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.7.3";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.7.3";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.7.3";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.7.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.7.3";
-import { konfirmasiPassword } from "./auth.js?v=3.7.3";
-import { buatNotifikasi } from "./notifikasi.js?v=3.7.3";
-import { kabar } from "./ui.js?v=3.7.3";
+  nomorKuitansiSpk } from "./db.js?v=3.8.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.8.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.8.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.8.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.8.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
+import { konfirmasiPassword } from "./auth.js?v=3.8.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.8.0";
+import { kabar } from "./ui.js?v=3.8.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -880,6 +880,81 @@ export async function cetakKuitansiRevisi(t, revisi) {
         <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
     </section>
     <p class="k-kaki">Dokumen koreksi resmi — bukan pengganti kuitansi asli.</p>
+  </div>
+
+  <div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>`;
+
+  tabBaru.document.body.innerHTML = isi;
+}
+
+// ── Dokumen Koreksi Riwayat Pembayaran (ke-2 dst, BUKAN DP) ──────
+// Sebelumnya, hapus/ubah entri pembayaran ke-2 dst cuma tercatat di
+// Log Aktivitas — tidak ada dokumen cetak sama sekali (beda dari
+// koreksi DP yang sudah punya Kuitansi Revisi). Dokumen ini
+// menutup celah itu — bukti resmi tercetak untuk SETIAP koreksi,
+// baik itu hapus maupun ubah jumlah.
+export async function cetakKoreksiRiwayatBayar(t, koreksi) {
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Koreksi Pembayaran — ${aman(t.spkNo)}</title>
+    <style>${CSS_KUITANSI}</style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  const dihapus = koreksi.aksi === "hapus";
+  const isi = `<div class="k-kuitansi">
+    <div class="k-atas">
+      <div class="k-kop">
+        <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div><p class="k-pt">${aman(SHOWROOM.nama)}</p></div>
+      </div>
+      <table class="k-jenis-tabel">
+        <tr><td>KETERANGAN</td><td>${dihapus ? "Penghapusan" : "Koreksi"} Entri Pembayaran</td></tr>
+      </table>
+    </div>
+
+    <h2 class="k-judul">DOKUMEN KOREKSI PEMBAYARAN</h2>
+    <p class="k-nomor-tgl">${tanggal(koreksi.pada)}</p>
+
+    <p class="k-kecil" style="margin-top:10px">
+      SPK <b>${aman(t.spkNo)}</b> — ${aman(t.pembeli?.nama || "-")}. Entri
+      pembayaran ${aman(koreksi.kuitansiNo || "-")} pada catatan sistem
+      ${dihapus ? "DIHAPUS" : "DIKOREKSI JUMLAHNYA"}. Kuitansi kertas asli
+      (kalau sudah pernah diserahkan ke konsumen) TETAP SAH sebagai bukti
+      fisik — dokumen ini cuma mencatat resmi bahwa catatan SISTEM sudah
+      dikoreksi, dan kenapa.</p>
+
+    <div class="k-grid2" style="margin-top:14px">
+      <div>
+        <p class="k-jumlah-label">Jumlah semula</p>
+        <p class="k-jumlah-besar">${rupiah(koreksi.dariJumlah)}</p>
+        ${dihapus
+          ? `<p class="k-kecil" style="margin-top:6px;font-weight:600">Status: DIHAPUS dari catatan sistem</p>`
+          : `<p class="k-jumlah-label" style="margin-top:9px">Dikoreksi menjadi</p>
+             <p class="k-jumlah-besar">${rupiah(koreksi.keJumlah)}</p>
+             <p class="k-terbilang-kotak">${aman(terbilang(koreksi.keJumlah))}</p>`}
+      </div>
+      <div>
+        <p class="k-jumlah-label">Alasan</p>
+        <p class="k-kalimat-isi">${aman(koreksi.alasan)}</p>
+        <p class="k-jumlah-label" style="margin-top:9px">Dikoreksi Oleh</p>
+        <p class="k-kalimat-isi">${aman(koreksi.olehNama)}</p>
+      </div>
+    </div>
+
+    <section class="k-ttd">
+      <div><span class="k-garis"></span>Tanda Tangan &amp; Nama Jelas
+        <br><span class="k-kecil">Owner</span></div>
+      <div><span class="k-garis"></span>Tanda Tangan, Nama Jelas &amp; Cap
+        <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
+    </section>
+    <p class="k-kaki">Dokumen koreksi internal — arsip showroom, bukan diberikan ke konsumen.</p>
   </div>
 
   <div class="aksi-cetak">
