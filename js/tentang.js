@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.8.0";
-import { VERSI } from "./config.js?v=3.8.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.8.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.8.1";
+import { VERSI } from "./config.js?v=3.8.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.8.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.8.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.8.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.8.1", tanggal: "Agustus 2026",
+    judul: "Aplikasi Dibikin Lebih Ringan — Halaman Dimuat Sesuai Kebutuhan",
+    butir: [
+      "Perbaikan performa besar: sebelumnya SEMUA halaman (SPK, Laporan, Stok, dan 14 halaman lain — total ±570KB kode) dimuat sekaligus di awal, bahkan sebelum layar Masuk selesai tampil. Sekarang cuma kerangka dasar (±90KB) yang dimuat di awal — halaman lain baru diambil PAS pertama kali dibuka, lalu otomatis tersimpan di HP supaya kunjungan berikutnya tetap cepat.",
+      "Tidak ada perubahan fitur/tampilan — cuma soal seberapa cepat aplikasinya terasa, terutama di HP dengan koneksi lambat.",
+    ],
+  },
   {
     versi: "3.8.0", tanggal: "Agustus 2026",
     judul: "PERBAIKAN BUG PENTING + 5 Fitur Baru Sekaligus",

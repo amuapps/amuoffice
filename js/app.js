@@ -8,35 +8,33 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.8.0";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.8.1";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.8.0";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.8.0";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.8.0";
+  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.8.1";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.8.1";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.8.1";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.8.0";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.8.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.8.0";
-import { halamanStok } from "./stok.js?v=3.8.0";
-import { halamanTipe } from "./tipe.js?v=3.8.0";
-import { halamanReferensi } from "./referensi.js?v=3.8.0";
-import { halamanPengguna } from "./pengaturan.js?v=3.8.0";
-import { halamanPelanggan } from "./pelanggan.js?v=3.8.0";
-import { halamanLeasing } from "./leasing.js?v=3.8.0";
-import { halamanRekening } from "./rekening.js?v=3.8.0";
-import { halamanSpk } from "./spk.js?v=3.8.0";
-import { halamanLaporan } from "./laporan.js?v=3.8.0";
-import { muatLabelKustom } from "./label.js?v=3.8.0";
-import { halamanAkses, muatAksesKustom } from "./akses.js?v=3.8.0";
-import { halamanLog } from "./log.js?v=3.8.0";
-import { halamanPersetujuan, halamanPengajuanSaya } from "./persetujuan.js?v=3.8.0";
-import { halamanAgen } from "./agen.js?v=3.8.0";
-import { halamanBiro } from "./biro.js?v=3.8.0";
-import { halamanSupplier } from "./supplier.js?v=3.8.0";
-import { halamanDashboard } from "./dashboard.js?v=3.8.0";
-import { halamanTentang } from "./tentang.js?v=3.8.0";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.8.0";
-import { halamanSegera } from "./segera.js?v=3.8.0";
+  from "./router.js?v=3.8.1";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.8.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.8.1";
+import { muatLabelKustom } from "./label.js?v=3.8.1";
+import { muatAksesKustom } from "./akses.js?v=3.8.1";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.8.1";
+import { halamanSegera } from "./segera.js?v=3.8.1";
+
+// ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
+// Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
+// — total ratusan KB) diimpor langsung di atas, jadi ke-download &
+// dieksekusi SEMUA di awal, bahkan buat halaman yang mungkin tidak
+// pernah dibuka pengguna itu. Sekarang tiap halaman baru diambil
+// dari server PAS pertama kali dibuka (browser otomatis menyimpan
+// cache-nya sendiri, jadi kunjungan berikutnya ke halaman yang sama
+// tetap cepat) — aplikasi jadi jauh lebih ringan waktu pertama kali
+// dibuka/masuk.
+async function muatHalaman(modul, nama) {
+  const m = await import(`./${modul}.js?v=3.8.0`);
+  return m[nama];
+}
 
 const el = (id) => document.getElementById(id);
 
@@ -259,26 +257,26 @@ function daftarkanHalaman(profil) {
   // sementara dengan kode dan judul dari daftar menu, jadi susunan
   // modulnya sudah bisa ditelusuri sejak sekarang.
   const khusus = {
-    "#/stok": (w) => halamanStok(w),
-    "#/katalog": (w) => halamanTipe(w, true),
-    "#/kelola": (w) => halamanTipe(w, false),
-    "#/referensi": (w) => halamanReferensi(w),
-    "#/pengguna": (w) => halamanPengguna(w),
-    "#/pelanggan": (w) => halamanPelanggan(w),
-    "#/leasing": (w) => halamanLeasing(w),
-    "#/rekening": (w) => halamanRekening(w),
-    "#/spk": (w) => halamanSpk(w),
-    "#/laporan": (w) => halamanLaporan(w),
-    "#/akses": (w) => halamanAkses(w, PERAN),
-    "#/log": (w) => halamanLog(w),
-    "#/persetujuan": (w) => halamanPersetujuan(w),
-    "#/agen": (w) => halamanAgen(w),
-    "#/biro": (w) => halamanBiro(w),
-    "#/supplier": (w) => halamanSupplier(w),
-    "#/dashboard": (w) => halamanDashboard(w),
-    "#/tentang": (w) => halamanTentang(w),
+    "#/stok": async (w) => (await muatHalaman("stok", "halamanStok"))(w),
+    "#/katalog": async (w) => (await muatHalaman("tipe", "halamanTipe"))(w, true),
+    "#/kelola": async (w) => (await muatHalaman("tipe", "halamanTipe"))(w, false),
+    "#/referensi": async (w) => (await muatHalaman("referensi", "halamanReferensi"))(w),
+    "#/pengguna": async (w) => (await muatHalaman("pengaturan", "halamanPengguna"))(w),
+    "#/pelanggan": async (w) => (await muatHalaman("pelanggan", "halamanPelanggan"))(w),
+    "#/leasing": async (w) => (await muatHalaman("leasing", "halamanLeasing"))(w),
+    "#/rekening": async (w) => (await muatHalaman("rekening", "halamanRekening"))(w),
+    "#/spk": async (w) => (await muatHalaman("spk", "halamanSpk"))(w),
+    "#/laporan": async (w) => (await muatHalaman("laporan", "halamanLaporan"))(w),
+    "#/akses": async (w) => (await muatHalaman("akses", "halamanAkses"))(w, PERAN),
+    "#/log": async (w) => (await muatHalaman("log", "halamanLog"))(w),
+    "#/persetujuan": async (w) => (await muatHalaman("persetujuan", "halamanPersetujuan"))(w),
+    "#/agen": async (w) => (await muatHalaman("agen", "halamanAgen"))(w),
+    "#/biro": async (w) => (await muatHalaman("biro", "halamanBiro"))(w),
+    "#/supplier": async (w) => (await muatHalaman("supplier", "halamanSupplier"))(w),
+    "#/dashboard": async (w) => (await muatHalaman("dashboard", "halamanDashboard"))(w),
+    "#/tentang": async (w) => (await muatHalaman("tentang", "halamanTentang"))(w),
     "#/inbox": (w) => halamanInbox(w),
-    "#/pengajuan-saya": (w) => halamanPengajuanSaya(w),
+    "#/pengajuan-saya": async (w) => (await muatHalaman("persetujuan", "halamanPengajuanSaya"))(w),
   };
 
   semuaMenu(profil.peran).forEach((m) => {

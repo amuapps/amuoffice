@@ -5,8 +5,8 @@
 // judul, seksi) supaya susunan menunya bisa dinilai lebih dulu
 // sebelum satu per satu diisi.
 
-import { bilahLayar, seksi, pasangSeksi } from "./layar.js?v=3.8.0";
-import { aman } from "./ui.js?v=3.8.0";
+import { bilahLayar, seksi, pasangSeksi } from "./layar.js?v=3.8.1";
+import { aman } from "./ui.js?v=3.8.1";
 
 export function halamanSegera(wadah, { kode, judul, catatan }) {
   wadah.innerHTML = `<div class="layar">
