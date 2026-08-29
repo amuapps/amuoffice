@@ -3,14 +3,23 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.8.1";
-import { VERSI } from "./config.js?v=3.8.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.8.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.8.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.0";
+import { VERSI } from "./config.js?v=3.9.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.9.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.9.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.8.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.9.0", tanggal: "Agustus 2026",
+    judul: "Tracking Dokumen Kendaraan — Tahap 1: Peran Biro Jasa & Struktur Dasar",
+    butir: [
+      "Peran baru \"Biro Jasa\" — login email/password sendiri (dibuat lewat Data Karyawan, sama seperti Admin/Sales), terhubung ke satu record Master Biro Jasa. Cuma bisa lihat/ubah data yang ditugaskan ke mereka — ditegakkan di Firestore Rules, bukan cuma disembunyikan di tampilan.",
+      "Data Karyawan sekarang punya dropdown \"Terhubung ke Biro Jasa mana\" — muncul otomatis kalau peran yang dipilih Biro Jasa, baik saat buat akun baru maupun ubah peran akun yang sudah ada.",
+      "Struktur data dasar untuk tracking STNK/BPKB/Plat/Berkas sudah disiapkan (koleksi dokumen_kendaraan) — halaman \"Tracking Dokumen\" sudah bisa diakses (menu baru di sidebar Owner/Admin/Biro Jasa), tapi alur konfirmasi lengkapnya (serah-terima, BAST, log per-berkas) menyusul di pembaruan berikutnya.",
+    ],
+  },
   {
     versi: "3.8.1", tanggal: "Agustus 2026",
     judul: "Aplikasi Dibikin Lebih Ringan — Halaman Dimuat Sesuai Kebutuhan",

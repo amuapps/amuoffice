@@ -8,8 +8,8 @@
 // Aksi selalu di toolbar atas, di posisi yang sama di semua layar,
 // supaya tangan hafal tanpa harus membaca.
 
-import { aman } from "./ui.js?v=3.8.1";
-import { ZONA } from "./config.js?v=3.8.1";
+import { aman } from "./ui.js?v=3.9.0";
+import { ZONA } from "./config.js?v=3.9.0";
 
 export function jamSekarang() {
   return new Date().toLocaleString("id-ID", {

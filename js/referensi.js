@@ -10,9 +10,9 @@
 
 import {
   dbase, doc, getDoc, setDoc, serverTimestamp, catat,
-} from "./db.js?v=3.8.1";
-import { bolehAkses } from "./auth.js?v=3.8.1";
-import { aman, kabar } from "./ui.js?v=3.8.1";
+} from "./db.js?v=3.9.0";
+import { bolehAkses } from "./auth.js?v=3.9.0";
+import { aman, kabar } from "./ui.js?v=3.9.0";
 
 // Isi awal, dipakai HANYA kalau dokumennya belum pernah dibuat di
 // Firestore sama sekali — begitu ada perubahan pertama (tambah/

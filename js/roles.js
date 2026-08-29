@@ -2,8 +2,8 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.8.1";
-import { daftarKodeUntuk } from "./akses.js?v=3.8.1";
+import { labelItem, labelGrup } from "./label.js?v=3.9.0";
+import { daftarKodeUntuk } from "./akses.js?v=3.9.0";
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
@@ -42,6 +42,10 @@ const KATALOG_SAJA = { grup: "Inventory", butir: [
   { label: "Data Unit", rute: "#/katalog", kode: "INV-06" },
 ]};
 
+const TRACKING_DOKUMEN = { grup: "Dokumen", butir: [
+  { label: "Tracking Dokumen", rute: "#/dokumen", kode: "DOK-01" },
+]};
+
 const DASHBOARD = { grup: "Dashboard", butir: [
   { label: "Dashboard Penjualan", rute: "#/dashboard", kode: "DSH-01" },
 ]};
@@ -72,7 +76,7 @@ export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
     beranda: "#/dashboard", batasDiskon: null, izin: ["*"],
-    menu: [DASHBOARD, INBOX, SALES, INVENTORY, MASTER_DATA, SISTEM_LENGKAP],
+    menu: [DASHBOARD, INBOX, SALES, INVENTORY, TRACKING_DOKUMEN, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {
@@ -81,11 +85,11 @@ export const PERAN = {
     izin: [
       "stok.lihat", "stok.ubah", "spk.buat", "spk.lihat", "cetak.dokumen",
       "kas.lihat", "kas.input", "laba.lihat", "berkas.lihat", "ekspor",
-      "agen.lihat",
+      "agen.lihat", "dokumen.lihat", "dokumen.konfirmasi",
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.
-    menu: [INBOX, SALES, INVENTORY, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
+    menu: [INBOX, SALES, INVENTORY, TRACKING_DOKUMEN, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
   },
 
   sales: {
@@ -101,6 +105,16 @@ export const PERAN = {
     izin: ["spk.lihat", "kas.input", "kas.lihat", "agen.lihat"],
     // Belum ada modul kasir yang aktif di tahap ini.
     menu: [INBOX],
+  },
+
+  biro_jasa: {
+    label: "Biro Jasa", kode: "BRJ", warna: "netral",
+    beranda: "#/dokumen", batasDiskon: 0,
+    // Sengaja SEMPIT — cuma boleh lihat & konfirmasi status dokumen
+    // untuk SPK yang ditugaskan ke mereka (ditegakkan juga di
+    // firestore.rules, bukan cuma disembunyikan di tampilan).
+    izin: ["dokumen.lihat", "dokumen.konfirmasi"],
+    menu: [INBOX, TRACKING_DOKUMEN],
   },
 };
 
