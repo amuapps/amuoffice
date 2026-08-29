@@ -53,6 +53,11 @@ service cloud.firestore {
       allow create: if salahSatu(['owner', 'admin']);
       allow update, delete: if salahSatu(['owner', 'admin']);
     }
+    match /indeks_mesin/{noMesin} {
+      allow read:   if aktif();
+      allow create: if salahSatu(['owner', 'admin']);
+      allow update, delete: if salahSatu(['owner', 'admin']);
+    }
 
     // ── Master tipe motor ───────────────────────────────────
     match /tipe_motor/{id} {
@@ -187,7 +192,7 @@ service cloud.firestore {
            'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
            'kuitansiTercetakPada',
          ]));
-      allow delete: if false; // dibatalkan lewat status, bukan dihapus
+      allow delete: if salahSatu(['owner']); // "Hapus SPK Permanen" — Owner-only, lihat laporan.js
     }
 
     // ── Kuitansi publik (buat verifikasi lewat QR) ──────────
