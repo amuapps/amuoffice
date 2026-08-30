@@ -8,19 +8,19 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.9.3";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.10.0";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.9.3";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.9.3";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.9.3";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.10.0";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.10.0";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.10.0";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.9.3";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.9.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.3";
-import { muatLabelKustom } from "./label.js?v=3.9.3";
-import { muatAksesKustom } from "./akses.js?v=3.9.3";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.9.3";
-import { halamanSegera } from "./segera.js?v=3.9.3";
+  from "./router.js?v=3.10.0";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.10.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
+import { muatLabelKustom } from "./label.js?v=3.10.0";
+import { muatAksesKustom } from "./akses.js?v=3.10.0";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.10.0";
+import { halamanSegera } from "./segera.js?v=3.10.0";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
@@ -134,12 +134,15 @@ function gambarPanel(profil) {
   el("nama-pengguna").textContent = namaTampilan(profil.peran, profil.nama);
   el("penanda-uji").hidden = !MODE_UJI;
 
-  // Hanya ditampilkan kalau perannya memang punya batas. Untuk
-  // owner, label "diskon bebas" cuma jadi tulisan yang menempel
-  // tanpa memberi informasi.
+  // Cuma ditampilkan buat peran yang memang berurusan dengan SPK
+  // (yang punya konsep diskon) — Owner sengaja dikecualikan juga
+  // (label "diskon bebas" tidak memberi info apa-apa buatnya).
+  // Peran lain (Kasir, Biro Jasa, dst) tidak ada urusan sama sekali
+  // dengan diskon SPK, jadi baris ini tidak relevan buat mereka.
   const batas = batasDiskon(profil.peran);
   const batasEl = el("batas-diskon");
-  batasEl.hidden = batas === null;
+  const tampilkanBatas = batas !== null && boleh(profil.peran, "spk.buat");
+  batasEl.hidden = !tampilkanBatas;
   batasEl.textContent = `Batas diskon ${rupiah(batas || 0)}`;
   el("panel-baca").hidden = batas === null && !MODE_UJI;
 }

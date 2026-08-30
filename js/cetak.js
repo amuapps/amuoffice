@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.9.3";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.9.3";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.9.3";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.9.3";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.9.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.3";
-import { konfirmasiPassword } from "./auth.js?v=3.9.3";
-import { buatNotifikasi } from "./notifikasi.js?v=3.9.3";
-import { kabar } from "./ui.js?v=3.9.3";
+  nomorKuitansiSpk } from "./db.js?v=3.10.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.10.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.10.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.10.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.10.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
+import { konfirmasiPassword } from "./auth.js?v=3.10.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.10.0";
+import { kabar } from "./ui.js?v=3.10.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -955,6 +955,81 @@ export async function cetakKoreksiRiwayatBayar(t, koreksi) {
         <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
     </section>
     <p class="k-kaki">Dokumen koreksi internal — arsip showroom, bukan diberikan ke konsumen.</p>
+  </div>
+
+  <div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  </div>`;
+
+  tabBaru.document.body.innerHTML = isi;
+}
+
+// ── BAST (Berita Acara Serah Terima) Berkas ke Biro Jasa ─────────
+// Dicetak otomatis begitu Biro Jasa mengonfirmasi terima berkas
+// (KTP + Faktur) — bukti sah dua pihak, layout kotak-kotak (seperti
+// tabel Excel) + watermark, sesuai yang diminta.
+export async function cetakBastBerkas(t, dok) {
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>BAST Berkas — ${aman(t.spkNo)}</title>
+    <style>${CSS_KUITANSI}
+      .bast-tabel { width:100%; border-collapse:collapse; margin-top:10px; }
+      .bast-tabel th, .bast-tabel td {
+        border:1px solid #333; padding:6px 8px; font-size:12.5px; text-align:left;
+      }
+      .bast-tabel th { background:#f0f0f0; }
+      .bast-watermark {
+        position:fixed; top:45%; left:50%; transform:translate(-50%,-50%) rotate(-30deg);
+        font-size:64px; font-weight:800; color:rgba(0,0,0,0.06); z-index:0;
+        white-space:nowrap; pointer-events:none;
+      }
+    </style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  const isi = `<div class="bast-watermark">${aman(SHOWROOM.nama)}</div>
+  <div class="k-kuitansi" style="position:relative;z-index:1">
+    <div class="k-atas">
+      <div class="k-kop">
+        <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div><p class="k-pt">${aman(SHOWROOM.nama)}</p></div>
+      </div>
+      <table class="k-jenis-tabel">
+        <tr><td>KETERANGAN</td><td>Serah Terima Berkas ke Biro Jasa</td></tr>
+      </table>
+    </div>
+
+    <h2 class="k-judul">BERITA ACARA SERAH TERIMA (BAST)</h2>
+    <p class="k-nomor-tgl">${tanggal(dok.berkasDikonfirmasiPada || new Date())}</p>
+
+    <table class="bast-tabel">
+      <tr><th style="width:36%">No. SPK</th><td>${aman(t.spkNo)}</td></tr>
+      <tr><th>Konsumen</th><td>${aman(t.pembeli?.nama || "-")}</td></tr>
+      <tr><th>Unit</th><td>${aman(t.tipeNama)} · ${aman(t.warna)}</td></tr>
+      <tr><th>Diserahkan Oleh</th>
+        <td>${aman(dok.berkasDiserahkanOlehNama)} — ${tanggal(dok.berkasDiserahkanPada)}</td></tr>
+      <tr><th>Diterima Oleh (Biro Jasa)</th>
+        <td>${aman(dok.biroJasaNama)} — ${tanggal(dok.berkasDikonfirmasiPada)}</td></tr>
+    </table>
+
+    <p class="k-kecil" style="margin-top:12px">Dokumen yang diserahterimakan:</p>
+    <table class="bast-tabel">
+      <tr><th style="width:8%">No.</th><th>Dokumen</th><th style="width:20%">Jumlah</th></tr>
+      <tr><td>1</td><td>KTP Pembeli/Pemakai</td><td>1 lembar</td></tr>
+      <tr><td>2</td><td>Faktur Kendaraan</td><td>1 lembar</td></tr>
+    </table>
+
+    <section class="k-ttd">
+      <div><span class="k-garis"></span>Diserahkan Oleh
+        <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
+      <div><span class="k-garis"></span>Diterima Oleh
+        <br><span class="k-kecil">${aman(dok.biroJasaNama)}</span></div>
+    </section>
+    <p class="k-kaki">Dicetak otomatis oleh sistem — ${tanggal(new Date())}</p>
   </div>
 
   <div class="aksi-cetak">

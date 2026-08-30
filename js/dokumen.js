@@ -1,31 +1,30 @@
 // dokumen.js — Tracking Dokumen Kendaraan (STNK/BPKB/Plat & serah
-// terima berkas ke Biro Jasa). TAHAP 1: baru peran, login, dan
-// struktur data dasar — alur konfirmasi lengkap (dialog+password,
-// BAST, log per-berkas) menyusul di tahap berikutnya.
+// terima berkas ke Biro Jasa).
 //
-// Satu dokumen per SPK, disimpan di koleksi "dokumen_kendaraan"
-// dengan ID YANG SAMA PERSIS dengan ID dokumen SPK-nya di
-// "transaksi" — supaya gampang dicari-silang, tidak perlu field
-// referensi terpisah.
+// TAHAP 2 (sekarang): alur serah-terima BERKAS AWAL (KTP + Faktur)
+// dari Admin ke Biro Jasa — serahkan, batalkan (sebelum konfirmasi),
+// konfirmasi terima (Biro Jasa), tarik kembali (sesudah konfirmasi).
+// TAHAP 3 (menyusul): serah-terima dokumen JADI (STNK/BPKB/Plat)
+// dari Biro Jasa balik ke Admin.
 //
-// Status berkas awal (KTP + Faktur):
-//   belum_diserahkan → diserahkan (menunggu konfirmasi Biro Jasa)
-//   → dikonfirmasi (Biro Jasa sudah terima)
-//
-// Status TIAP dokumen (STNK / BPKB / Plat — independen satu sama
-// lain, karena bisa selesai di waktu berbeda):
-//   belum → diproses → selesai (menunggu diserahkan ke Admin)
-//   → diserahkan (menunggu konfirmasi Admin) → dikonfirmasi
+// Satu dokumen tracking per SPK, ID-nya SAMA PERSIS dengan ID
+// dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
-import { dbase, collection, doc, getDoc, getDocs, setDoc, query, where,
-  orderBy, limit, catat } from "./db.js?v=3.9.3";
-import { sesi, bolehAkses } from "./auth.js?v=3.9.3";
-import { aman, tanggal, rupiah } from "./ui.js?v=3.9.3";
+import { dbase, collection, doc, getDocs, setDoc, updateDoc,
+  serverTimestamp, catat } from "./db.js?v=3.10.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.0";
+import { aman, tanggal, kabar } from "./ui.js?v=3.10.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
+import { muatBiro, biroAktif } from "./biro.js?v=3.10.0";
+import { cetakBastBerkas } from "./cetak.js?v=3.10.0";
+import { SHOWROOM } from "./config.js?v=3.10.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.0";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
   diserahkan: "Menunggu Konfirmasi Biro Jasa",
   dikonfirmasi: "Diterima Biro Jasa",
+  ditarik_kembali: "Ditarik Kembali",
 };
 export const LABEL_DOKUMEN = {
   belum: "Belum Dikerjakan",
@@ -34,10 +33,14 @@ export const LABEL_DOKUMEN = {
   diserahkan: "Menunggu Konfirmasi Admin",
   dikonfirmasi: "Diterima Admin",
 };
+const WARNA_BERKAS = {
+  belum_diserahkan: "batal", diserahkan: "booked",
+  dikonfirmasi: "ready", ditarik_kembali: "belum",
+};
 
 function dataDefault(t) {
   return {
-    transaksiId: t.id, spkNo: t.spkNo,
+    id: t.id, transaksiId: t.id, spkNo: t.spkNo,
     pembeliNama: t.pembeli?.nama || "-",
     tipeNama: t.tipeNama, warna: t.warna,
     biroJasaId: null, biroJasaNama: null,
@@ -46,26 +49,299 @@ function dataDefault(t) {
   };
 }
 
-// Ambil (atau buat kalau belum ada) dokumen tracking untuk satu SPK.
-export async function muatDokumenUntuk(t) {
-  const ref = doc(dbase, "dokumen_kendaraan", t.id);
-  const snap = await getDoc(ref);
-  if (snap.exists()) return { id: snap.id, ...snap.data() };
-  return { id: t.id, ...dataDefault(t) };
+// Dipakai dua kali (Owner/Admin lihat semua yang boleh, Biro Jasa
+// cuma lihat yang ditugaskan ke mereka) — pembedanya sudah
+// ditegakkan di firestore.rules, jadi query di sini SENGAJA tidak
+// pakai where() tambahan, Firestore sendiri yang menyaring per baris
+// sesuai peran yang login.
+async function muatDaftar() {
+  const snapT = await getDocs(collection(dbase, "transaksi"));
+  const semuaTransaksi = snapT.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .filter((t) => t.status !== "batal")
+    .sort((a, b) => (b.spkNo || "").localeCompare(a.spkNo || ""));
+
+  const snapD = await getDocs(collection(dbase, "dokumen_kendaraan"));
+  const petaDok = new Map(snapD.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
+
+  return semuaTransaksi.map((t) => ({ t, dok: petaDok.get(t.id) || dataDefault(t) }));
 }
 
-// TAHAP 1: halaman masih ringkas — daftar SPK + status ringkasnya,
-// belum ada tombol aksi (serahkan/konfirmasi) sama sekali. Itu
-// dibangun di Tahap 2, sekalian dengan dialog konfirmasi+password
-// dan cetak BAST-nya.
 export async function halamanDokumen(wadah) {
+  const bisaAksiAdmin = bolehAkses("dokumen.konfirmasi") && sesi.peran !== "biro_jasa";
+  const bisaAksiBiro = sesi.peran === "biro_jasa";
+
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas"><h2 class="judul">Tracking Dokumen Kendaraan</h2></div>
-    <div class="hampa">
-      <p><b>Tahap 1 baru selesai</b> — peran Biro Jasa, login, dan
-        struktur data dasar sudah siap. Alur lengkapnya (serahkan ke
-        Biro Jasa, konfirmasi, cetak BAST, tracking per-dokumen)
-        menyusul di pembaruan berikutnya.</p>
+    <div id="d-filter" class="tiga" style="margin-bottom:12px">
+      <button class="tombol tombol--kecil tombol--isi" data-filter="semua">Semua</button>
+      <button class="tombol tombol--kecil" data-filter="belum_diserahkan">Belum Diserahkan</button>
+      <button class="tombol tombol--kecil" data-filter="diserahkan">Menunggu Konfirmasi</button>
+      <button class="tombol tombol--kecil" data-filter="dikonfirmasi">Sudah di Biro Jasa</button>
     </div>
+    <div id="d-daftar" class="daftar"><p class="hampa">Memuat…</p></div>
   </section>`;
+
+  const daftarEl = wadah.querySelector("#d-daftar");
+  let semuaData = [];
+  let filterAktif = "semua";
+
+  await muatBiro();
+
+  function baris({ t, dok }) {
+    return `<article class="kartu">
+      <div class="kartu-atas">
+        <div>
+          <h3 class="kartu-judul">${aman(t.spkNo)}</h3>
+          <p class="kartu-sub">${aman(t.pembeli?.nama || "-")} — ${aman(t.tipeNama)} · ${aman(t.warna)}</p>
+        </div>
+        <span class="tanda tanda--${WARNA_BERKAS[dok.berkasStatus] || "netral"}">
+          ${LABEL_BERKAS[dok.berkasStatus] || dok.berkasStatus}
+        </span>
+      </div>
+      <dl class="rinci">
+        <div><dt>Biro Jasa</dt><dd>${aman(dok.biroJasaNama || "— belum ditugaskan —")}</dd></div>
+        ${dok.berkasDiserahkanPada ? `<div><dt>Diserahkan</dt>
+          <dd>${tanggal(dok.berkasDiserahkanPada)} oleh ${aman(dok.berkasDiserahkanOlehNama)}</dd></div>` : ""}
+        ${dok.berkasDikonfirmasiPada ? `<div><dt>Dikonfirmasi</dt>
+          <dd>${tanggal(dok.berkasDikonfirmasiPada)}</dd></div>` : ""}
+        ${dok.berkasDitarikPada ? `<div><dt>Ditarik Kembali</dt>
+          <dd>${tanggal(dok.berkasDitarikPada)} — ${aman(dok.berkasDitarikAlasan)}</dd></div>` : ""}
+      </dl>
+      <div class="aksi aksi--rapat" data-aksi-wadah="${t.id}"></div>
+      <div data-log-wadah="${t.id}"></div>
+    </article>`;
+  }
+
+  function pasangAksi(t, dok, wadahAksi) {
+    const tombol = [];
+    if (bisaAksiAdmin) {
+      if (dok.berkasStatus === "belum_diserahkan" || dok.berkasStatus === "ditarik_kembali") {
+        tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-serahkan="${t.id}">
+          Serahkan ke Biro Jasa</button>`);
+      }
+      if (dok.berkasStatus === "diserahkan") {
+        tombol.push(`<button class="tombol tombol--kecil" data-batalkan="${t.id}">
+          Batalkan (Belum Dikonfirmasi)</button>`);
+      }
+      if (dok.berkasStatus === "dikonfirmasi") {
+        tombol.push(`<button class="tombol tombol--kecil tombol--bahaya" data-tarik="${t.id}">
+          Tarik Kembali</button>`);
+        tombol.push(`<button class="tombol tombol--kecil" data-cetak-bast="${t.id}">
+          Cetak BAST</button>`);
+      }
+    }
+    if (bisaAksiBiro && dok.biroJasaId === sesi.biroJasaId) {
+      if (dok.berkasStatus === "diserahkan") {
+        tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-konfirmasi="${t.id}">
+          Konfirmasi Terima Berkas</button>`);
+      }
+      if (dok.berkasStatus === "dikonfirmasi") {
+        tombol.push(`<button class="tombol tombol--kecil" data-cetak-bast="${t.id}">
+          Cetak BAST</button>`);
+      }
+    }
+    wadahAksi.innerHTML = tombol.join("");
+
+    const btnSerahkan = wadahAksi.querySelector(`[data-serahkan]`);
+    if (btnSerahkan) btnSerahkan.addEventListener("click", () => aksiSerahkan(t, dok));
+    const btnBatalkan = wadahAksi.querySelector(`[data-batalkan]`);
+    if (btnBatalkan) btnBatalkan.addEventListener("click", () => aksiBatalkan(t, dok));
+    const btnKonfirmasi = wadahAksi.querySelector(`[data-konfirmasi]`);
+    if (btnKonfirmasi) btnKonfirmasi.addEventListener("click", () => aksiKonfirmasi(t, dok));
+    const btnTarik = wadahAksi.querySelector(`[data-tarik]`);
+    if (btnTarik) btnTarik.addEventListener("click", () => aksiTarikKembali(t, dok));
+    const btnCetak = wadahAksi.querySelector(`[data-cetak-bast]`);
+    if (btnCetak) btnCetak.addEventListener("click", () => cetakBastBerkas(t, dok));
+  }
+
+  async function gambarUlang() {
+    const dataTampil = filterAktif === "semua"
+      ? semuaData : semuaData.filter((x) => x.dok.berkasStatus === filterAktif);
+    daftarEl.innerHTML = dataTampil.length
+      ? dataTampil.map(baris).join("")
+      : `<div class="hampa"><p>Tidak ada SPK di kategori ini.</p></div>`;
+    dataTampil.forEach(({ t, dok }) => {
+      const wadahAksi = daftarEl.querySelector(`[data-aksi-wadah="${t.id}"]`);
+      if (wadahAksi) pasangAksi(t, dok, wadahAksi);
+      const wadahLog = daftarEl.querySelector(`[data-log-wadah="${t.id}"]`);
+      if (wadahLog) {
+        muatRiwayatDokumen("dokumen_kendaraan", t.id, 8).then((riw) => {
+          wadahLog.innerHTML = htmlRiwayatDokumen(riw);
+        });
+      }
+    });
+  }
+
+  async function muat() {
+    daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
+    semuaData = await muatDaftar();
+    await gambarUlang();
+  }
+
+  wadah.querySelectorAll("[data-filter]").forEach((b) => {
+    b.addEventListener("click", () => {
+      filterAktif = b.dataset.filter;
+      wadah.querySelectorAll("[data-filter]").forEach((x) =>
+        x.classList.toggle("tombol--isi", x === b));
+      gambarUlang();
+    });
+  });
+
+  // ── Aksi: Serahkan ke Biro Jasa ─────────────────────────────
+  async function aksiSerahkan(t, dok) {
+    const daftarBiro = biroAktif();
+    if (!daftarBiro.length) {
+      kabar("Belum ada Biro Jasa aktif di Master Biro Jasa.", "rem");
+      return;
+    }
+    const namaBiro = await tanya({
+      judul: "Serahkan Berkas ke Biro Jasa",
+      pesan: `SPK ${t.spkNo} — ${t.pembeli?.nama || "-"}. Ketik nama Biro ` +
+             `Jasa persis seperti di Master Biro Jasa:\n` +
+             daftarBiro.map((b) => `• ${b.nama}`).join("\n"),
+      petunjuk: daftarBiro[0].nama,
+    });
+    if (namaBiro === null) return;
+    const biro = daftarBiro.find((b) =>
+      b.nama.trim().toLowerCase() === namaBiro.trim().toLowerCase());
+    if (!biro) {
+      kabar("Nama Biro Jasa tidak cocok dengan Master Biro Jasa.", "rem");
+      return;
+    }
+    const lanjut = await konfirmasi({
+      judul: "Konfirmasi Serah Berkas",
+      pesan: `Menyerahkan berkas (KTP + Faktur) SPK ${t.spkNo} — ` +
+             `${t.pembeli?.nama || "-"} ke Biro Jasa ${biro.nama}. Yakin?`,
+      oke: "Ya, Serahkan",
+    });
+    if (!lanjut) return;
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await setDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        ...dataDefault(t),
+        biroJasaId: biro.id, biroJasaNama: biro.nama,
+        berkasStatus: "diserahkan",
+        berkasDiserahkanPada: serverTimestamp(),
+        berkasDiserahkanOleh: sesi.uid, berkasDiserahkanOlehNama: sesi.nama,
+      }, { merge: true });
+      await catat("berkas_diserahkan_biro", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · diserahkan ke ${biro.nama}`,
+      });
+      kabar("Berkas ditandai diserahkan. Menunggu konfirmasi Biro Jasa.", "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + (["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
+        ? "Password salah." : err.message), "rem");
+    }
+  }
+
+  // ── Aksi: Batalkan (sebelum dikonfirmasi Biro Jasa) ─────────
+  async function aksiBatalkan(t) {
+    const alasan = await tanya({
+      judul: "Batalkan Serah Berkas",
+      pesan: `SPK ${t.spkNo} akan dikembalikan ke "Belum Diserahkan". ` +
+             `Wajib isi alasan.`,
+      petunjuk: "mis. Salah pilih Biro Jasa",
+    });
+    if (alasan === null) return;
+    if (!alasan.trim()) { kabar("Alasan wajib diisi.", "rem"); return; }
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        berkasStatus: "belum_diserahkan",
+        biroJasaId: null, biroJasaNama: null,
+      });
+      await catat("berkas_batal_serah", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · dibatalkan sebelum dikonfirmasi · Alasan: ${alasan.trim()}`,
+      });
+      kabar("Serah berkas dibatalkan.", "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  // ── Aksi: Konfirmasi Terima (Biro Jasa) ─────────────────────
+  async function aksiKonfirmasi(t, dok) {
+    const lanjut = await konfirmasi({
+      judul: "Konfirmasi Terima Berkas",
+      pesan: `Anda mengonfirmasi telah menerima berkas (KTP + Faktur) ` +
+             `untuk SPK ${t.spkNo} — ${t.pembeli?.nama || "-"} dari ${aman(SHOWROOM.nama)}.`,
+      oke: "Ya, Sudah Terima",
+    });
+    if (!lanjut) return;
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        berkasStatus: "dikonfirmasi",
+        berkasDikonfirmasiPada: serverTimestamp(),
+        berkasDikonfirmasiOleh: sesi.uid, berkasDikonfirmasiOlehNama: sesi.nama,
+      });
+      await catat("berkas_dikonfirmasi_biro", {
+        koleksi: "dokumen_kendaraan", docId: t.id, ringkas: `${t.spkNo} · dikonfirmasi diterima`,
+      });
+      kabar("Konfirmasi tersimpan. Mencetak BAST…", "netral");
+      const dokTerbaru = { ...dok, berkasStatus: "dikonfirmasi",
+        berkasDikonfirmasiPada: new Date() };
+      await cetakBastBerkas(t, dokTerbaru);
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  // ── Aksi: Tarik Kembali (sesudah dikonfirmasi) ──────────────
+  async function aksiTarikKembali(t, dok) {
+    const alasan = await tanya({
+      judul: "⚠️ Tarik Kembali Berkas",
+      pesan: `Berkas SPK ${t.spkNo} sudah DIKONFIRMASI DITERIMA oleh ` +
+             `${dok.biroJasaNama}. "Tarik Kembali" cuma mencatat status di ` +
+             `sistem — pastikan berkas FISIKNYA memang benar-benar sudah ` +
+             `diambil kembali dari Biro Jasa. Wajib isi alasan.`,
+      petunjuk: "mis. Batal urus dokumen, dialihkan ke Biro Jasa lain",
+    });
+    if (alasan === null) return;
+    if (!alasan.trim()) { kabar("Alasan wajib diisi.", "rem"); return; }
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        berkasStatus: "ditarik_kembali",
+        berkasDitarikPada: serverTimestamp(),
+        berkasDitarikOleh: sesi.uid, berkasDitarikOlehNama: sesi.nama,
+        berkasDitarikAlasan: alasan.trim(),
+      });
+      await catat("berkas_ditarik_kembali", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ditarik dari ${dok.biroJasaNama} · Alasan: ${alasan.trim()}`,
+      });
+      kabar("Berkas ditandai ditarik kembali.", "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  await muat();
 }

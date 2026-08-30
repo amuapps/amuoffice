@@ -7,9 +7,9 @@ import {
 
 import { auth, dbase, doc, getDoc, catat,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail,
-  updateDoc } from "./db.js?v=3.9.3";
-import { PERAN, boleh } from "./roles.js?v=3.9.3";
-import { kabar } from "./ui.js?v=3.9.3";
+  updateDoc } from "./db.js?v=3.10.0";
+import { PERAN, boleh } from "./roles.js?v=3.10.0";
+import { kabar } from "./ui.js?v=3.10.0";
 
 export let sesi = null; // { uid, email, nama, peran, aktif }
 
@@ -57,6 +57,7 @@ async function muatProfil(uid) {
     nama: d.nama || "Tanpa nama",
     peran: d.peran,
     aktif: d.aktif === true,
+    biroJasaId: d.biroJasaId || null,
   };
   return sesi;
 }

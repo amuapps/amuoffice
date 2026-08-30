@@ -3,14 +3,35 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.3";
-import { VERSI } from "./config.js?v=3.9.3";
-import { aman, rupiah, kabar } from "./ui.js?v=3.9.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.3";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.0";
+import { VERSI } from "./config.js?v=3.10.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.10.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.3";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.10.0", tanggal: "Agustus 2026",
+    judul: "Tracking Dokumen Kendaraan — Tahap 2: Serah Terima Berkas Awal",
+    butir: [
+      "Halaman Tracking Dokumen sekarang benar-benar berfungsi (bukan placeholder lagi) — daftar semua SPK dengan status berkas (KTP+Faktur), bisa difilter: Semua / Belum Diserahkan / Menunggu Konfirmasi / Sudah di Biro Jasa.",
+      "Admin: tombol \"Serahkan ke Biro Jasa\" (pilih Biro Jasa tujuan, wajib password) dan \"Batalkan\" (kalau masih menunggu konfirmasi, wajib alasan + password).",
+      "Biro Jasa: tombol \"Konfirmasi Terima Berkas\" (wajib password) — begitu dikonfirmasi, BAST (Berita Acara Serah Terima) otomatis tercetak, layout kotak-kotak + watermark.",
+      "Kalau berkas sudah dikonfirmasi tapi ternyata perlu ditarik kembali (bukan dibatalkan biasa) — ada tombol \"Tarik Kembali\" (wajib alasan + password), tercatat sebagai status terpisah supaya riwayatnya tetap jujur (bukan seolah tidak pernah terjadi).",
+      "Tiap SPK punya Riwayat Perubahan sendiri (siapa serahkan/konfirmasi/batalkan, kapan) — pakai fitur log yang sudah ada.",
+      "Firestore Rules diperketat: Biro Jasa sekarang betul-betul cuma bisa membaca data SPK yang ditugaskan ke mereka (dicek di server, bukan cuma disembunyikan di tampilan) — sebelumnya siapa saja yang bukan Sales bisa baca semua SPK tanpa batas.",
+      "TAHAP 3 (menyusul): serah-terima dokumen JADI (STNK/BPKB/Plat) dari Biro Jasa balik ke Admin.",
+    ],
+  },
+  {
+    versi: "3.9.4", tanggal: "Agustus 2026",
+    judul: "Perbaikan: \"Batas Diskon\" Tidak Lagi Muncul untuk Biro Jasa/Kasir",
+    butir: [
+      "Label \"Batas diskon Rp0\" di pojok kanan atas sebelumnya muncul untuk SEMUA peran yang batasnya bukan \"bebas\" (termasuk Biro Jasa dan Kasir) — padahal diskon SPK sama sekali tidak relevan buat peran-peran itu. Sekarang cuma tampil untuk peran yang memang berurusan dengan SPK (Admin, Sales).",
+      "Kalau ada error \"initializeFirestore() has already been called\" — itu biasanya cache browser yang belum ter-update sepenuhnya, bukan bug kode. Tutup semua tab aplikasi, buka satu tab baru, tekan Ctrl+Shift+R (hard refresh) untuk membersihkannya.",
+    ],
+  },
   {
     versi: "3.9.3", tanggal: "Agustus 2026",
     judul: "Ubah Email Login Sendiri (Berlaku untuk Semua Peran, Termasuk Biro Jasa)",
