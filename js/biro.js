@@ -11,14 +11,14 @@
 import {
   dbase, collection, doc, getDocs, setDoc, updateDoc, query, orderBy, where,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.11.1";
-import { bolehAkses, sesi } from "./auth.js?v=3.11.1";
-import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.11.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.1";
-import { buatAkun, pesanBuat } from "./pengaturan.js?v=3.11.1";
+} from "./db.js?v=3.11.2";
+import { bolehAkses, sesi } from "./auth.js?v=3.11.2";
+import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.11.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
+import { buatAkun, pesanBuat } from "./pengaturan.js?v=3.11.2";
 import { sendPasswordResetEmail } from
   "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { auth } from "./db.js?v=3.11.1";
+import { auth } from "./db.js?v=3.11.2";
 
 let cache = [];
 

@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.1";
-import { VERSI } from "./config.js?v=3.11.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.11.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.2";
+import { VERSI } from "./config.js?v=3.11.2";
+import { aman, rupiah, kabar } from "./ui.js?v=3.11.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.11.2", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN: Biro Jasa Gagal Buka Tracking Dokumen (Lagi) — muatBiro() Tanpa Izin",
+    butir: [
+      "PERBAIKAN BUG PENTING: halaman Tracking Dokumen selalu memuat daftar Master Biro Jasa di awal, walau itu cuma dibutuhkan Admin (buat dropdown \"Serahkan ke Biro Jasa\") — padahal Biro Jasa memang SENGAJA tidak diberi izin baca daftar itu (supaya tidak saling mengintip data Biro Jasa lain). Akibatnya sesi Biro Jasa gagal total begitu buka halaman ini. Sekarang cuma dimuat kalau memang perlu (Admin/Owner).",
+      "Ini kemungkinan penyebab sebenarnya di balik error \"Missing or insufficient permissions\" yang berulang kali muncul — perbaikan-perbaikan sebelumnya (query transaksi & dokumen_kendaraan) tetap benar dan perlu, tapi masalah ini yang menghalangi di baris paling awal.",
+    ],
+  },
   {
     versi: "3.11.1", tanggal: "Agustus 2026",
     judul: "Tombol Batal/Urungkan untuk STNK/BPKB/Plat (Sebelumnya Cuma Bisa Maju)",

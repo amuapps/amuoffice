@@ -11,25 +11,25 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.11.1";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.1";
-import { batasDiskon, PERAN } from "./roles.js?v=3.11.1";
-import { DP_MINIMUM } from "./config.js?v=3.11.1";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.11.1";
+} from "./db.js?v=3.11.2";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.2";
+import { batasDiskon, PERAN } from "./roles.js?v=3.11.2";
+import { DP_MINIMUM } from "./config.js?v=3.11.2";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.11.2";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.11.1";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.11.2";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.11.1";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.11.1";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.11.1";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.11.1";
-import { muatAgen, agenAktif } from "./agen.js?v=3.11.1";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.11.2";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.11.2";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.11.2";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.11.2";
+import { muatAgen, agenAktif } from "./agen.js?v=3.11.2";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
-  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.11.1";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.11.1";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.11.1";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.11.1";
+  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.11.2";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.11.2";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.11.2";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.11.2";
 
 function opsiTipe(daftarTipe) {
   return daftarTipe.map((t) =>

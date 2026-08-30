@@ -10,9 +10,9 @@
 // bawaan. Ini yang bikin fitur ini aman dicoba-coba: tidak pernah
 // menghapus rute atau kode aslinya, cuma menimpa apa yang tertulis.
 
-import { dbase, doc, getDoc, setDoc, serverTimestamp, catat } from "./db.js?v=3.11.1";
-import { bolehAkses } from "./auth.js?v=3.11.1";
-import { aman, kabar } from "./ui.js?v=3.11.1";
+import { dbase, doc, getDoc, setDoc, serverTimestamp, catat } from "./db.js?v=3.11.2";
+import { bolehAkses } from "./auth.js?v=3.11.2";
+import { aman, kabar } from "./ui.js?v=3.11.2";
 
 let override = { item: {}, grup: {} };
 let sudahDimuat = false;

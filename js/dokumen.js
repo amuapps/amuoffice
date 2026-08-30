@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.11.1";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.1";
-import { aman, tanggal, kabar } from "./ui.js?v=3.11.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.1";
-import { muatBiro, biroAktif } from "./biro.js?v=3.11.1";
-import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.1";
-import { SHOWROOM } from "./config.js?v=3.11.1";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.1";
+  serverTimestamp, catat } from "./db.js?v=3.11.2";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.2";
+import { aman, tanggal, kabar } from "./ui.js?v=3.11.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
+import { muatBiro, biroAktif } from "./biro.js?v=3.11.2";
+import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.2";
+import { SHOWROOM } from "./config.js?v=3.11.2";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.2";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -98,7 +98,13 @@ export async function halamanDokumen(wadah) {
   let semuaData = [];
   let filterAktif = "semua";
 
-  await muatBiro();
+  // muatBiro() cuma dibutuhkan buat dropdown "Serahkan ke Biro Jasa"
+  // (Admin/Owner) — Biro Jasa sendiri TIDAK diberi izin baca daftar
+  // Master Biro Jasa (rules Firestore sengaja Owner-only, supaya satu
+  // Biro Jasa tidak bisa mengintip data Biro Jasa lain). Kalau
+  // dipanggil tanpa syarat di sini, sesi Biro Jasa langsung gagal
+  // total begitu buka halaman ini.
+  if (bisaAksiAdmin) await muatBiro();
 
   function baris({ t, dok }) {
     return `<article class="kartu">
