@@ -4,9 +4,9 @@
 // menampilkannya, tidak menulis apa pun ke sana.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
-  from "./db.js?v=3.10.1";
-import { bolehAkses } from "./auth.js?v=3.10.1";
-import { aman, tanggalJam } from "./ui.js?v=3.10.1";
+  from "./db.js?v=3.10.2";
+import { bolehAkses } from "./auth.js?v=3.10.2";
+import { aman, tanggalJam } from "./ui.js?v=3.10.2";
 
 // Nama aksi teknis → kalimat yang gampang dibaca. Aksi yang belum
 // ada di sini tetap tampil (pakai nama aslinya) supaya tidak ada

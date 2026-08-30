@@ -2,19 +2,19 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, deleteDoc, writeBatch, catat }
-  from "./db.js?v=3.10.1";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.10.1";
+  from "./db.js?v=3.10.2";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.10.2";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
   cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif,
-  cetakKoreksiRiwayatBayar } from "./cetak.js?v=3.10.1";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.10.1";
-import { lepasUnitPermanen } from "./stok.js?v=3.10.1";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.10.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.1";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.1";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.10.1";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.10.1";
+  cetakKoreksiRiwayatBayar } from "./cetak.js?v=3.10.2";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.10.2";
+import { lepasUnitPermanen } from "./stok.js?v=3.10.2";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.10.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.2";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.2";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.10.2";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.10.2";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;

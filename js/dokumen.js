@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.10.1";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.1";
-import { aman, tanggal, kabar } from "./ui.js?v=3.10.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.1";
-import { muatBiro, biroAktif } from "./biro.js?v=3.10.1";
-import { cetakBastBerkas } from "./cetak.js?v=3.10.1";
-import { SHOWROOM } from "./config.js?v=3.10.1";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.1";
+  serverTimestamp, catat } from "./db.js?v=3.10.2";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.2";
+import { aman, tanggal, kabar } from "./ui.js?v=3.10.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.2";
+import { muatBiro, biroAktif } from "./biro.js?v=3.10.2";
+import { cetakBastBerkas } from "./cetak.js?v=3.10.2";
+import { SHOWROOM } from "./config.js?v=3.10.2";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.2";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -66,7 +66,9 @@ async function muatDaftar() {
     .filter((t) => t.status !== "batal")
     .sort((a, b) => (b.spkNo || "").localeCompare(a.spkNo || ""));
 
-  const snapD = await getDocs(collection(dbase, "dokumen_kendaraan"));
+  const snapD = await getDocs(sesi.peran === "biro_jasa"
+    ? query(collection(dbase, "dokumen_kendaraan"), where("biroJasaId", "==", sesi.biroJasaId))
+    : collection(dbase, "dokumen_kendaraan"));
   const petaDok = new Map(snapD.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
 
   return semuaTransaksi.map((t) => ({ t, dok: petaDok.get(t.id) || dataDefault(t) }));

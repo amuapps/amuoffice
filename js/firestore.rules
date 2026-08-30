@@ -1,0 +1,271 @@
+rules_version = '2';
+
+// Keamanan sistem ini sepenuhnya ada di file ini, bukan di
+// JavaScript. Kode di browser bisa dibaca dan diubah siapa saja.
+//
+// VERSI TAHAP MASTER: hanya koleksi yang benar-benar dipakai oleh
+// app.js versi ini yang dibuka. Koleksi modul lain (transaksi,
+// pembelian, pelanggan, kas, kuitansi, verifikasi, agen, ringkasan)
+// SENGAJA tidak disebut di sini, jadi otomatis ditolak lewat aturan
+// catch-all di bawah — aman meski datanya belum sempat dihapus.
+// Begitu modul itu dibangun lagi, salin balik bloknya dari
+// firestore_rules.txt (versi lama) ke sini.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function masuk() {
+      return request.auth != null;
+    }
+    function profil() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function aktif() {
+      return masuk() && profil().aktif == true;
+    }
+    function peranSaya() {
+      return profil().peran;
+    }
+    function salahSatu(daftar) {
+      return aktif() && peranSaya() in daftar;
+    }
+
+    // ── Karyawan ────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if aktif() && (request.auth.uid == uid || salahSatu(['owner']));
+      allow create, update: if salahSatu(['owner']);
+      allow delete: if false;
+    }
+
+    // ── Log aktivitas ───────────────────────────────────────
+    match /audit_log/{id} {
+      allow create: if aktif() && request.resource.data.uid == request.auth.uid;
+      allow read:   if salahSatu(['owner']);
+      allow update, delete: if false;
+    }
+
+    // ── Penomoran & indeks keunikan ─────────────────────────
+    match /counters/{id} {
+      allow read, write: if aktif();
+    }
+    match /indeks_rangka/{noRangka} {
+      allow read:   if aktif();
+      allow create: if salahSatu(['owner', 'admin']);
+      allow update, delete: if salahSatu(['owner', 'admin']);
+    }
+    match /indeks_mesin/{noMesin} {
+      allow read:   if aktif();
+      allow create: if salahSatu(['owner', 'admin']);
+      allow update, delete: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Master tipe motor ───────────────────────────────────
+    match /tipe_motor/{id} {
+      allow read:  if aktif();
+      // Owner/Admin: bebas (halaman Master Tipe Motor — nama, harga,
+      // dst). Sales: HANYA boleh ubah jumlahReady — itu efek samping
+      // sah dari mengunci/melepas unit saat bikin/ubah/batalkan SPK
+      // (lihat kunciUnitTransaksi/lepasUnitTransaksi di stok.js).
+      allow write: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['sales']) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['jumlahReady']));
+    }
+
+    // ── Referensi: daftar saran Tipe & Warna (dulu statis di
+    // config.js, sekarang bisa diubah sendiri lewat halaman) ─
+    match /referensi/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Unit fisik ──────────────────────────────────────────
+    match /units/{id} {
+      allow read:  if aktif();
+      // Owner/Admin: bebas ubah field apa pun (input stok baru,
+      // koreksi No. Rangka/Mesin, dst — halaman Data Unit).
+      // Sales: HANYA boleh mengubah status & spkId — itu satu-
+      // satunya alasan sah sales pernah menyentuh koleksi ini sama
+      // sekali (mengunci unit saat bikin SPK / melepasnya saat
+      // ganti unit di form edit). Field lain (noRangka, noMesin,
+      // hargaOtr, tipeId, dst) TERTUTUP buat sales di level server.
+      allow write: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['sales']) &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'spkId']));
+
+      match /rahasia/{doc} {
+        allow read, write: if salahSatu(['owner', 'admin']);
+      }
+    }
+
+    // ── Katalog publik ──────────────────────────────────────
+    match /katalog/{id} {
+      allow read:  if true;
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Pelanggan ─────────────────────────────────────────
+    // Data tindak lanjut: nama, telepon, NIK, riwayat pembelian.
+    match /pelanggan/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin', 'sales']);
+    }
+
+    // ── Master Leasing ────────────────────────────────────
+    match /leasing/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Master Rekening ───────────────────────────────────
+    match /rekening/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Master Supplier ──────────────────────────────────────
+    // Sama seperti Leasing/Rekening — bukan data rahasia, semua
+    // yang login boleh baca (dipakai sebagai pilihan di Data Unit).
+    match /supplier/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Master Agen ─────────────────────────────────────────
+    // SELURUHNYA cuma Owner — konsisten dengan aturan Fee Agen
+    // yang juga cuma boleh dilihat Owner.
+    match /agen/{id} {
+      allow read:  if salahSatu(['owner', 'admin', 'sales']);
+      allow write: if salahSatu(['owner']);
+    }
+
+    match /biro_jasa/{id} {
+      allow read:  if salahSatu(['owner']);
+      allow write: if salahSatu(['owner']);
+    }
+
+    // ── Tracking Dokumen Kendaraan (STNK/BPKB/Plat) ─────────────
+    // Owner & Admin bebas. Biro Jasa CUMA boleh baca/tulis dokumen
+    // yang biroJasaId-nya cocok dengan biroJasaId di profil mereka
+    // sendiri — ditegakkan di sini, bukan cuma disembunyikan di
+    // tampilan, supaya satu akun Biro Jasa tidak bisa mengintip
+    // (apalagi mengubah) berkas milik Biro Jasa lain.
+    match /dokumen_kendaraan/{id} {
+      allow read: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['biro_jasa']) && resource.data.biroJasaId == profil().biroJasaId);
+      allow create: if salahSatu(['owner', 'admin']);
+      allow update: if salahSatu(['owner', 'admin']) ||
+        (salahSatu(['biro_jasa']) &&
+         resource.data.biroJasaId == profil().biroJasaId &&
+         request.resource.data.biroJasaId == profil().biroJasaId);
+      allow delete: if salahSatu(['owner']);
+    }
+
+    // ── SPK / transaksi ───────────────────────────────────
+    // Sales cuma boleh BACA SPK miliknya sendiri (salesUid dia) —
+    // Owner/Admin tetap bisa baca semua. Ini yang menegakkan
+    // "Sales cuma lihat order yang dia input sendiri", bukan cuma
+    // disembunyikan di query aplikasi (yang bisa dilewati lewat
+    // developer tools kalau cuma diatur di situ).
+    match /transaksi/{id} {
+      allow read: if aktif() &&
+        (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid) &&
+        // Biro Jasa cuma boleh baca SPK yang benar-benar ditugaskan ke
+        // mereka. PENTING: dicek lewat field biroJasaId yang disimpan
+        // LANGSUNG di dokumen transaksi ini (bukan lewat get() ke
+        // koleksi lain) — Firestore MENOLAK TOTAL query daftar
+        // (collection query tanpa where()) kalau rule-nya butuh
+        // get()/exists() dinamis per-dokumen ke koleksi lain, beda
+        // dari get() ke path TETAP macam profil() yang aman dipakai
+        // di query daftar. Makanya biroJasaId didobel-simpan di sini
+        // (selain di dokumen_kendaraan) — supaya query daftar SPK
+        // Biro Jasa bisa dipasangi where("biroJasaId","==",...) yang
+        // sejalan persis dengan syarat rule ini.
+        (peranSaya() != 'biro_jasa' || resource.data.biroJasaId == profil().biroJasaId);
+      // Cuma Owner yang boleh input SPK "atas nama" karyawan lain
+      // (salesUid beda dari dirinya sendiri). Admin & Sales cuma
+      // boleh salesUid = dirinya sendiri. Ini SEBELUMNYA cuma
+      // ditegakkan di tampilan (dropdown disembunyikan kalau bukan
+      // Owner) — jadi bisa dilewati lewat DevTools/API langsung.
+      // dibuatOlehUid juga wajib sama dengan uid yang benar-benar
+      // login, supaya jejak audit tidak bisa dipalsukan.
+      allow create: if salahSatu(['owner', 'admin', 'sales']) &&
+        request.resource.data.dibuatOlehUid == request.auth.uid &&
+        (peranSaya() == 'owner' ||
+         request.resource.data.salesUid == request.auth.uid);
+      // Owner boleh ubah field APA PUN (unit, harga, cara bayar,
+      // kredit, diskon, cashback, dst — lewat form "Ubah" khusus
+      // Owner). Admin tambahan boleh menandai Cashback sudah
+      // dibayar (sama seperti Fee Agen — Owner & Admin yang urus
+      // pembayaran ke pihak luar). Sales HANYA boleh menyentuh
+      // field pencatatan pembayaran/kuitansi (satu-satunya alur
+      // updateDoc yang mereka pakai secara sah — lihat
+      // mintaCetakKuitansi di cetak.js). Field lain (unitId,
+      // hargaOtr, caraBayar, kredit, diskon, cashback, salesUid,
+      // pembeli, dst) TERTUTUP buat Admin/Sales di level server,
+      // bukan cuma disembunyikan di form.
+      allow update: if salahSatu(['owner']) ||
+        (salahSatu(['admin']) &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+           'riwayatBayar', 'totalDibayar', 'statusBayar',
+           'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
+           'kuitansiTercetakPada',
+           'cashbackDibayarStatus', 'cashbackTanggalBayar',
+           'cashbackBank', 'cashbackCatatan',
+           'biroJasaId', 'biroJasaNama',
+         ])) ||
+        (salahSatu(['sales']) &&
+         resource.data.salesUid == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+           'riwayatBayar', 'totalDibayar', 'statusBayar',
+           'kuitansiTercetak', 'kuitansiNo', 'kuitansiKode',
+           'kuitansiTercetakPada',
+         ]));
+      allow delete: if salahSatu(['owner']); // "Hapus SPK Permanen" — Owner-only, lihat laporan.js
+    }
+
+    // ── Kuitansi publik (buat verifikasi lewat QR) ──────────
+    // SENGAJA cuma berisi info tidak sensitif (bukan NIK/alamat/dsb)
+    // — siapa saja yang scan QR-nya boleh baca tanpa login.
+    match /kuitansi_publik/{id} {
+      allow read:  if true;
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Pengajuan Perubahan (mis. data pembeli/pemakai SPK) ──
+    // Sales/Admin cuma boleh membuat pengajuan baru. Membaca &
+    // memproses (setuju/tolak, lewat update status) cuma owner —
+    // ini yang membuat alur persetujuan benar-benar berarti, bukan
+    // cuma formalitas di tampilan saja.
+    match /pengajuan/{id} {
+      allow read:   if aktif();
+      allow create: if salahSatu(['owner', 'admin', 'sales']);
+      allow update: if salahSatu(['owner']);
+      allow delete: if false;
+    }
+
+    // ── Pengaturan sistem (mis. label_kustom: nama menu) ────
+    // Cuma owner ("Super Admin") yang boleh mengubah nama menu.
+    match /pengaturan/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner']);
+    }
+
+    // ── Inbox notifikasi ─────────────────────────────────────
+    // Siapa saja yang aktif boleh MEMBUATKAN notifikasi untuk
+    // orang lain (dipanggil otomatis dari persetujuan.js/cetak.js
+    // saat ada kejadian relevan) — tapi cuma boleh BACA & TANDAI
+    // DIBACA notifikasi buat dirinya sendiri.
+    match /notifikasi/{id} {
+      allow read, update: if aktif() && resource.data.untukUid == request.auth.uid;
+      allow create: if aktif();
+      allow delete: if false;
+    }
+
+    // Apa pun yang tidak disebut di atas: ditolak.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

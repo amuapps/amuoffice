@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.1";
-import { VERSI } from "./config.js?v=3.10.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.10.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.2";
+import { VERSI } from "./config.js?v=3.10.2";
+import { aman, rupiah, kabar } from "./ui.js?v=3.10.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.2";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.10.2", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN: Query Kedua yang Masih Kena Masalah Sama (Biro Jasa)",
+    butir: [
+      "Perbaikan v3.10.1 kemarin cuma menutup SATU dari DUA query yang bermasalah — halaman Tracking Dokumen sebenarnya membaca DUA koleksi (transaksi & dokumen_kendaraan), dan yang kedua belum sempat diperbaiki, jadi errornya masih muncul. Sekarang dua-duanya sudah pakai where() yang sesuai.",
+      "Firestore Rules TIDAK berubah kali ini (sudah benar dari v3.10.1) — ini murni perbaikan kode aplikasi (dokumen.js). Tetap perlu upload zip yang baru.",
+    ],
+  },
   {
     versi: "3.10.1", tanggal: "Agustus 2026",
     judul: "PERBAIKAN: Biro Jasa Gagal Buka Tracking Dokumen + Dropdown Pilih Biro Jasa",
