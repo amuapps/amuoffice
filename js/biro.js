@@ -9,11 +9,16 @@
 // internal.
 
 import {
-  dbase, collection, doc, getDocs, setDoc, updateDoc, query, orderBy,
+  dbase, collection, doc, getDocs, setDoc, updateDoc, query, orderBy, where,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.9.0";
-import { bolehAkses } from "./auth.js?v=3.9.0";
-import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.9.0";
+} from "./db.js?v=3.9.2";
+import { bolehAkses, sesi } from "./auth.js?v=3.9.2";
+import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.9.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.9.2";
+import { buatAkun, pesanBuat } from "./pengaturan.js?v=3.9.2";
+import { sendPasswordResetEmail } from
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { auth } from "./db.js?v=3.9.2";
 
 let cache = [];
 
@@ -35,7 +40,7 @@ export function biroDari(id) {
   return cache.find((b) => b.id === id);
 }
 
-function kartuBiro(b, bisaUbah) {
+function kartuBiro(b, bisaUbah, akun) {
   return `<article class="kartu ${b.aktif === false ? "kartu--batal" : ""}">
     <div class="kartu-atas">
       <div>
@@ -56,7 +61,49 @@ function kartuBiro(b, bisaUbah) {
       <button class="tombol tombol--kecil" data-status="${b.id}">
         ${b.aktif === false ? "Aktifkan" : "Nonaktifkan"}</button>
     </div>` : ""}
+
+    <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--garis)">
+      <p class="d-judul" style="font-size:12.5px">Akses Login Sistem</p>
+      ${akun ? `
+        <p class="kartu-rinci">${aman(akun.email)} —
+          <span class="tanda ${akun.aktif === false ? "tanda--batal" : "tanda--ready"}"
+            style="margin-left:4px">${akun.aktif === false ? "Nonaktif" : "Aktif"}</span></p>
+        ${bisaUbah ? `<div class="aksi aksi--rapat">
+          <button class="tombol tombol--kecil" data-reset-sandi="${akun.id}">
+            Kirim Reset Password</button>
+          <button class="tombol tombol--kecil" data-toggle-akun="${akun.id}"
+            data-aktif="${akun.aktif !== false}">
+            ${akun.aktif === false ? "Aktifkan Akun" : "Nonaktifkan Akun"}</button>
+        </div>` : ""}
+      ` : `
+        <p class="petunjuk" style="margin:0 0 6px">Biro Jasa ini belum punya
+          akses login ke sistem.</p>
+        ${bisaUbah ? `<button class="tombol tombol--kecil tombol--isi"
+          data-buat-akun="${b.id}">Buat Akses Login</button>` : ""}
+      `}
+    </div>
   </article>`;
+}
+
+function formAkunBiro(b) {
+  return `<form id="form-akun-biro-${b.id}" class="form" style="margin-top:8px">
+    <p class="petunjuk">Akses login untuk <b>${aman(b.nama)}</b> — supaya
+      Biro Jasa ini bisa masuk sendiri dan konfirmasi status dokumen yang
+      ditugaskan ke mereka.</p>
+    <label class="label label--gelap" for="ab-email-${b.id}">Email</label>
+    <input class="isian isian--terang" id="ab-email-${b.id}" type="email"
+           value="${aman(b.email || "")}" autocomplete="off">
+    <label class="label label--gelap" for="ab-sandi-${b.id}">Kata sandi awal</label>
+    <input class="isian isian--terang" id="ab-sandi-${b.id}" type="text"
+           autocomplete="new-password" placeholder="Minimal 6 karakter">
+    <p class="petunjuk">Sampaikan sandi ini ke Biro Jasa-nya, lalu minta
+      mereka menggantinya lewat "Ubah Sandi" setelah pertama kali masuk.</p>
+    <div class="aksi">
+      <button class="tombol tombol--kecil tombol--isi" type="submit">Buat</button>
+      <button class="tombol tombol--sunyi tombol--gelap" type="button"
+              id="batal-akun-biro-${b.id}">Batal</button>
+    </div>
+  </form>`;
 }
 
 function formBiro(b = {}) {
@@ -127,13 +174,97 @@ export async function halamanBiro(wadah) {
 
   async function gambar() {
     const semua = await muatBiro(true);
+    // Ambil semua akun login yang terhubung ke biro jasa (satu query,
+    // bukan satu-satu per biro) — dicocokkan di JS lewat biroJasaId.
+    let semuaAkun = [];
+    try {
+      const snapAkun = await getDocs(query(
+        collection(dbase, "users"), where("peran", "==", "biro_jasa")));
+      semuaAkun = snapAkun.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch { /* gagal muat akun bukan alasan gagalkan daftar biro jasanya */ }
+    const petaAkun = new Map(semuaAkun.map((a) => [a.biroJasaId, a]));
+
     daftarEl.innerHTML = semua.length
-      ? semua.map((b) => kartuBiro(b, true)).join("")
+      ? semua.map((b) => kartuBiro(b, true, petaAkun.get(b.id) || null)).join("")
       : `<div class="hampa"><p>Belum ada biro jasa terdaftar.</p></div>`;
     daftarEl.querySelectorAll("[data-ubah]").forEach((b) =>
       b.addEventListener("click", () => buka(biroDari(b.dataset.ubah))));
     daftarEl.querySelectorAll("[data-status]").forEach((b) =>
       b.addEventListener("click", () => ubahStatus(b.dataset.status)));
+    daftarEl.querySelectorAll("[data-buat-akun]").forEach((b) =>
+      b.addEventListener("click", () => bukaFormAkun(b.dataset.buatAkun, b)));
+    daftarEl.querySelectorAll("[data-reset-sandi]").forEach((b) =>
+      b.addEventListener("click", () => resetSandiAkun(b.dataset.resetSandi)));
+    daftarEl.querySelectorAll("[data-toggle-akun]").forEach((b) =>
+      b.addEventListener("click", () => toggleAkun(b.dataset.toggleAkun, b.dataset.aktif === "true")));
+  }
+
+  function bukaFormAkun(biroId, tombolAsal) {
+    const b = biroDari(biroId);
+    const wadahForm = document.createElement("div");
+    tombolAsal.insertAdjacentElement("afterend", wadahForm);
+    wadahForm.innerHTML = formAkunBiro(b);
+    wadahForm.querySelector(`#batal-akun-biro-${b.id}`)
+      .addEventListener("click", () => wadahForm.remove());
+    wadahForm.querySelector(`#form-akun-biro-${b.id}`).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = wadahForm.querySelector(`#ab-email-${b.id}`).value.trim();
+      const sandi = wadahForm.querySelector(`#ab-sandi-${b.id}`).value;
+      if (!email || !sandi) {
+        kabar("Email dan kata sandi wajib diisi.", "rem");
+        return;
+      }
+      const tombol = e.target.querySelector('button[type="submit"]');
+      tombol.disabled = true;
+      tombol.textContent = "Membuat…";
+      try {
+        const uid = await buatAkun(email, sandi);
+        await setDoc(doc(dbase, "users", uid), {
+          idKaryawan: b.idBiro, nama: b.nama, email, peran: "biro_jasa", aktif: true,
+          biroJasaId: b.id, biroJasaNama: b.nama,
+          dibuatOleh: sesi.uid, dibuatPada: serverTimestamp(),
+        });
+        await catat("akun_biro_jasa_dibuat", {
+          koleksi: "users", docId: uid, ringkas: `${b.nama} · ${email}`,
+        });
+        wadahForm.remove();
+        await gambar();
+        kabar(`Akses login untuk ${b.nama} berhasil dibuat.`, "netral");
+      } catch (err) {
+        kabar(pesanBuat(err), "rem");
+        tombol.disabled = false;
+        tombol.textContent = "Buat";
+      }
+    });
+  }
+
+  async function resetSandiAkun(uid) {
+    const akun = (await getDocs(query(collection(dbase, "users"),
+      where("peran", "==", "biro_jasa")))).docs.find((d) => d.id === uid);
+    if (!akun) return;
+    const lanjut = await konfirmasi({
+      judul: "Kirim Email Reset Password?",
+      pesan: `Tautan reset password akan dikirim ke ${akun.data().email}.`,
+      oke: "Kirim",
+    });
+    if (!lanjut) return;
+    try {
+      await sendPasswordResetEmail(auth, akun.data().email);
+      kabar("Email reset password terkirim.", "netral");
+    } catch (err) {
+      kabar("Gagal mengirim: " + err.message, "rem");
+    }
+  }
+
+  async function toggleAkun(uid, sedangAktif) {
+    try {
+      await updateDoc(doc(dbase, "users", uid), { aktif: !sedangAktif });
+      await catat("akun_biro_jasa_status_diubah", { koleksi: "users", docId: uid });
+      await gambar();
+      kabar("Status akun diperbarui.", "netral");
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
   }
 
   function buka(b) {

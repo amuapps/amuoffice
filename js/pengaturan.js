@@ -19,13 +19,12 @@ import {
 import {
   dbase, auth, collection, doc, getDocs, setDoc, updateDoc, query, where,
   serverTimestamp, catat,
-} from "./db.js?v=3.9.0";
-import { sesi, bolehAkses } from "./auth.js?v=3.9.0";
-import { PERAN, batasDiskon } from "./roles.js?v=3.9.0";
-import { FIREBASE } from "./config.js?v=3.9.0";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.9.0";
-import { rupiah, aman, kabar, tanggal, keTanggal } from "./ui.js?v=3.9.0";
-import { muatBiro, biroAktif } from "./biro.js?v=3.9.0";
+} from "./db.js?v=3.9.2";
+import { sesi, bolehAkses } from "./auth.js?v=3.9.2";
+import { PERAN, batasDiskon } from "./roles.js?v=3.9.2";
+import { FIREBASE } from "./config.js?v=3.9.2";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.9.2";
+import { rupiah, aman, kabar, tanggal, keTanggal } from "./ui.js?v=3.9.2";
 
 const OPSI_PENDIDIKAN = ["SD", "SMP", "SMA/SMK", "D3", "S1", "S2", "S3", "Lainnya"];
 
@@ -42,7 +41,7 @@ function masaKerja(tglBergabung) {
 }
 
 // ── Pembuatan akun lewat sambungan terpisah ───────────────────
-async function buatAkun(email, sandi) {
+export async function buatAkun(email, sandi) {
   const nama = "pembuat-akun-" + Date.now();
   const app2 = initializeApp(FIREBASE, nama);
   const auth2 = getAuth(app2);
@@ -57,7 +56,7 @@ async function buatAkun(email, sandi) {
   }
 }
 
-function pesanBuat(e) {
+export function pesanBuat(e) {
   const kode = e && e.code ? e.code : "";
   if (kode === "auth/email-already-in-use") {
     return "Email itu sudah terdaftar. Pakai email lain, atau " +
@@ -115,7 +114,10 @@ function kartuPengguna(u) {
 }
 
 function opsiPeran(terpilih) {
-  return Object.entries(PERAN).map(([k, v]) =>
+  // "biro_jasa" SENGAJA dikecualikan dari sini — itu pihak eksternal
+  // (bukan karyawan kita), akun login-nya dibuat lewat Master Biro
+  // Jasa (biro.js), bukan dari sini.
+  return Object.entries(PERAN).filter(([k]) => k !== "biro_jasa").map(([k, v]) =>
     `<option value="${k}" ${k === terpilih ? "selected" : ""}>
       ${v.label} — batas diskon ${
         v.batasDiskon === null ? "bebas" : rupiah(v.batasDiskon)
@@ -157,6 +159,12 @@ export async function halamanPengguna(wadah) {
   async function gambar() {
     const snap = await getDocs(collection(dbase, "users"));
     isi = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      // Akun Biro Jasa (pihak eksternal) sekarang dikelola dari
+      // Master Biro Jasa (biro.js), bukan di sini lagi — disaring
+      // keluar supaya tidak muncul dobel & tidak ada yang tidak
+      // sengaja klik "Ubah" ke akun itu dari sini (dropdown Peran
+      // di sini sudah tidak menyediakan pilihan "biro_jasa" lagi).
+      .filter((u) => u.peran !== "biro_jasa")
       .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
     daftarEl.innerHTML = isi.map(kartuPengguna).join("");
 
@@ -231,30 +239,12 @@ export async function halamanPengguna(wadah) {
       <select class="isian isian--terang" id="u-peran">
         ${opsiPeran("sales")}
       </select>
-      <div id="u-wadah-biro" hidden>
-        <label class="label label--gelap" for="u-biro">Terhubung ke Biro Jasa mana</label>
-        <select class="isian isian--terang" id="u-biro">
-          <option value="">— pilih Biro Jasa —</option>
-        </select>
-        <p class="petunjuk">Akun ini cuma akan bisa melihat SPK yang
-          ditugaskan ke Biro Jasa yang dipilih di sini.</p>
-      </div>
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Buat akun</button>
         <button class="tombol tombol--sunyi tombol--gelap" type="button"
                 id="batal-pengguna">Batal</button>
       </div>
     </form>`;
-
-    // Dropdown Biro Jasa cuma relevan buat peran biro_jasa — muncul/
-    // hilang mengikuti pilihan Peran, dan daftarnya diambil dari
-    // Master Biro Jasa yang sudah ada (bukan diketik ulang).
-    const wadahBiro = formEl.querySelector("#u-wadah-biro");
-    const biroEl = formEl.querySelector("#u-biro");
-    muatBiro().then(() => {
-      biroEl.innerHTML = `<option value="">— pilih Biro Jasa —</option>` +
-        biroAktif().map((b) => `<option value="${b.id}">${aman(b.nama)}</option>`).join("");
-    });
 
     // Jabatan otomatis terisi mengikuti peran yang dipilih — tapi
     // tetap bisa ditimpa manual (mis. "Sales Senior" bukan cuma "Sales").
@@ -264,7 +254,6 @@ export async function halamanPengguna(wadah) {
       if (!jabatanEl.value.trim()) {
         jabatanEl.value = (PERAN[peranEl.value] || {}).label || "";
       }
-      wadahBiro.hidden = peranEl.value !== "biro_jasa";
     });
 
     formEl.querySelector("#batal-pengguna")
@@ -278,12 +267,6 @@ export async function halamanPengguna(wadah) {
       const peran = formEl.querySelector("#u-peran").value;
       if (!idKaryawan || !nama || !email || !sandi) {
         kabar("ID Karyawan, Nama, email, dan sandi wajib diisi.", "rem");
-        return;
-      }
-      const biroJasaId = peran === "biro_jasa" ? biroEl.value : null;
-      const biroTerpilih = biroJasaId ? biroAktif().find((b) => b.id === biroJasaId) : null;
-      if (peran === "biro_jasa" && !biroJasaId) {
-        kabar("Pilih Biro Jasa yang terhubung ke akun ini.", "rem");
         return;
       }
       const tombol = e.target.querySelector('button[type="submit"]');
@@ -309,7 +292,6 @@ export async function halamanPengguna(wadah) {
           pendidikan: formEl.querySelector("#u-pendidikan").value,
           jabatan: jabatanEl.value.trim() || (PERAN[peran] || {}).label || "",
           tanggalBergabung: formEl.querySelector("#u-bergabung").value || null,
-          biroJasaId, biroJasaNama: biroTerpilih ? biroTerpilih.nama : null,
           dibuatOleh: sesi.uid,
           dibuatPada: serverTimestamp(),
         });
@@ -379,28 +361,12 @@ export async function halamanPengguna(wadah) {
       <select class="isian isian--terang" id="p-peran">
         ${opsiPeran(u.peran)}
       </select>
-      <div id="p-wadah-biro" ${u.peran !== "biro_jasa" ? "hidden" : ""}>
-        <label class="label label--gelap" for="p-biro">Terhubung ke Biro Jasa mana</label>
-        <select class="isian isian--terang" id="p-biro">
-          <option value="">— pilih Biro Jasa —</option>
-        </select>
-      </div>
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan</button>
         <button class="tombol tombol--sunyi tombol--gelap" type="button"
                 id="batal-peran">Batal</button>
       </div>
     </form>`;
-    const wadahBiroUbah = formEl.querySelector("#p-wadah-biro");
-    const biroUbahEl = formEl.querySelector("#p-biro");
-    muatBiro().then(() => {
-      biroUbahEl.innerHTML = `<option value="">— pilih Biro Jasa —</option>` +
-        biroAktif().map((b) => `<option value="${b.id}"
-          ${b.id === u.biroJasaId ? "selected" : ""}>${aman(b.nama)}</option>`).join("");
-    });
-    formEl.querySelector("#p-peran").addEventListener("change", (e) => {
-      wadahBiroUbah.hidden = e.target.value !== "biro_jasa";
-    });
     formEl.querySelector("#batal-peran")
       .addEventListener("click", () => (formEl.innerHTML = ""));
     formEl.querySelector("#f-peran").addEventListener("submit", async (e) => {
@@ -429,12 +395,6 @@ export async function halamanPengguna(wadah) {
           kabar("ID Karyawan ini sudah dipakai karyawan lain.", "rem");
           return;
         }
-        const biroJasaId = peran === "biro_jasa" ? biroUbahEl.value : null;
-        const biroTerpilihUbah = biroJasaId ? biroAktif().find((b) => b.id === biroJasaId) : null;
-        if (peran === "biro_jasa" && !biroJasaId) {
-          kabar("Pilih Biro Jasa yang terhubung ke akun ini.", "rem");
-          return;
-        }
         await updateDoc(doc(dbase, "users", u.id), {
           idKaryawan, nama, peran,
           nik: formEl.querySelector("#p-nik").value.trim(),
@@ -444,7 +404,6 @@ export async function halamanPengguna(wadah) {
           pendidikan: formEl.querySelector("#p-pendidikan").value,
           jabatan: formEl.querySelector("#p-jabatan").value.trim(),
           tanggalBergabung: formEl.querySelector("#p-bergabung").value || null,
-          biroJasaId, biroJasaNama: biroTerpilihUbah ? biroTerpilihUbah.nama : null,
         });
         await catat("pengguna_diubah", {
           koleksi: "users", docId: u.id, ringkas: `${nama} · ${peran}`,

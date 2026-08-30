@@ -3,14 +3,30 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.0";
-import { VERSI } from "./config.js?v=3.9.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.9.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.2";
+import { VERSI } from "./config.js?v=3.9.2";
+import { aman, rupiah, kabar } from "./ui.js?v=3.9.2";
+import { konfirmasi, tanya } from "./dialog.js?v=3.9.2";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.2";
 
 const RIWAYAT = [
+  {
+    versi: "3.9.2", tanggal: "Agustus 2026",
+    judul: "Akun Biro Jasa Lama Otomatis Disaring dari Data Karyawan",
+    butir: [
+      "Akun Biro Jasa yang sudah kadung dibuat lewat Data Karyawan (sebelum v3.9.1) sekarang otomatis DISARING KELUAR dari daftar Data Karyawan — supaya tidak ada yang tidak sengaja klik \"Ubah\" ke situ (dropdown Peran di Data Karyawan sudah tidak punya pilihan \"Biro Jasa\" lagi sejak v3.9.1).",
+      "Tidak perlu tindakan manual apa pun — akun yang sudah ada otomatis muncul dengan benar di Master Biro Jasa (bagian \"Akses Login Sistem\"), karena data yang tersimpan sebelumnya sudah kompatibel dengan sistem baru.",
+    ],
+  },
+  {
+    versi: "3.9.1", tanggal: "Agustus 2026",
+    judul: "Login Biro Jasa Dipindah ke Master Biro Jasa (Bukan Data Karyawan)",
+    butir: [
+      "Diperbaiki sesuai masukan: Biro Jasa itu pihak eksternal (bukan karyawan kita), jadi akun login-nya sekarang dibuat & dikelola langsung dari halaman \"Master Biro Jasa\" — bukan dari \"Data Karyawan\" lagi. Peran \"Biro Jasa\" juga dihapus dari dropdown Data Karyawan supaya tidak ada yang salah pilih dari situ.",
+      "Tiap kartu Biro Jasa sekarang punya bagian \"Akses Login Sistem\" — kalau belum ada akunnya, ada tombol \"Buat Akses Login\" (email + password). Kalau sudah ada, bisa \"Kirim Reset Password\" atau \"Aktifkan/Nonaktifkan Akun\" langsung dari situ.",
+    ],
+  },
   {
     versi: "3.9.0", tanggal: "Agustus 2026",
     judul: "Tracking Dokumen Kendaraan — Tahap 1: Peran Biro Jasa & Struktur Dasar",
