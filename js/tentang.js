@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.2";
-import { VERSI } from "./config.js?v=3.10.2";
-import { aman, rupiah, kabar } from "./ui.js?v=3.10.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.3";
+import { VERSI } from "./config.js?v=3.10.3";
+import { aman, rupiah, kabar } from "./ui.js?v=3.10.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.3";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.2";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.3";
 
 const RIWAYAT = [
+  {
+    versi: "3.10.3", tanggal: "Agustus 2026",
+    judul: "\"Pengajuan Saya\" Dihapus dari Menu Biro Jasa (Tidak Relevan)",
+    butir: [
+      "Menu Biro Jasa sebelumnya ikut menu \"Pengajuan Saya\" (bawaan dari grup Inbox) — padahal isinya soal pengajuan ubah data/cashback/diskon/batal SPK, sama sekali tidak relevan buat Biro Jasa (mereka tidak pernah mengajukan hal-hal itu). Sekarang Biro Jasa cuma dapat menu Inbox biasa.",
+      "Teks di halaman \"Pengajuan Saya\" juga digeneralisasi (tidak lagi menyebut kategori spesifik yang membingungkan kalau terlihat peran lain).",
+    ],
+  },
   {
     versi: "3.10.2", tanggal: "Agustus 2026",
     judul: "PERBAIKAN: Query Kedua yang Masih Kena Masalah Sama (Biro Jasa)",

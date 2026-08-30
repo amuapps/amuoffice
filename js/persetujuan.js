@@ -7,14 +7,14 @@
 import {
   dbase, doc, collection, getDoc, getDocs, updateDoc, query, where,
   writeBatch, catat, sertakanLog, serverTimestamp, increment,
-} from "./db.js?v=3.10.2";
-import { bolehAkses, konfirmasiPassword, sesi } from "./auth.js?v=3.10.2";
-import { simpanPelangganOtomatis } from "./pelanggan.js?v=3.10.2";
-import { terapkanPerubahanUnit } from "./stok.js?v=3.10.2";
-import { hitungTotalDibayar } from "./cetak.js?v=3.10.2";
-import { buatNotifikasi } from "./notifikasi.js?v=3.10.2";
-import { tanya, konfirmasi } from "./dialog.js?v=3.10.2";
-import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js?v=3.10.2";
+} from "./db.js?v=3.10.3";
+import { bolehAkses, konfirmasiPassword, sesi } from "./auth.js?v=3.10.3";
+import { simpanPelangganOtomatis } from "./pelanggan.js?v=3.10.3";
+import { terapkanPerubahanUnit } from "./stok.js?v=3.10.3";
+import { hitungTotalDibayar } from "./cetak.js?v=3.10.3";
+import { buatNotifikasi } from "./notifikasi.js?v=3.10.3";
+import { tanya, konfirmasi } from "./dialog.js?v=3.10.3";
+import { aman, kabar, tanggalJam, namaTampilan } from "./ui.js?v=3.10.3";
 
 const LABEL_JENIS = {
   pelanggan_spk: "Perubahan Data Pembeli/Pemakai",
@@ -352,8 +352,7 @@ export async function halamanPengajuanSaya(wadah) {
       ? "Riwayat lengkap semua pengajuan dari siapa pun — termasuk yang " +
         "sudah Disetujui/Ditolak (yang sudah tidak tampil lagi di " +
         "halaman Persetujuan Perubahan)."
-      : "Riwayat semua pengajuan (ubah data, cashback, diskon, batal SPK, " +
-        "ubah unit) yang pernah Anda ajukan — lengkap status terakhirnya."
+      : "Riwayat semua pengajuan yang pernah Anda ajukan — lengkap status terakhirnya."
     }</p>
     <div class="chip-baris" id="saring-status">
       <button class="chip aktif" data-status="">Semua</button>

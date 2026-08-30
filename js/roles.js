@@ -2,8 +2,8 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.10.2";
-import { daftarKodeUntuk } from "./akses.js?v=3.10.2";
+import { labelItem, labelGrup } from "./label.js?v=3.10.3";
+import { daftarKodeUntuk } from "./akses.js?v=3.10.3";
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
@@ -53,6 +53,12 @@ const DASHBOARD = { grup: "Dashboard", butir: [
 const INBOX = { grup: "Inbox", butir: [
   { label: "Inbox", rute: "#/inbox", kode: "IBX-01" },
   { label: "Pengajuan Saya", rute: "#/pengajuan-saya", kode: "IBX-02" },
+]};
+// Biro Jasa tidak pernah "mengajukan" apa pun (bukan Admin/Sales,
+// tidak ikut alur perubahan data SPK) — "Pengajuan Saya" bakal
+// selalu kosong & tidak relevan buat mereka, jadi dikecualikan.
+const INBOX_SAJA = { grup: "Inbox", butir: [
+  { label: "Inbox", rute: "#/inbox", kode: "IBX-01" },
 ]};
 
 const SALES = { grup: "Sales", butir: [
@@ -114,7 +120,7 @@ export const PERAN = {
     // untuk SPK yang ditugaskan ke mereka (ditegakkan juga di
     // firestore.rules, bukan cuma disembunyikan di tampilan).
     izin: ["dokumen.lihat", "dokumen.konfirmasi"],
-    menu: [INBOX, TRACKING_DOKUMEN],
+    menu: [INBOX_SAJA, TRACKING_DOKUMEN],
   },
 };
 
