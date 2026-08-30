@@ -3,11 +3,11 @@
 // tombol, biar tampilan utamanya bersih — baru muncul kalau memang
 // mau menyaring datanya.
 
-import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.11.2";
-import { sesi } from "./auth.js?v=3.11.2";
-import { muatTipe } from "./tipe.js?v=3.11.2";
-import { rupiah, aman, namaTampilan } from "./ui.js?v=3.11.2";
-import { resolveNamaSales, hargaEfektif } from "./cetak.js?v=3.11.2";
+import { dbase, collection, getDocs, query, where, orderBy } from "./db.js?v=3.11.5";
+import { sesi } from "./auth.js?v=3.11.5";
+import { muatTipe } from "./tipe.js?v=3.11.5";
+import { rupiah, aman, namaTampilan } from "./ui.js?v=3.11.5";
+import { resolveNamaSales, hargaEfektif } from "./cetak.js?v=3.11.5";
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
   "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];

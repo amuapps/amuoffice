@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.11.2";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.11.2";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.11.2";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.11.2";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.11.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
-import { konfirmasiPassword } from "./auth.js?v=3.11.2";
-import { buatNotifikasi } from "./notifikasi.js?v=3.11.2";
-import { kabar } from "./ui.js?v=3.11.2";
+  nomorKuitansiSpk } from "./db.js?v=3.11.5";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.11.5";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.11.5";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.11.5";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.11.5";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
+import { konfirmasiPassword } from "./auth.js?v=3.11.5";
+import { buatNotifikasi } from "./notifikasi.js?v=3.11.5";
+import { kabar } from "./ui.js?v=3.11.5";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -974,6 +974,17 @@ export async function cetakBastBerkas(t, dok) {
     alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
     return;
   }
+  // Detail unit (No. Rangka/Mesin) diambil langsung dari Data Unit —
+  // di transaksi cuma disimpan ID-nya, bukan salinannya. Biro Jasa
+  // butuh ini buat urus STNK/BPKB, jadi wajib ikut di BAST.
+  let unit = null;
+  if (t.unitId) {
+    try {
+      const snap = await getDoc(doc(dbase, "units", t.unitId));
+      if (snap.exists()) unit = snap.data();
+    } catch { /* unit tidak wajib ada untuk tetap bisa cetak */ }
+  }
+
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"><title>BAST Berkas — ${aman(t.spkNo)}</title>
     <style>${CSS_KUITANSI}
@@ -1008,8 +1019,11 @@ export async function cetakBastBerkas(t, dok) {
 
     <table class="bast-tabel">
       <tr><th style="width:36%">No. SPK</th><td>${aman(t.spkNo)}</td></tr>
-      <tr><th>Konsumen</th><td>${aman(t.pembeli?.nama || "-")}</td></tr>
+      <tr><th>Nama di KTP (untuk STNK)</th><td>${aman(t.pembeli?.nama || "-")}</td></tr>
+      <tr><th>NIK</th><td class="mono">${aman(t.pembeli?.nik || "-")}</td></tr>
       <tr><th>Unit</th><td>${aman(t.tipeNama)} · ${aman(t.warna)}</td></tr>
+      <tr><th>No. Rangka</th><td class="mono">${aman(unit?.noRangka || "-")}</td></tr>
+      <tr><th>No. Mesin</th><td class="mono">${aman(unit?.noMesin || "-")}</td></tr>
       <tr><th>Diserahkan Oleh</th>
         <td>${aman(dok.berkasDiserahkanOlehNama)} — ${tanggal(dok.berkasDiserahkanPada)}</td></tr>
       <tr><th>Diterima Oleh (Biro Jasa)</th>
@@ -1050,6 +1064,14 @@ export async function cetakBastDokumenJadi(t, dok, jenisList) {
     alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
     return;
   }
+  let unit = null;
+  if (t.unitId) {
+    try {
+      const snap = await getDoc(doc(dbase, "units", t.unitId));
+      if (snap.exists()) unit = snap.data();
+    } catch { /* unit tidak wajib ada untuk tetap bisa cetak */ }
+  }
+
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"><title>BAST Dokumen — ${aman(t.spkNo)}</title>
     <style>${CSS_KUITANSI}
@@ -1084,9 +1106,12 @@ export async function cetakBastDokumenJadi(t, dok, jenisList) {
 
     <table class="bast-tabel">
       <tr><th style="width:36%">No. SPK</th><td>${aman(t.spkNo)}</td></tr>
-      <tr><th>Konsumen</th><td>${aman(t.pembeli?.nama || "-")}</td></tr>
+      <tr><th>Nama di KTP (STNK atas nama)</th><td>${aman(t.pembeli?.nama || "-")}</td></tr>
+      <tr><th>NIK</th><td class="mono">${aman(t.pembeli?.nik || "-")}</td></tr>
       <tr><th>Unit</th><td>${aman(t.tipeNama)} · ${aman(t.warna)}</td></tr>
-      ${dok.noPolisi ? `<tr><th>No. Polisi</th><td>${aman(dok.noPolisi)}</td></tr>` : ""}
+      <tr><th>No. Rangka</th><td class="mono">${aman(unit?.noRangka || "-")}</td></tr>
+      <tr><th>No. Mesin</th><td class="mono">${aman(unit?.noMesin || "-")}</td></tr>
+      ${dok.noPolisi ? `<tr><th>No. Polisi</th><td class="mono">${aman(dok.noPolisi)}</td></tr>` : ""}
       <tr><th>Biro Jasa</th><td>${aman(dok.biroJasaNama)}</td></tr>
     </table>
 

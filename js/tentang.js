@@ -3,14 +3,37 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.2";
-import { VERSI } from "./config.js?v=3.11.2";
-import { aman, rupiah, kabar } from "./ui.js?v=3.11.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.5";
+import { VERSI } from "./config.js?v=3.11.5";
+import { aman, rupiah, kabar } from "./ui.js?v=3.11.5";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.2";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.5";
 
 const RIWAYAT = [
+  {
+    versi: "3.11.5", tanggal: "Agustus 2026",
+    judul: "Riwayat Perubahan di Tracking Dokumen Sekarang Bisa Dilipat",
+    butir: [
+      "Riwayat Perubahan tiap SPK di halaman Tracking Dokumen sebelumnya selalu tampil penuh — bisa jadi sangat panjang kalau SPK-nya banyak. Sekarang defaultnya tersembunyi, ada tombol \"Lihat Riwayat Perubahan\" buat buka/tutup per SPK, dan baru benar-benar diambil datanya begitu diklik pertama kali (bukan langsung semua dimuat sekaligus).",
+    ],
+  },
+  {
+    versi: "3.11.4", tanggal: "Agustus 2026",
+    judul: "Dokumen Jadi (STNK/BPKB/Plat) Dikunci Kalau Berkas Sudah Ditarik Kembali",
+    butir: [
+      "Perbaikan celah: sebelumnya begitu berkas awal (KTP+Faktur) sudah \"Ditarik Kembali\", bagian STNK/BPKB/Plat MASIH bisa dikerjakan (Mulai Proses, Tandai Selesai, dst) — padahal berkas fisiknya sudah tidak lagi di tangan Biro Jasa.",
+      "Sekarang: begitu berkas ditarik kembali, riwayat status STNK/BPKB/Plat TETAP terlihat (tidak hilang), tapi terkunci total — tidak ada tombol aksi sama sekali sampai Admin menyerahkan ulang berkasnya. Dikunci di level server (Firestore Rules), bukan cuma disembunyikan tombolnya.",
+    ],
+  },
+  {
+    versi: "3.11.3", tanggal: "Agustus 2026",
+    judul: "BAST: Biro Jasa Tidak Bisa Cetak Lagi + Tambah No. Rangka/Mesin/KTP",
+    butir: [
+      "Tombol \"Cetak BAST\" (Berkas) dihapus dari sisi Biro Jasa — sekarang cuma Admin/Owner yang bisa mencetak/cetak ulang. \"Cetak BAST Dokumen\" (STNK/BPKB/Plat) memang sudah Admin-only sejak awal.",
+      "Kedua BAST (Berkas & Dokumen Jadi) sekarang menyertakan No. Rangka, No. Mesin, Nama di KTP (buat acuan atas nama STNK), dan NIK — diambil otomatis dari Data Unit & data pembeli SPK, tidak perlu diketik manual.",
+    ],
+  },
   {
     versi: "3.11.2", tanggal: "Agustus 2026",
     judul: "PERBAIKAN: Biro Jasa Gagal Buka Tracking Dokumen (Lagi) — muatBiro() Tanpa Izin",

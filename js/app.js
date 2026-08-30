@@ -8,19 +8,19 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.11.2";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.11.5";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.11.2";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.11.2";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.11.2";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.11.5";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.11.5";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.11.5";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.11.2";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.11.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
-import { muatLabelKustom } from "./label.js?v=3.11.2";
-import { muatAksesKustom } from "./akses.js?v=3.11.2";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.11.2";
-import { halamanSegera } from "./segera.js?v=3.11.2";
+  from "./router.js?v=3.11.5";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.11.5";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
+import { muatLabelKustom } from "./label.js?v=3.11.5";
+import { muatAksesKustom } from "./akses.js?v=3.11.5";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.11.5";
+import { halamanSegera } from "./segera.js?v=3.11.5";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst

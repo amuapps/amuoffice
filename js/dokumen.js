@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.11.2";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.2";
-import { aman, tanggal, kabar } from "./ui.js?v=3.11.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.2";
-import { muatBiro, biroAktif } from "./biro.js?v=3.11.2";
-import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.2";
-import { SHOWROOM } from "./config.js?v=3.11.2";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.2";
+  serverTimestamp, catat } from "./db.js?v=3.11.5";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.5";
+import { aman, tanggal, kabar } from "./ui.js?v=3.11.5";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
+import { muatBiro, biroAktif } from "./biro.js?v=3.11.5";
+import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.5";
+import { SHOWROOM } from "./config.js?v=3.11.5";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.5";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -82,6 +82,7 @@ async function muatDaftar() {
 export async function halamanDokumen(wadah) {
   const bisaAksiAdmin = bolehAkses("dokumen.konfirmasi") && sesi.peran !== "biro_jasa";
   const bisaAksiBiro = sesi.peran === "biro_jasa";
+  const bisaLihatRiwayat = bolehAkses("log.lihat"); // Owner-only, sama seperti di tempat lain
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas"><h2 class="judul">Tracking Dokumen Kendaraan</h2></div>
@@ -138,7 +139,9 @@ export async function halamanDokumen(wadah) {
           </dl>
           <div class="aksi aksi--rapat" data-aksi-dok-wadah="${t.id}"></div>
         </div>` : ""}
-      <div data-log-wadah="${t.id}"></div>
+      ${bisaLihatRiwayat ? `<button type="button" class="tombol tombol--kecil tombol--sunyi"
+        style="margin-top:10px" data-toggle-riwayat="${t.id}">Lihat Riwayat Perubahan ▾</button>
+        <div data-log-wadah="${t.id}" hidden></div>` : ""}
     </article>`;
   }
 
@@ -165,10 +168,8 @@ export async function halamanDokumen(wadah) {
         tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-konfirmasi="${t.id}">
           Konfirmasi Terima Berkas</button>`);
       }
-      if (dok.berkasStatus === "dikonfirmasi") {
-        tombol.push(`<button class="tombol tombol--kecil" data-cetak-bast="${t.id}">
-          Cetak BAST</button>`);
-      }
+      // "Cetak BAST" SENGAJA cuma buat Admin/Owner (lihat blok di
+      // atas) — Biro Jasa TIDAK diberi akses cetak dari sini.
     }
     wadahAksi.innerHTML = tombol.join("");
 
@@ -186,6 +187,18 @@ export async function halamanDokumen(wadah) {
 
   // ── Aksi tingkat DOKUMEN (STNK/BPKB/Plat) ───────────────────
   function pasangAksiDokumen(t, dok, wadahAksiDok) {
+    // Kalau BERKAS-nya sudah ditarik kembali, bagian STNK/BPKB/Plat
+    // TETAP terlihat (biar riwayatnya jelas, tidak seolah menghilang
+    // begitu saja) — tapi TIDAK BISA DIKERJAKAN lagi sama sekali,
+    // apa pun statusnya sekarang. Wajar, karena berkas fisiknya
+    // (KTP+Faktur) sudah tidak lagi di tangan Biro Jasa.
+    if (dok.berkasStatus === "ditarik_kembali") {
+      wadahAksiDok.innerHTML = `<p class="petunjuk" style="margin:0">
+        Berkas sudah ditarik kembali — bagian ini terkunci, tidak bisa
+        dikerjakan sampai berkas diserahkan ulang.</p>`;
+      return;
+    }
+
     const tombol = [];
     const biroBoleh = bisaAksiBiro && dok.biroJasaId === sesi.biroJasaId;
 
@@ -274,10 +287,31 @@ export async function halamanDokumen(wadah) {
       if (wadahAksi) pasangAksi(t, dok, wadahAksi);
       const wadahAksiDok = daftarEl.querySelector(`[data-aksi-dok-wadah="${t.id}"]`);
       if (wadahAksiDok) pasangAksiDokumen(t, dok, wadahAksiDok);
-      const wadahLog = daftarEl.querySelector(`[data-log-wadah="${t.id}"]`);
-      if (wadahLog) {
-        muatRiwayatDokumen("dokumen_kendaraan", t.id, 8).then((riw) => {
-          wadahLog.innerHTML = htmlRiwayatDokumen(riw);
+      // Riwayat Perubahan SENGAJA tidak langsung dimuat — bisa jadi
+      // sangat panjang kalau semua SPK ditampilkan sekaligus. Baru
+      // diambil & digambar begitu tombolnya diklik (dan cuma sekali,
+      // dicache dataset.dimuat supaya klik berikutnya tidak nge-fetch
+      // ulang, cukup toggle sembunyikan/tampilkan).
+      const tombolRiwayat = daftarEl.querySelector(`[data-toggle-riwayat="${t.id}"]`);
+      if (tombolRiwayat) {
+        tombolRiwayat.addEventListener("click", async () => {
+          const wadahLog = daftarEl.querySelector(`[data-log-wadah="${t.id}"]`);
+          if (!wadahLog) return;
+          const sedangTerbuka = !wadahLog.hidden;
+          if (sedangTerbuka) {
+            wadahLog.hidden = true;
+            tombolRiwayat.textContent = "Lihat Riwayat Perubahan ▾";
+            return;
+          }
+          wadahLog.hidden = false;
+          tombolRiwayat.textContent = "Sembunyikan Riwayat Perubahan ▴";
+          if (!wadahLog.dataset.dimuat) {
+            wadahLog.innerHTML = `<p class="hampa">Memuat…</p>`;
+            const riw = await muatRiwayatDokumen("dokumen_kendaraan", t.id, 8);
+            wadahLog.innerHTML = htmlRiwayatDokumen(riw) ||
+              `<p class="hampa">Belum ada riwayat.</p>`;
+            wadahLog.dataset.dimuat = "1";
+          }
         });
       }
     });
