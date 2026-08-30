@@ -429,6 +429,11 @@ select.isian {
 .aksi .tombol { flex: 1; margin-top: 12px; }
 .aksi--rapat { margin-top: 12px; }
 .aksi--rapat .tombol { margin-top: 0; flex: 0 0 auto; }
+.cek-baris {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 0; font-size: 13.5px; color: var(--tinta); cursor: pointer;
+}
+.cek-baris input[type="checkbox"] { width: 16px; height: 16px; flex: 0 0 auto; }
 .tautan-batal {
   background: none; border: 0; color: var(--biru);
   font-size: 13px; padding: 10px 0 0; cursor: pointer;
