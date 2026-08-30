@@ -158,7 +158,12 @@ service cloud.firestore {
       allow update: if salahSatu(['owner', 'admin']) ||
         (salahSatu(['biro_jasa']) &&
          resource.data.biroJasaId == profil().biroJasaId &&
-         request.resource.data.biroJasaId == profil().biroJasaId);
+         request.resource.data.biroJasaId == profil().biroJasaId &&
+         // Kalau berkas awal (KTP+Faktur) sudah ditarik kembali,
+         // Biro Jasa tidak boleh utak-atik apa pun lagi di dokumen
+         // ini (STNK/BPKB/Plat dst) — dikunci total di server, bukan
+         // cuma disembunyikan tombolnya di tampilan.
+         resource.data.berkasStatus != 'ditarik_kembali');
       allow delete: if salahSatu(['owner']);
     }
 
