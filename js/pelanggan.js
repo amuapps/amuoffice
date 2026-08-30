@@ -6,16 +6,16 @@
 import {
   dbase, collection, doc, getDocs, setDoc, updateDoc, writeBatch, query, where,
   orderBy, limit, serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.11.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.11.0";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.11.0";
-import { konfirmasi } from "./dialog.js?v=3.11.0";
+} from "./db.js?v=3.11.1";
+import { bolehAkses, sesi } from "./auth.js?v=3.11.1";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.11.1";
+import { konfirmasi } from "./dialog.js?v=3.11.1";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.11.0";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.11.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.0";
+  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.11.1";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.11.1";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.1";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
-  from "./referensi.js?v=3.11.0";
+  from "./referensi.js?v=3.11.1";
 
 let cache = [];
 

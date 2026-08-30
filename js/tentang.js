@@ -3,14 +3,24 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.0";
-import { VERSI } from "./config.js?v=3.11.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.11.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.1";
+import { VERSI } from "./config.js?v=3.11.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.11.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.11.1", tanggal: "Agustus 2026",
+    judul: "Tombol Batal/Urungkan untuk STNK/BPKB/Plat (Sebelumnya Cuma Bisa Maju)",
+    butir: [
+      "Status STNK/BPKB/Plat sebelumnya cuma bisa MAJU (Belum → Diproses → Selesai → Diserahkan → Dikonfirmasi), tidak ada cara mundur kalau salah pencet — satu-satunya cara benerinnya lewat Firestore Console langsung. Sekarang ada 4 tingkat pembatalan, sesuai keseriusannya:",
+      "\"↩ Urungkan\" (ringan, tanpa password) — buat mundur satu langkah selama masih progres internal Biro Jasa sendiri, belum pernah diserahkan ke Admin. Kalau STNK diurungkan dari Selesai, No. Polisi ikut dikosongkan lagi (diminta isi ulang nanti).",
+      "\"Batalkan Serah\" (Biro Jasa, wajib alasan + password) — buat SPK yang sudah terlanjur \"Serahkan ke Admin\" tapi belum dikonfirmasi.",
+      "\"Tarik Kembali\" (Admin, wajib alasan + password) — buat dokumen yang sudah terlanjur dikonfirmasi diterima, tapi ternyata perlu dikoreksi/dikembalikan.",
+    ],
+  },
   {
     versi: "3.11.0", tanggal: "Agustus 2026",
     judul: "Tracking Dokumen Kendaraan — Tahap 3: STNK/BPKB/Plat + Nomor Polisi",

@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.11.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.0";
-import { aman, tanggal, kabar } from "./ui.js?v=3.11.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.0";
-import { muatBiro, biroAktif } from "./biro.js?v=3.11.0";
-import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.0";
-import { SHOWROOM } from "./config.js?v=3.11.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.0";
+  serverTimestamp, catat } from "./db.js?v=3.11.1";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.1";
+import { aman, tanggal, kabar } from "./ui.js?v=3.11.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.1";
+import { muatBiro, biroAktif } from "./biro.js?v=3.11.1";
+import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.1";
+import { SHOWROOM } from "./config.js?v=3.11.1";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.1";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -193,6 +193,16 @@ export async function halamanDokumen(wadah) {
         if (status === "diproses") {
           tombol.push(`<button class="tombol tombol--kecil" data-selesai="${k}">
             Tandai Selesai ${label}</button>`);
+          tombol.push(`<button class="tombol tombol--kecil" data-batal-proses="${k}">
+            ↩ Urungkan (${label} Belum Diproses)</button>`);
+        }
+        if (status === "selesai") {
+          tombol.push(`<button class="tombol tombol--kecil" data-batal-selesai="${k}">
+            ↩ Urungkan (${label} Belum Selesai)</button>`);
+        }
+        if (status === "diserahkan") {
+          tombol.push(`<button class="tombol tombol--kecil" data-batal-serah-dok="${k}">
+            Batalkan Serah ${label} (Belum Dikonfirmasi)</button>`);
         }
       });
       const adaYangSelesai = JENIS_DOKUMEN.some(([k]) => dok[`${k}Status`] === "selesai");
@@ -202,6 +212,12 @@ export async function halamanDokumen(wadah) {
       }
     }
     if (bisaAksiAdmin) {
+      JENIS_DOKUMEN.forEach(([k, label]) => {
+        if (dok[`${k}Status`] === "dikonfirmasi") {
+          tombol.push(`<button class="tombol tombol--kecil tombol--bahaya" data-tarik-dok="${k}">
+            Tarik Kembali ${label}</button>`);
+        }
+      });
       const adaYangDiserahkan = JENIS_DOKUMEN.some(([k]) => dok[`${k}Status`] === "diserahkan");
       if (adaYangDiserahkan) {
         tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-konfirmasi-dok="1">
@@ -219,6 +235,14 @@ export async function halamanDokumen(wadah) {
       b.addEventListener("click", () => aksiMulaiProses(t, dok, b.dataset.mulai)));
     wadahAksiDok.querySelectorAll("[data-selesai]").forEach((b) =>
       b.addEventListener("click", () => aksiTandaiSelesai(t, dok, b.dataset.selesai)));
+    wadahAksiDok.querySelectorAll("[data-batal-proses]").forEach((b) =>
+      b.addEventListener("click", () => aksiUrungkanStatus(t, b.dataset.batalProses, "belum")));
+    wadahAksiDok.querySelectorAll("[data-batal-selesai]").forEach((b) =>
+      b.addEventListener("click", () => aksiUrungkanStatus(t, b.dataset.batalSelesai, "diproses")));
+    wadahAksiDok.querySelectorAll("[data-batal-serah-dok]").forEach((b) =>
+      b.addEventListener("click", () => aksiBatalSerahDokumen(t, b.dataset.batalSerahDok)));
+    wadahAksiDok.querySelectorAll("[data-tarik-dok]").forEach((b) =>
+      b.addEventListener("click", () => aksiTarikKembaliDokumen(t, dok, b.dataset.tarikDok)));
     const btnSerahkanDok = wadahAksiDok.querySelector("[data-serahkan-dok]");
     if (btnSerahkanDok) btnSerahkanDok.addEventListener("click", () =>
       aksiSerahkanDokumen(t, dok, wadahAksiDok));
@@ -601,6 +625,104 @@ export async function halamanDokumen(wadah) {
         kabar("Gagal: " + err.message, "rem");
       }
     });
+  }
+
+  // ── Aksi: Urungkan status (ringan, tanpa password) ───────────
+  // Dipakai buat mundur SATU langkah selama masih murni progres
+  // internal Biro Jasa sendiri (belum pernah diserahkan ke Admin) —
+  // supaya salah pencet "Mulai Proses"/"Tandai Selesai" bisa
+  // dibetulkan tanpa ribet. Kalau STNK diurungkan dari "Selesai",
+  // No. Polisi ikut dikosongkan lagi (kalau ternyata salah catat,
+  // nanti diminta isi ulang pas "Tandai Selesai" lagi).
+  async function aksiUrungkanStatus(t, jenis, statusBaru) {
+    try {
+      const perubahan = { [`${jenis}Status`]: statusBaru };
+      if (jenis === "stnk" && statusBaru === "diproses") perubahan.noPolisi = null;
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), perubahan);
+      await catat("dokumen_status_diurungkan", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ${LABEL_JENIS(jenis)} diurungkan ke "${LABEL_DOKUMEN[statusBaru]}"`,
+      });
+      kabar(`${LABEL_JENIS(jenis)} diurungkan.`, "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  // ── Aksi: Batalkan Serah Dokumen (Biro Jasa, sebelum Admin
+  // konfirmasi) — sepadan dengan "Batalkan" di tingkat Berkas.
+  async function aksiBatalSerahDokumen(t, jenis) {
+    const alasan = await tanya({
+      judul: `Batalkan Serah ${LABEL_JENIS(jenis)}`,
+      pesan: `${LABEL_JENIS(jenis)} untuk SPK ${t.spkNo} akan dikembalikan ` +
+             `ke status "Selesai" (belum diserahkan). Wajib isi alasan.`,
+      petunjuk: "mis. Salah pencet, belum siap diserahkan",
+    });
+    if (alasan === null) return;
+    if (!alasan.trim()) { kabar("Alasan wajib diisi.", "rem"); return; }
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        [`${jenis}Status`]: "selesai",
+        [`${jenis}DiserahkanPada`]: null,
+        [`${jenis}DiserahkanOleh`]: null,
+        [`${jenis}DiserahkanOlehNama`]: null,
+      });
+      await catat("dokumen_batal_serah", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ${LABEL_JENIS(jenis)} dibatalkan sebelum dikonfirmasi · Alasan: ${alasan.trim()}`,
+      });
+      kabar(`Serah ${LABEL_JENIS(jenis)} dibatalkan.`, "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + (["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
+        ? "Password salah." : err.message), "rem");
+    }
+  }
+
+  // ── Aksi: Tarik Kembali Dokumen (Admin, sesudah dikonfirmasi) ─
+  // Sepadan dengan "Tarik Kembali" di tingkat Berkas — cuma
+  // mengoreksi CATATAN sistem, pastikan dokumen FISIKNYA memang
+  // sudah benar-benar ditarik lagi dari Admin sebelum klik ini.
+  async function aksiTarikKembaliDokumen(t, dok, jenis) {
+    const alasan = await tanya({
+      judul: `⚠️ Tarik Kembali ${LABEL_JENIS(jenis)}`,
+      pesan: `${LABEL_JENIS(jenis)} untuk SPK ${t.spkNo} sudah DIKONFIRMASI ` +
+             `DITERIMA. "Tarik Kembali" cuma mencatat status di sistem — ` +
+             `pastikan dokumen FISIKNYA memang sudah benar-benar ditarik ` +
+             `lagi. Wajib isi alasan.`,
+      petunjuk: "mis. Ada kesalahan cetak, dikembalikan ke Biro Jasa",
+    });
+    if (alasan === null) return;
+    if (!alasan.trim()) { kabar("Alasan wajib diisi.", "rem"); return; }
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return;
+    try {
+      await konfirmasiPassword(password);
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        [`${jenis}Status`]: "diserahkan",
+        [`${jenis}DikonfirmasiPada`]: null,
+        [`${jenis}DikonfirmasiOleh`]: null,
+        [`${jenis}DikonfirmasiOlehNama`]: null,
+      });
+      await catat("dokumen_ditarik_kembali", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ${LABEL_JENIS(jenis)} ditarik kembali · Alasan: ${alasan.trim()}`,
+      });
+      kabar(`${LABEL_JENIS(jenis)} ditandai ditarik kembali.`, "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
   }
 
   await muat();
