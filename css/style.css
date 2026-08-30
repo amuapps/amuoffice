@@ -552,7 +552,7 @@ select.isian {
 }
 .dialog-isi { padding: 8px 20px 20px; }
 .dialog-pesan { margin: 0; font-size: 13.5px; line-height: 1.5;
-                color: var(--tinta); }
+                color: var(--tinta); white-space: pre-line; }
 .dialog-isian { margin-top: 14px; }
 .dialog-aksi {
   display: flex; gap: 8px; padding: 16px 20px;
