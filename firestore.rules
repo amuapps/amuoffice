@@ -170,7 +170,19 @@ service cloud.firestore {
     // developer tools kalau cuma diatur di situ).
     match /transaksi/{id} {
       allow read: if aktif() &&
-        (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid);
+        (peranSaya() != 'sales' || resource.data.salesUid == request.auth.uid) &&
+        // Biro Jasa cuma boleh baca SPK yang benar-benar ditugaskan ke
+        // mereka. PENTING: dicek lewat field biroJasaId yang disimpan
+        // LANGSUNG di dokumen transaksi ini (bukan lewat get() ke
+        // koleksi lain) — Firestore MENOLAK TOTAL query daftar
+        // (collection query tanpa where()) kalau rule-nya butuh
+        // get()/exists() dinamis per-dokumen ke koleksi lain, beda
+        // dari get() ke path TETAP macam profil() yang aman dipakai
+        // di query daftar. Makanya biroJasaId didobel-simpan di sini
+        // (selain di dokumen_kendaraan) — supaya query daftar SPK
+        // Biro Jasa bisa dipasangi where("biroJasaId","==",...) yang
+        // sejalan persis dengan syarat rule ini.
+        (peranSaya() != 'biro_jasa' || resource.data.biroJasaId == profil().biroJasaId);
       // Cuma Owner yang boleh input SPK "atas nama" karyawan lain
       // (salesUid beda dari dirinya sendiri). Admin & Sales cuma
       // boleh salesUid = dirinya sendiri. Ini SEBELUMNYA cuma
@@ -201,6 +213,7 @@ service cloud.firestore {
            'kuitansiTercetakPada',
            'cashbackDibayarStatus', 'cashbackTanggalBayar',
            'cashbackBank', 'cashbackCatatan',
+           'biroJasaId', 'biroJasaNama',
          ])) ||
         (salahSatu(['sales']) &&
          resource.data.salesUid == request.auth.uid &&
