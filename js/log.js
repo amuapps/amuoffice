@@ -4,9 +4,9 @@
 // menampilkannya, tidak menulis apa pun ke sana.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
-  from "./db.js?v=3.10.3";
-import { bolehAkses } from "./auth.js?v=3.10.3";
-import { aman, tanggalJam } from "./ui.js?v=3.10.3";
+  from "./db.js?v=3.11.0";
+import { bolehAkses } from "./auth.js?v=3.11.0";
+import { aman, tanggalJam } from "./ui.js?v=3.11.0";
 
 // Nama aksi teknis → kalimat yang gampang dibaca. Aksi yang belum
 // ada di sini tetap tampil (pakai nama aslinya) supaya tidak ada
@@ -47,6 +47,10 @@ export const LABEL_AKSI = {
   berkas_batal_serah: "Membatalkan serah berkas (sebelum dikonfirmasi)",
   berkas_dikonfirmasi_biro: "Mengonfirmasi terima berkas",
   berkas_ditarik_kembali: "Menarik kembali berkas (sesudah dikonfirmasi)",
+  dokumen_mulai_diproses: "Mulai memproses dokumen (STNK/BPKB/Plat)",
+  dokumen_ditandai_selesai: "Menandai dokumen selesai",
+  dokumen_diserahkan_admin: "Menyerahkan dokumen jadi ke Admin",
+  dokumen_dikonfirmasi_admin: "Mengonfirmasi terima dokumen jadi",
   supplier_ditambah: "Menambah supplier",
   supplier_diubah: "Mengubah supplier",
   supplier_status_diubah: "Mengubah status supplier",

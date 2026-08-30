@@ -3,14 +3,25 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.3";
-import { VERSI } from "./config.js?v=3.10.3";
-import { aman, rupiah, kabar } from "./ui.js?v=3.10.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.3";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.0";
+import { VERSI } from "./config.js?v=3.11.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.11.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.3";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.11.0", tanggal: "Agustus 2026",
+    judul: "Tracking Dokumen Kendaraan — Tahap 3: STNK/BPKB/Plat + Nomor Polisi",
+    butir: [
+      "Setelah berkas dikonfirmasi diterima Biro Jasa, muncul bagian baru \"Dokumen Jadi (STNK/BPKB/Plat)\" — tiga status independen, bisa selesai di waktu beda-beda.",
+      "Biro Jasa: \"Mulai Proses [Dokumen]\" dan \"Tandai Selesai [Dokumen]\" per dokumen (ringan, tanpa password — cuma progres internal). Khusus STNK, menandai Selesai WAJIB isi Nomor Polisi yang terbit.",
+      "\"Serahkan Dokumen ke Admin\" — checklist, bisa pilih satu atau beberapa dokumen sekaligus kalau selesainya bersamaan (wajib password).",
+      "Admin: \"Konfirmasi Terima Dokumen\" — checklist serupa (wajib password) — begitu dikonfirmasi, BAST otomatis tercetak, mencakup SEMUA dokumen yang dikonfirmasi bersamaan dalam SATU lembar (bukan dokumen terpisah kalau memang diserahkan bareng).",
+      "Nomor Polisi ditampilkan di kartu SPK-nya di halaman Tracking Dokumen (tidak disebar ke Detail SPK/Laporan lain, sesuai permintaan).",
+    ],
+  },
   {
     versi: "3.10.3", tanggal: "Agustus 2026",
     judul: "\"Pengajuan Saya\" Dihapus dari Menu Biro Jasa (Tidak Relevan)",

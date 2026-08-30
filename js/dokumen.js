@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.10.3";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.3";
-import { aman, tanggal, kabar } from "./ui.js?v=3.10.3";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.3";
-import { muatBiro, biroAktif } from "./biro.js?v=3.10.3";
-import { cetakBastBerkas } from "./cetak.js?v=3.10.3";
-import { SHOWROOM } from "./config.js?v=3.10.3";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.3";
+  serverTimestamp, catat } from "./db.js?v=3.11.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.0";
+import { aman, tanggal, kabar } from "./ui.js?v=3.11.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.11.0";
+import { muatBiro, biroAktif } from "./biro.js?v=3.11.0";
+import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.11.0";
+import { SHOWROOM } from "./config.js?v=3.11.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.0";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -36,6 +36,11 @@ export const LABEL_DOKUMEN = {
 const WARNA_BERKAS = {
   belum_diserahkan: "batal", diserahkan: "booked",
   dikonfirmasi: "ready", ditarik_kembali: "belum",
+};
+const JENIS_DOKUMEN = [["stnk", "STNK"], ["bpkb", "BPKB"], ["plat", "Plat Nomor"]];
+const WARNA_DOKUMEN = {
+  belum: "batal", diproses: "booked", selesai: "ready",
+  diserahkan: "booked", dikonfirmasi: "ready",
 };
 
 function dataDefault(t) {
@@ -116,6 +121,17 @@ export async function halamanDokumen(wadah) {
           <dd>${tanggal(dok.berkasDitarikPada)} — ${aman(dok.berkasDitarikAlasan)}</dd></div>` : ""}
       </dl>
       <div class="aksi aksi--rapat" data-aksi-wadah="${t.id}"></div>
+      ${dok.berkasStatus === "dikonfirmasi" || dok.berkasStatus === "ditarik_kembali" ? `
+        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--garis)">
+          <p class="d-judul" style="font-size:12.5px">Dokumen Jadi (STNK / BPKB / Plat)</p>
+          <dl class="rinci">
+            ${JENIS_DOKUMEN.map(([k, label]) => `<div><dt>${label}</dt>
+              <dd><span class="tanda tanda--${WARNA_DOKUMEN[dok[`${k}Status`]] || "batal"}">
+                ${LABEL_DOKUMEN[dok[`${k}Status`]] || "Belum Dikerjakan"}</span></dd></div>`).join("")}
+            ${dok.noPolisi ? `<div><dt>No. Polisi</dt><dd class="mono">${aman(dok.noPolisi)}</dd></div>` : ""}
+          </dl>
+          <div class="aksi aksi--rapat" data-aksi-dok-wadah="${t.id}"></div>
+        </div>` : ""}
       <div data-log-wadah="${t.id}"></div>
     </article>`;
   }
@@ -162,6 +178,61 @@ export async function halamanDokumen(wadah) {
     if (btnCetak) btnCetak.addEventListener("click", () => cetakBastBerkas(t, dok));
   }
 
+  // ── Aksi tingkat DOKUMEN (STNK/BPKB/Plat) ───────────────────
+  function pasangAksiDokumen(t, dok, wadahAksiDok) {
+    const tombol = [];
+    const biroBoleh = bisaAksiBiro && dok.biroJasaId === sesi.biroJasaId;
+
+    if (biroBoleh) {
+      JENIS_DOKUMEN.forEach(([k, label]) => {
+        const status = dok[`${k}Status`] || "belum";
+        if (status === "belum") {
+          tombol.push(`<button class="tombol tombol--kecil" data-mulai="${k}">
+            Mulai Proses ${label}</button>`);
+        }
+        if (status === "diproses") {
+          tombol.push(`<button class="tombol tombol--kecil" data-selesai="${k}">
+            Tandai Selesai ${label}</button>`);
+        }
+      });
+      const adaYangSelesai = JENIS_DOKUMEN.some(([k]) => dok[`${k}Status`] === "selesai");
+      if (adaYangSelesai) {
+        tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-serahkan-dok="1">
+          Serahkan Dokumen ke Admin</button>`);
+      }
+    }
+    if (bisaAksiAdmin) {
+      const adaYangDiserahkan = JENIS_DOKUMEN.some(([k]) => dok[`${k}Status`] === "diserahkan");
+      if (adaYangDiserahkan) {
+        tombol.push(`<button class="tombol tombol--kecil tombol--isi" data-konfirmasi-dok="1">
+          Konfirmasi Terima Dokumen</button>`);
+      }
+      const adaYangDikonfirmasi = JENIS_DOKUMEN.some(([k]) => dok[`${k}Status`] === "dikonfirmasi");
+      if (adaYangDikonfirmasi) {
+        tombol.push(`<button class="tombol tombol--kecil" data-cetak-bast-dok="1">
+          Cetak BAST Dokumen</button>`);
+      }
+    }
+    wadahAksiDok.innerHTML = tombol.join("");
+
+    wadahAksiDok.querySelectorAll("[data-mulai]").forEach((b) =>
+      b.addEventListener("click", () => aksiMulaiProses(t, dok, b.dataset.mulai)));
+    wadahAksiDok.querySelectorAll("[data-selesai]").forEach((b) =>
+      b.addEventListener("click", () => aksiTandaiSelesai(t, dok, b.dataset.selesai)));
+    const btnSerahkanDok = wadahAksiDok.querySelector("[data-serahkan-dok]");
+    if (btnSerahkanDok) btnSerahkanDok.addEventListener("click", () =>
+      aksiSerahkanDokumen(t, dok, wadahAksiDok));
+    const btnKonfirmasiDok = wadahAksiDok.querySelector("[data-konfirmasi-dok]");
+    if (btnKonfirmasiDok) btnKonfirmasiDok.addEventListener("click", () =>
+      aksiKonfirmasiDokumen(t, dok, wadahAksiDok));
+    const btnCetakDok = wadahAksiDok.querySelector("[data-cetak-bast-dok]");
+    if (btnCetakDok) btnCetakDok.addEventListener("click", () => {
+      const jenisDikonfirmasi = JENIS_DOKUMEN
+        .filter(([k]) => dok[`${k}Status`] === "dikonfirmasi").map(([k]) => k);
+      cetakBastDokumenJadi(t, dok, jenisDikonfirmasi);
+    });
+  }
+
   async function gambarUlang() {
     const dataTampil = filterAktif === "semua"
       ? semuaData : semuaData.filter((x) => x.dok.berkasStatus === filterAktif);
@@ -171,6 +242,8 @@ export async function halamanDokumen(wadah) {
     dataTampil.forEach(({ t, dok }) => {
       const wadahAksi = daftarEl.querySelector(`[data-aksi-wadah="${t.id}"]`);
       if (wadahAksi) pasangAksi(t, dok, wadahAksi);
+      const wadahAksiDok = daftarEl.querySelector(`[data-aksi-dok-wadah="${t.id}"]`);
+      if (wadahAksiDok) pasangAksiDokumen(t, dok, wadahAksiDok);
       const wadahLog = daftarEl.querySelector(`[data-log-wadah="${t.id}"]`);
       if (wadahLog) {
         muatRiwayatDokumen("dokumen_kendaraan", t.id, 8).then((riw) => {
@@ -375,5 +448,164 @@ export async function halamanDokumen(wadah) {
     }
   }
 
+  // ── Aksi: Mulai Proses [Dokumen] (ringan, Biro Jasa sendiri) ──
+  async function aksiMulaiProses(t, dok, jenis) {
+    try {
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+        [`${jenis}Status`]: "diproses",
+      });
+      await catat("dokumen_mulai_diproses", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ${LABEL_JENIS(jenis)} mulai diproses`,
+      });
+      kabar(`${LABEL_JENIS(jenis)} ditandai sedang diproses.`, "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  // ── Aksi: Tandai Selesai [Dokumen] — STNK wajib isi No. Polisi ─
+  async function aksiTandaiSelesai(t, dok, jenis) {
+    let noPolisiBaru = dok.noPolisi || null;
+    if (jenis === "stnk" && !dok.noPolisi) {
+      const isian = await tanya({
+        judul: "Nomor Polisi",
+        pesan: `STNK untuk SPK ${t.spkNo} selesai — masukkan Nomor Polisi ` +
+               `yang terbit. Wajib diisi.`,
+        petunjuk: "mis. BL 1234 AB",
+      });
+      if (isian === null) return;
+      if (!isian.trim()) { kabar("Nomor Polisi wajib diisi.", "rem"); return; }
+      noPolisiBaru = isian.trim().toUpperCase();
+    }
+    try {
+      const perubahan = { [`${jenis}Status`]: "selesai" };
+      if (noPolisiBaru) perubahan.noPolisi = noPolisiBaru;
+      await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), perubahan);
+      await catat("dokumen_ditandai_selesai", {
+        koleksi: "dokumen_kendaraan", docId: t.id,
+        ringkas: `${t.spkNo} · ${LABEL_JENIS(jenis)} selesai` +
+                 (noPolisiBaru ? ` · No. Polisi: ${noPolisiBaru}` : ""),
+      });
+      kabar(`${LABEL_JENIS(jenis)} ditandai selesai.`, "netral");
+      await muat();
+    } catch (err) {
+      kabar("Gagal: " + err.message, "rem");
+    }
+  }
+
+  // ── Aksi: Serahkan Dokumen ke Admin (checklist, bisa gabung) ──
+  function aksiSerahkanDokumen(t, dok, wadahAksiDok) {
+    const bisaDipilih = JENIS_DOKUMEN.filter(([k]) => dok[`${k}Status`] === "selesai");
+    const wadahForm = document.createElement("div");
+    wadahAksiDok.insertAdjacentElement("afterend", wadahForm);
+    wadahForm.innerHTML = `<form id="form-serahkan-dok-${t.id}" class="form" style="margin-top:8px">
+      <p class="petunjuk">Pilih dokumen yang mau diserahkan ke Admin SEKARANG
+        (boleh satu, boleh sekaligus semua yang sudah Selesai):</p>
+      ${bisaDipilih.map(([k, label]) => `<label class="cek-baris">
+        <input type="checkbox" name="jd-${t.id}" value="${k}" checked> ${label}
+      </label>`).join("")}
+      <div class="aksi">
+        <button class="tombol tombol--kecil tombol--isi" type="submit">Lanjut</button>
+        <button class="tombol tombol--sunyi tombol--gelap" type="button"
+                id="batal-serahkan-dok-${t.id}">Batal</button>
+      </div>
+    </form>`;
+    wadahForm.querySelector(`#batal-serahkan-dok-${t.id}`)
+      .addEventListener("click", () => wadahForm.remove());
+    wadahForm.querySelector(`#form-serahkan-dok-${t.id}`).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dipilih = [...wadahForm.querySelectorAll(`input[name="jd-${t.id}"]:checked`)]
+        .map((el) => el.value);
+      if (!dipilih.length) { kabar("Pilih minimal satu dokumen.", "rem"); return; }
+      const password = await tanya({
+        judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+        petunjuk: "Password", tipeIsian: "password",
+      });
+      if (password === null) return;
+      try {
+        await konfirmasiPassword(password);
+        const perubahan = {};
+        dipilih.forEach((k) => {
+          perubahan[`${k}Status`] = "diserahkan";
+          perubahan[`${k}DiserahkanPada`] = serverTimestamp();
+          perubahan[`${k}DiserahkanOleh`] = sesi.uid;
+          perubahan[`${k}DiserahkanOlehNama`] = sesi.nama;
+        });
+        await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), perubahan);
+        await catat("dokumen_diserahkan_admin", {
+          koleksi: "dokumen_kendaraan", docId: t.id,
+          ringkas: `${t.spkNo} · ${dipilih.map(LABEL_JENIS).join(", ")} diserahkan ke Admin`,
+        });
+        wadahForm.remove();
+        kabar("Dokumen ditandai diserahkan. Menunggu konfirmasi Admin.", "netral");
+        await muat();
+      } catch (err) {
+        kabar("Gagal: " + (["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
+          ? "Password salah." : err.message), "rem");
+      }
+    });
+  }
+
+  // ── Aksi: Konfirmasi Terima Dokumen (Admin, checklist) ───────
+  function aksiKonfirmasiDokumen(t, dok, wadahAksiDok) {
+    const bisaDipilih = JENIS_DOKUMEN.filter(([k]) => dok[`${k}Status`] === "diserahkan");
+    const wadahForm = document.createElement("div");
+    wadahAksiDok.insertAdjacentElement("afterend", wadahForm);
+    wadahForm.innerHTML = `<form id="form-konfirmasi-dok-${t.id}" class="form" style="margin-top:8px">
+      <p class="petunjuk">Pilih dokumen yang sudah benar-benar diterima FISIKNYA:</p>
+      ${bisaDipilih.map(([k, label]) => `<label class="cek-baris">
+        <input type="checkbox" name="kd-${t.id}" value="${k}" checked> ${label}
+      </label>`).join("")}
+      <div class="aksi">
+        <button class="tombol tombol--kecil tombol--isi" type="submit">Lanjut</button>
+        <button class="tombol tombol--sunyi tombol--gelap" type="button"
+                id="batal-konfirmasi-dok-${t.id}">Batal</button>
+      </div>
+    </form>`;
+    wadahForm.querySelector(`#batal-konfirmasi-dok-${t.id}`)
+      .addEventListener("click", () => wadahForm.remove());
+    wadahForm.querySelector(`#form-konfirmasi-dok-${t.id}`).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dipilih = [...wadahForm.querySelectorAll(`input[name="kd-${t.id}"]:checked`)]
+        .map((el) => el.value);
+      if (!dipilih.length) { kabar("Pilih minimal satu dokumen.", "rem"); return; }
+      const password = await tanya({
+        judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+        petunjuk: "Password", tipeIsian: "password",
+      });
+      if (password === null) return;
+      try {
+        await konfirmasiPassword(password);
+        const perubahan = {};
+        const dokTerbaru = { ...dok };
+        dipilih.forEach((k) => {
+          perubahan[`${k}Status`] = "dikonfirmasi";
+          perubahan[`${k}DikonfirmasiPada`] = serverTimestamp();
+          perubahan[`${k}DikonfirmasiOleh`] = sesi.uid;
+          perubahan[`${k}DikonfirmasiOlehNama`] = sesi.nama;
+          dokTerbaru[`${k}Status`] = "dikonfirmasi";
+          dokTerbaru[`${k}DikonfirmasiPada`] = new Date();
+        });
+        await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), perubahan);
+        await catat("dokumen_dikonfirmasi_admin", {
+          koleksi: "dokumen_kendaraan", docId: t.id,
+          ringkas: `${t.spkNo} · ${dipilih.map(LABEL_JENIS).join(", ")} dikonfirmasi diterima`,
+        });
+        wadahForm.remove();
+        kabar("Konfirmasi tersimpan. Mencetak BAST…", "netral");
+        await cetakBastDokumenJadi(t, dokTerbaru, dipilih);
+        await muat();
+      } catch (err) {
+        kabar("Gagal: " + err.message, "rem");
+      }
+    });
+  }
+
   await muat();
+}
+
+function LABEL_JENIS(jenis) {
+  return { stnk: "STNK", bpkb: "BPKB", plat: "Plat Nomor" }[jenis] || jenis;
 }
