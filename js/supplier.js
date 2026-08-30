@@ -6,9 +6,9 @@
 import {
   dbase, collection, doc, getDocs, setDoc, updateDoc, query, orderBy,
   serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.9.2";
-import { bolehAkses } from "./auth.js?v=3.9.2";
-import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.9.2";
+} from "./db.js?v=3.9.3";
+import { bolehAkses } from "./auth.js?v=3.9.3";
+import { aman, kabar, pasangHurufBesar } from "./ui.js?v=3.9.3";
 
 let cache = [];
 

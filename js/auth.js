@@ -6,9 +6,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 import { auth, dbase, doc, getDoc, catat,
-  EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "./db.js?v=3.9.2";
-import { PERAN, boleh } from "./roles.js?v=3.9.2";
-import { kabar } from "./ui.js?v=3.9.2";
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail,
+  updateDoc } from "./db.js?v=3.9.3";
+import { PERAN, boleh } from "./roles.js?v=3.9.3";
+import { kabar } from "./ui.js?v=3.9.3";
 
 export let sesi = null; // { uid, email, nama, peran, aktif }
 
@@ -133,6 +134,19 @@ export async function ubahPasswordSendiri(passwordLama, passwordBaru) {
   await updatePassword(auth.currentUser, passwordBaru);
 }
 
+// Sama pola-nya dengan ubahPasswordSendiri — dipakai siapa saja yang
+// login (termasuk Biro Jasa) buat ganti email login sendiri kalau
+// salah ketik/mau diganti. Wajib konfirmasi password dulu (Firebase
+// juga mewajibkan ini kalau sesinya sudah agak lama). SEKALIGUS
+// memperbarui salinan email di Firestore (koleksi "users") — supaya
+// Authentication & tampilan aplikasi selalu konsisten, tidak seperti
+// kalau diubah manual cuma dari Firebase Console.
+export async function ubahEmailSendiri(password, emailBaru) {
+  await konfirmasiPassword(password); // melempar kalau password salah
+  await updateEmail(auth.currentUser, emailBaru.trim());
+  await updateDoc(doc(dbase, "users", auth.currentUser.uid), { email: emailBaru.trim() });
+}
+
 // Dipakai dari layar login (belum login sama sekali) — karyawan
 // yang sudah terdaftar Owner bisa minta link reset sendiri, masuk
 // ke emailnya sendiri (lewat layanan email Firebase), tanpa perlu
@@ -147,6 +161,12 @@ export function pesanTolak(e) {
       kode === "auth/wrong-password" ||
       kode === "auth/user-not-found") {
     return "Email atau kata sandi tidak cocok.";
+  }
+  if (kode === "auth/email-already-in-use") {
+    return "Email itu sudah dipakai akun lain.";
+  }
+  if (kode === "auth/invalid-email") {
+    return "Format email tidak valid.";
   }
   if (kode === "auth/too-many-requests") {
     return "Terlalu banyak percobaan. Tunggu beberapa menit.";

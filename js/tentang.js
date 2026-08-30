@@ -3,14 +3,23 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.2";
-import { VERSI } from "./config.js?v=3.9.2";
-import { aman, rupiah, kabar } from "./ui.js?v=3.9.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.2";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.9.3";
+import { VERSI } from "./config.js?v=3.9.3";
+import { aman, rupiah, kabar } from "./ui.js?v=3.9.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.9.3";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.2";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.9.3";
 
 const RIWAYAT = [
+  {
+    versi: "3.9.3", tanggal: "Agustus 2026",
+    judul: "Ubah Email Login Sendiri (Berlaku untuk Semua Peran, Termasuk Biro Jasa)",
+    butir: [
+      "Tombol \"Ubah Email\" ditambahkan di sebelah \"Ubah Sandi\" — siapa pun yang login (Owner, Admin, Sales, Biro Jasa) bisa ganti email login sendiri, wajib konfirmasi password saat ini dulu. Otomatis menyinkronkan salinan email di data aplikasi juga, jadi selalu konsisten dengan email login sebenarnya.",
+      "Lupa password: sudah ada tombol \"Lupa password?\" di layar Masuk sejak awal, berlaku juga untuk Biro Jasa — kirim link reset ke email sendiri, tidak perlu Owner.",
+      "Lupa email: tidak ada cara reset otomatis (wajar, tidak ada identitas lain buat dicari) — Owner bisa cek email Biro Jasa mana pun kapan saja di halaman Master Biro Jasa, bagian \"Akses Login Sistem\".",
+    ],
+  },
   {
     versi: "3.9.2", tanggal: "Agustus 2026",
     judul: "Akun Biro Jasa Lama Otomatis Disaring dari Data Karyawan",

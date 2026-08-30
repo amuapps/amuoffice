@@ -8,19 +8,19 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.9.2";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.9.3";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword } from "./auth.js?v=3.9.2";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.9.2";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.9.2";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.9.3";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel } from "./roles.js?v=3.9.3";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.9.3";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.9.2";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.9.2";
-import { konfirmasi, tanya } from "./dialog.js?v=3.9.2";
-import { muatLabelKustom } from "./label.js?v=3.9.2";
-import { muatAksesKustom } from "./akses.js?v=3.9.2";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.9.2";
-import { halamanSegera } from "./segera.js?v=3.9.2";
+  from "./router.js?v=3.9.3";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.9.3";
+import { konfirmasi, tanya } from "./dialog.js?v=3.9.3";
+import { muatLabelKustom } from "./label.js?v=3.9.3";
+import { muatAksesKustom } from "./akses.js?v=3.9.3";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.9.3";
+import { halamanSegera } from "./segera.js?v=3.9.3";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
@@ -477,6 +477,46 @@ el("tombol-sandi").addEventListener("click", async () => {
       .includes(err.code);
     kabar(salahSandiLama ? "Password saat ini yang Anda masukkan salah."
       : "Gagal mengubah password: " + err.message, "rem");
+  }
+});
+
+// Ganti email login sendiri — sama pola-nya dengan Ubah Sandi (dialog
+// berurutan, tidak perlu komponen baru). Berlaku buat siapa saja
+// yang login, termasuk Biro Jasa yang mau perbaiki salah ketik email
+// sendiri tanpa perlu minta tolong Owner.
+el("tombol-email").addEventListener("click", async () => {
+  const password = await tanya({
+    judul: "Ubah Email",
+    pesan: "Masukkan password Anda saat ini untuk konfirmasi.",
+    petunjuk: "Password saat ini", tipeIsian: "password",
+  });
+  if (password === null) return;
+
+  const emailBaru = await tanya({
+    judul: "Email Baru",
+    pesan: `Email login saat ini: ${sesi ? sesi.email || "-" : "-"}. ` +
+           `Masukkan email baru.`,
+    petunjuk: "Email baru",
+  });
+  if (emailBaru === null) return;
+  if (!emailBaru.includes("@") || !emailBaru.includes(".")) {
+    kabar("Format email tidak valid.", "rem");
+    return;
+  }
+
+  const lanjut = await konfirmasi({
+    judul: "Konfirmasi Ubah Email",
+    pesan: `Email login akan diubah ke ${emailBaru.trim()}. Ingat baik-baik ` +
+           `email baru ini — dipakai untuk masuk berikutnya.`,
+    oke: "Ubah Email",
+  });
+  if (!lanjut) return;
+
+  try {
+    await ubahEmailSendiri(password, emailBaru);
+    kabar("Email berhasil diubah. Gunakan email baru untuk masuk berikutnya.", "netral");
+  } catch (err) {
+    kabar(pesanTolak(err), "rem");
   }
 });
 

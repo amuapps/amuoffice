@@ -10,10 +10,11 @@ import {
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword }
+import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePassword,
+  updateEmail }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { FIREBASE, MODE_UJI } from "./config.js?v=3.9.2";
+import { FIREBASE, MODE_UJI } from "./config.js?v=3.9.3";
 
 export const app = initializeApp(FIREBASE);
 export const auth = getAuth(app);
@@ -30,7 +31,7 @@ export {
   collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, runTransaction,
   serverTimestamp, writeBatch, query, where, orderBy, limit, onSnapshot,
   getDocs, increment, EmailAuthProvider, reauthenticateWithCredential,
-  updatePassword,
+  updatePassword, updateEmail,
 };
 
 // ── Status koneksi ────────────────────────────────────────────
