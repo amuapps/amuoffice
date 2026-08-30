@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.0";
-import { VERSI } from "./config.js?v=3.10.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.10.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.10.1";
+import { VERSI } from "./config.js?v=3.10.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.10.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.10.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.10.1", tanggal: "Agustus 2026",
+    judul: "PERBAIKAN: Biro Jasa Gagal Buka Tracking Dokumen + Dropdown Pilih Biro Jasa",
+    butir: [
+      "PERBAIKAN BUG PENTING: Biro Jasa mendapat error \"Missing or insufficient permissions\" saat membuka Tracking Dokumen — ternyata Firestore MENOLAK TOTAL query daftar SPK karena rule sebelumnya butuh \"nyambung\" ke koleksi lain per-baris (pola yang tidak didukung Firestore untuk query daftar). Diperbaiki dengan menyimpan biroJasaId langsung di dokumen SPK-nya juga (didobel dengan dokumen_kendaraan), supaya query-nya bisa pakai where() yang valid.",
+      "\"Serahkan ke Biro Jasa\" sekarang pakai dropdown pilihan beneran (bukan ketik nama manual) — lebih cepat dan tidak mungkin salah ketik/salah cocok nama.",
+    ],
+  },
   {
     versi: "3.10.0", tanggal: "Agustus 2026",
     judul: "Tracking Dokumen Kendaraan — Tahap 2: Serah Terima Berkas Awal",

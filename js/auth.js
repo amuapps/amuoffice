@@ -7,9 +7,9 @@ import {
 
 import { auth, dbase, doc, getDoc, catat,
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail,
-  updateDoc } from "./db.js?v=3.10.0";
-import { PERAN, boleh } from "./roles.js?v=3.10.0";
-import { kabar } from "./ui.js?v=3.10.0";
+  updateDoc } from "./db.js?v=3.10.1";
+import { PERAN, boleh } from "./roles.js?v=3.10.1";
+import { kabar } from "./ui.js?v=3.10.1";
 
 export let sesi = null; // { uid, email, nama, peran, aktif }
 

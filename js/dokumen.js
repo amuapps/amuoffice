@@ -10,15 +10,15 @@
 // Satu dokumen tracking per SPK, ID-nya SAMA PERSIS dengan ID
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
-import { dbase, collection, doc, getDocs, setDoc, updateDoc,
-  serverTimestamp, catat } from "./db.js?v=3.10.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.0";
-import { aman, tanggal, kabar } from "./ui.js?v=3.10.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.10.0";
-import { muatBiro, biroAktif } from "./biro.js?v=3.10.0";
-import { cetakBastBerkas } from "./cetak.js?v=3.10.0";
-import { SHOWROOM } from "./config.js?v=3.10.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.0";
+import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
+  serverTimestamp, catat } from "./db.js?v=3.10.1";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.10.1";
+import { aman, tanggal, kabar } from "./ui.js?v=3.10.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.10.1";
+import { muatBiro, biroAktif } from "./biro.js?v=3.10.1";
+import { cetakBastBerkas } from "./cetak.js?v=3.10.1";
+import { SHOWROOM } from "./config.js?v=3.10.1";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.10.1";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -52,10 +52,16 @@ function dataDefault(t) {
 // Dipakai dua kali (Owner/Admin lihat semua yang boleh, Biro Jasa
 // cuma lihat yang ditugaskan ke mereka) — pembedanya sudah
 // ditegakkan di firestore.rules, jadi query di sini SENGAJA tidak
-// pakai where() tambahan, Firestore sendiri yang menyaring per baris
-// sesuai peran yang login.
+// pakai where() tambahan buat Owner/Admin (mereka boleh lihat semua),
+// TAPI Biro Jasa WAJIB pakai where("biroJasaId","==",...) — bukan
+// cuma soal privasi, tapi Firestore memang MENOLAK TOTAL query
+// daftar tanpa where() kalau rule-nya bergantung pada field spesifik
+// begini (lihat catatan panjang di firestore.rules).
 async function muatDaftar() {
-  const snapT = await getDocs(collection(dbase, "transaksi"));
+  const qTransaksi = sesi.peran === "biro_jasa"
+    ? query(collection(dbase, "transaksi"), where("biroJasaId", "==", sesi.biroJasaId))
+    : collection(dbase, "transaksi");
+  const snapT = await getDocs(qTransaksi);
   const semuaTransaksi = snapT.docs.map((d) => ({ id: d.id, ...d.data() }))
     .filter((t) => t.status !== "batal")
     .sort((a, b) => (b.spkNo || "").localeCompare(a.spkNo || ""));
@@ -143,7 +149,7 @@ export async function halamanDokumen(wadah) {
     wadahAksi.innerHTML = tombol.join("");
 
     const btnSerahkan = wadahAksi.querySelector(`[data-serahkan]`);
-    if (btnSerahkan) btnSerahkan.addEventListener("click", () => aksiSerahkan(t, dok));
+    if (btnSerahkan) btnSerahkan.addEventListener("click", () => aksiSerahkan(t, dok, wadahAksi));
     const btnBatalkan = wadahAksi.querySelector(`[data-batalkan]`);
     if (btnBatalkan) btnBatalkan.addEventListener("click", () => aksiBatalkan(t, dok));
     const btnKonfirmasi = wadahAksi.querySelector(`[data-konfirmasi]`);
@@ -188,57 +194,78 @@ export async function halamanDokumen(wadah) {
   });
 
   // ── Aksi: Serahkan ke Biro Jasa ─────────────────────────────
-  async function aksiSerahkan(t, dok) {
+  // Pilih Biro Jasa lewat dropdown beneran (bukan ketik nama) —
+  // form kecil disisipkan langsung di kartunya, mirip pola "Buat
+  // Akses Login" di halaman Master Biro Jasa.
+  function aksiSerahkan(t, dok, wadahAksi) {
     const daftarBiro = biroAktif();
     if (!daftarBiro.length) {
       kabar("Belum ada Biro Jasa aktif di Master Biro Jasa.", "rem");
       return;
     }
-    const namaBiro = await tanya({
-      judul: "Serahkan Berkas ke Biro Jasa",
-      pesan: `SPK ${t.spkNo} — ${t.pembeli?.nama || "-"}. Ketik nama Biro ` +
-             `Jasa persis seperti di Master Biro Jasa:\n` +
-             daftarBiro.map((b) => `• ${b.nama}`).join("\n"),
-      petunjuk: daftarBiro[0].nama,
-    });
-    if (namaBiro === null) return;
-    const biro = daftarBiro.find((b) =>
-      b.nama.trim().toLowerCase() === namaBiro.trim().toLowerCase());
-    if (!biro) {
-      kabar("Nama Biro Jasa tidak cocok dengan Master Biro Jasa.", "rem");
-      return;
-    }
-    const lanjut = await konfirmasi({
-      judul: "Konfirmasi Serah Berkas",
-      pesan: `Menyerahkan berkas (KTP + Faktur) SPK ${t.spkNo} — ` +
-             `${t.pembeli?.nama || "-"} ke Biro Jasa ${biro.nama}. Yakin?`,
-      oke: "Ya, Serahkan",
-    });
-    if (!lanjut) return;
-    const password = await tanya({
-      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
-      petunjuk: "Password", tipeIsian: "password",
-    });
-    if (password === null) return;
-    try {
-      await konfirmasiPassword(password);
-      await setDoc(doc(dbase, "dokumen_kendaraan", t.id), {
-        ...dataDefault(t),
-        biroJasaId: biro.id, biroJasaNama: biro.nama,
-        berkasStatus: "diserahkan",
-        berkasDiserahkanPada: serverTimestamp(),
-        berkasDiserahkanOleh: sesi.uid, berkasDiserahkanOlehNama: sesi.nama,
-      }, { merge: true });
-      await catat("berkas_diserahkan_biro", {
-        koleksi: "dokumen_kendaraan", docId: t.id,
-        ringkas: `${t.spkNo} · diserahkan ke ${biro.nama}`,
+    const wadahForm = document.createElement("div");
+    wadahAksi.insertAdjacentElement("afterend", wadahForm);
+    wadahForm.innerHTML = `<form id="form-serahkan-${t.id}" class="form" style="margin-top:8px">
+      <p class="petunjuk">Serahkan berkas (KTP + Faktur) SPK <b>${aman(t.spkNo)}</b>
+        — ${aman(t.pembeli?.nama || "-")} ke Biro Jasa mana?</p>
+      <label class="label label--gelap" for="sb-biro-${t.id}">Biro Jasa</label>
+      <select class="isian isian--terang" id="sb-biro-${t.id}">
+        <option value="">— pilih —</option>
+        ${daftarBiro.map((b) => `<option value="${b.id}">${aman(b.nama)}</option>`).join("")}
+      </select>
+      <div class="aksi">
+        <button class="tombol tombol--kecil tombol--isi" type="submit">Lanjut</button>
+        <button class="tombol tombol--sunyi tombol--gelap" type="button"
+                id="batal-serahkan-${t.id}">Batal</button>
+      </div>
+    </form>`;
+    wadahForm.querySelector(`#batal-serahkan-${t.id}`)
+      .addEventListener("click", () => wadahForm.remove());
+    wadahForm.querySelector(`#form-serahkan-${t.id}`).addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const idBiro = wadahForm.querySelector(`#sb-biro-${t.id}`).value;
+      if (!idBiro) { kabar("Pilih Biro Jasa dulu.", "rem"); return; }
+      const biro = daftarBiro.find((b) => b.id === idBiro);
+
+      const lanjut = await konfirmasi({
+        judul: "Konfirmasi Serah Berkas",
+        pesan: `Menyerahkan berkas (KTP + Faktur) SPK ${t.spkNo} — ` +
+               `${t.pembeli?.nama || "-"} ke Biro Jasa ${biro.nama}. Yakin?`,
+        oke: "Ya, Serahkan",
       });
-      kabar("Berkas ditandai diserahkan. Menunggu konfirmasi Biro Jasa.", "netral");
-      await muat();
-    } catch (err) {
-      kabar("Gagal: " + (["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
-        ? "Password salah." : err.message), "rem");
-    }
+      if (!lanjut) return;
+      const password = await tanya({
+        judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+        petunjuk: "Password", tipeIsian: "password",
+      });
+      if (password === null) return;
+      try {
+        await konfirmasiPassword(password);
+        await setDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+          ...dataDefault(t),
+          biroJasaId: biro.id, biroJasaNama: biro.nama,
+          berkasStatus: "diserahkan",
+          berkasDiserahkanPada: serverTimestamp(),
+          berkasDiserahkanOleh: sesi.uid, berkasDiserahkanOlehNama: sesi.nama,
+        }, { merge: true });
+        // biroJasaId JUGA disimpan langsung di dokumen transaksi-nya
+        // (didobel, bukan cuma di dokumen_kendaraan) — supaya query
+        // daftar SPK Biro Jasa bisa pakai where() yang valid, lihat
+        // catatan di firestore.rules.
+        await updateDoc(doc(dbase, "transaksi", t.id), {
+          biroJasaId: biro.id, biroJasaNama: biro.nama,
+        });
+        await catat("berkas_diserahkan_biro", {
+          koleksi: "dokumen_kendaraan", docId: t.id,
+          ringkas: `${t.spkNo} · diserahkan ke ${biro.nama}`,
+        });
+        kabar("Berkas ditandai diserahkan. Menunggu konfirmasi Biro Jasa.", "netral");
+        await muat();
+      } catch (err) {
+        kabar("Gagal: " + (["auth/wrong-password", "auth/invalid-credential"].includes(err.code)
+          ? "Password salah." : err.message), "rem");
+      }
+    });
   }
 
   // ── Aksi: Batalkan (sebelum dikonfirmasi Biro Jasa) ─────────
@@ -260,6 +287,9 @@ export async function halamanDokumen(wadah) {
       await konfirmasiPassword(password);
       await updateDoc(doc(dbase, "dokumen_kendaraan", t.id), {
         berkasStatus: "belum_diserahkan",
+        biroJasaId: null, biroJasaNama: null,
+      });
+      await updateDoc(doc(dbase, "transaksi", t.id), {
         biroJasaId: null, biroJasaNama: null,
       });
       await catat("berkas_batal_serah", {
