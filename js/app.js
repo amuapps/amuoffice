@@ -8,19 +8,20 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.11.5";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.12.0";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.11.5";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.11.5";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.11.5";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.12.0";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.12.0";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.12.0";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.11.5";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.11.5";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
-import { muatLabelKustom } from "./label.js?v=3.11.5";
-import { muatAksesKustom } from "./akses.js?v=3.11.5";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.11.5";
-import { halamanSegera } from "./segera.js?v=3.11.5";
+  from "./router.js?v=3.12.0";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.12.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
+import { muatLabelKustom } from "./label.js?v=3.12.0";
+import { muatAksesKustom } from "./akses.js?v=3.12.0";
+import { muatBatasDiskon } from "./roles.js?v=3.12.0";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.12.0";
+import { halamanSegera } from "./segera.js?v=3.12.0";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
@@ -32,7 +33,7 @@ import { halamanSegera } from "./segera.js?v=3.11.5";
 // tetap cepat) — aplikasi jadi jauh lebih ringan waktu pertama kali
 // dibuka/masuk.
 async function muatHalaman(modul, nama) {
-  const m = await import(`./${modul}.js?v=3.8.0`);
+  const m = await import(`./${modul}.js?v=3.12.0`);
   return m[nama];
 }
 
@@ -593,6 +594,7 @@ pantauSesi(
     el("aplikasi").hidden = false;
     await muatLabelKustom(); // sekali per sesi, biar sidebar langsung benar
     await muatAksesKustom(); // sekali per sesi, biar sidebar ikuti Panel Akses
+    await muatBatasDiskon(); // batas diskon menyeluruh yang diinput Owner
     pasangLencana(el("lencana-notif"));
     gambarPanel(profil);
     gambarNavigasi(profil);

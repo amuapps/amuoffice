@@ -11,30 +11,71 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.11.5";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.11.5";
-import { batasDiskon, PERAN } from "./roles.js?v=3.11.5";
-import { DP_MINIMUM } from "./config.js?v=3.11.5";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.11.5";
+} from "./db.js?v=3.12.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.12.0";
+import { batasDiskon, muatBatasDiskon, PERAN } from "./roles.js?v=3.12.0";
+import { DP_MINIMUM } from "./config.js?v=3.12.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.12.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.11.5";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.12.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.11.5";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.11.5";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.11.5";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.11.5";
-import { muatAgen, agenAktif } from "./agen.js?v=3.11.5";
+         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.12.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.12.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.12.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.12.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.12.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
-  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.11.5";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.11.5";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.11.5";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.11.5";
+  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.12.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.12.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.12.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.12.0";
 
-function opsiTipe(daftarTipe) {
-  return daftarTipe.map((t) =>
-    `<option value="${t.id}">${aman(t.merek)} ${aman(t.tipe)} ${
-      aman(t.varian || "")}</option>`).join("");
+// Master Tipe Motor bisa berisi beberapa dokumen dengan nama yang
+// SAMA (mis. satu tipe diinput ulang per warna/tahun/harga). Di form
+// SPK semuanya DIGABUNG jadi satu pilihan per Merek+Tipe+Varian,
+// supaya dropdown tidak dipenuhi nama kembar. Unit Ready dari semua
+// dokumen tipe dalam satu grup langsung ditampilkan bareng (warna &
+// no. rangka), dan tipeId/harga OTR yang tersimpan di SPK tetap
+// mengikuti unit yang dicentang (atau warna Indent yang dipilih).
+function kunciGrupTipe(t) {
+  return [t.merek, t.tipe, t.varian]
+    .map((x) => String(x || "").trim().toUpperCase().replace(/\s+/g, " "))
+    .join("|");
+}
+
+function gabungTipe(daftarTipe, daftarUnitReady) {
+  const peta = new Map();
+  daftarTipe.forEach((t) => {
+    const k = kunciGrupTipe(t);
+    if (!peta.has(k)) {
+      peta.set(k, {
+        kunci: k,
+        nama: `${t.merek || ""} ${t.tipe || ""} ${t.varian || ""}`.replace(/\s+/g, " ").trim(),
+        tipe: [],
+      });
+    }
+    peta.get(k).tipe.push(t);
+  });
+  return [...peta.values()].map((g) => {
+    const ids = new Set(g.tipe.map((t) => t.id));
+    const warna = [];
+    g.tipe.forEach((t) => (t.warna || []).forEach((w) => {
+      if (!warna.some((x) => x.toUpperCase() === String(w).toUpperCase())) warna.push(w);
+    }));
+    return {
+      ...g,
+      ids,
+      warna,
+      jumlahReady: daftarUnitReady.filter((u) => ids.has(u.tipeId)).length,
+    };
+  }).sort((a, b) => a.nama.localeCompare(b.nama));
+}
+
+function opsiTipe(grupTipe) {
+  return grupTipe.map((g, i) =>
+    `<option value="${i}">${aman(g.nama)}${
+      g.jumlahReady ? ` — ${g.jumlahReady} unit ready` : " — indent"}</option>`).join("");
 }
 
 function panelCustomer(saranKecamatan, saranKota) {
@@ -110,11 +151,11 @@ function panelInternal(daftarAgen, daftarSales) {
   </div>`;
 }
 
-function panelPayment(daftarTipe, daftarLeasing, daftarRekening) {
+function panelPayment(grupTipe, daftarLeasing, daftarRekening) {
   return `<div class="tab-panel" data-panel="payment" hidden>
     <label class="label label--gelap" for="s-tipe">Tipe motor</label>
     <select class="isian isian--terang" id="s-tipe">
-      <option value="">— pilih tipe —</option>${opsiTipe(daftarTipe)}
+      <option value="">— pilih tipe —</option>${opsiTipe(grupTipe)}
     </select>
 
     <p class="petunjuk" id="cek-stok">&nbsp;</p>
@@ -209,6 +250,9 @@ export async function halamanSpk(wadah) {
         muatTipe(), muatLeasing(), muatRekening(),
         muatSaranKecamatan(), muatSaranKota(), muatAgen(),
         muatSemuaUnitReadyRingkas(),
+        // Muat ulang tiap buka form, supaya perubahan batas diskon
+        // dari Owner langsung berlaku tanpa perlu login ulang.
+        muatBatasDiskon(),
       ]);
     if (sesi && sesi.peran === "owner") {
       // SEMUA karyawan (Admin, Sales, Kasir, dst — bukan cuma Sales)
@@ -218,7 +262,10 @@ export async function halamanSpk(wadah) {
       const snapKaryawan = await getDocs(collection(dbase, "users"));
       daftarSales = snapKaryawan.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((u) => u.aktif !== false && u.peran !== "owner")
+        // Biro Jasa = pihak eksternal (bukan karyawan penjual), jadi
+        // tidak ditawarkan sebagai "atas nama karyawan".
+        .filter((u) => u.aktif !== false && u.peran !== "owner" &&
+          u.peran !== "biro_jasa")
         .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
     }
   } catch (err) {
@@ -235,6 +282,7 @@ export async function halamanSpk(wadah) {
   const leasingPilihan = leasingAktif().length ? leasingAktif() : daftarLeasing;
   const rekeningPilihan = rekeningAktif().length ? rekeningAktif() : daftarRekening;
   const agenPilihan = agenAktif().length ? agenAktif() : daftarAgen;
+  const grupTipe = gabungTipe(daftarTipe, daftarUnitReady);
   const tanggalHariIni = new Date().toLocaleDateString("id-ID", {
     day: "numeric", month: "long", year: "numeric",
   });
@@ -256,7 +304,7 @@ export async function halamanSpk(wadah) {
     <form id="form-spk" class="form">
       ${panelCustomer(saranKecamatan, saranKota)}
       ${panelInternal(agenPilihan, daftarSales)}
-      ${panelPayment(daftarTipe, leasingPilihan, rekeningPilihan)}
+      ${panelPayment(grupTipe, leasingPilihan, rekeningPilihan)}
       <div class="aksi">
         <button class="tombol tombol--utama" type="submit">Simpan SPK</button>
       </div>
@@ -299,73 +347,143 @@ export async function halamanSpk(wadah) {
   const wadahTabelUnit = wadah.querySelector("#wadah-tabel-unit");
   const wadahWarnaManual = wadah.querySelector("#wadah-warna-manual");
   let unitDipilihId = null; // diisi dari centang tabel, atau null kalau Indent
+  // tipeId SEBENARNYA yang disimpan ke SPK. Karena dropdown berisi
+  // GRUP tipe (lihat gabungTipe), tipeId ditentukan dari unit yang
+  // dicentang, atau — kalau Indent — dari dokumen tipe dalam grup
+  // yang punya warna terpilih.
+  let tipeIdTerpilih = "";
+  let hargaOtrTerpilih = 0;
+  const warnaManualEl = wadah.querySelector("#s-warna");
 
-  function tabelPilihUnit(daftarUnit) {
+  function grupTerpilih() {
+    return pilihTipe.value === "" ? null : grupTipe[Number(pilihTipe.value)] || null;
+  }
+
+  function aturTipe(tipeId) {
+    tipeIdTerpilih = tipeId || "";
+    const t = tipeId ? tipeDari(tipeId) : null;
+    hargaOtrTerpilih = t ? (t.hargaOtr || 0) : 0;
+    otrEl.value = rupiah(hargaOtrTerpilih);
+    perbaruiTagihanLeasing();
+    perbaruiTransferOtomatis();
+  }
+
+  function tabelPilihUnit(daftarUnit, hargaBeda) {
     return `<div style="overflow-x:auto;margin:8px 0">
       <table class="tabel">
         <thead><tr>
-          <th></th><th>No.</th><th>Rangka</th><th>Mesin</th>
-          <th>Warna</th><th>Tahun</th>
+          <th></th><th>No.</th><th>Warna</th><th>No. Rangka</th><th>No. Mesin</th>
+          <th>Tahun</th>${hargaBeda ? "<th>Harga OTR</th>" : ""}
         </tr></thead>
         <tbody>
-          ${daftarUnit.map((u, i) => `<tr>
+          ${daftarUnit.map((u, i) => `<tr data-warna="${aman(String(u.warna || "").toUpperCase())}">
             <td><input type="radio" name="s-pilih-unit" value="${u.id}"
                   id="unit-${u.id}" ${i === 0 ? "checked" : ""}></td>
             <td>${i + 1}</td>
-            <td class="mono"><label for="unit-${u.id}">${aman(u.noRangka)}</label></td>
-            <td class="mono">${aman(u.noMesin)}</td>
-            <td>${aman(u.warna)}</td>
+            <td><label for="unit-${u.id}"><b>${aman(u.warna || "-")}</b></label></td>
+            <td class="mono"><label for="unit-${u.id}">${aman(u.noRangka || "-")}</label></td>
+            <td class="mono">${aman(u.noMesin || "-")}</td>
             <td>${aman(u.tahun || "-")}</td>
+            ${hargaBeda ? `<td>${rupiah((tipeDari(u.tipeId) || {}).hargaOtr || 0)}</td>` : ""}
           </tr>`).join("")}
         </tbody>
       </table>
     </div>`;
   }
 
-  async function tampilkanUnitUntukTipe(tipeId) {
+  function tampilkanUnitUntukGrup(g) {
     wadahTabelUnit.innerHTML = "";
     unitDipilihId = null;
-    if (!tipeId) {
+    if (!g) {
       wadahWarnaManual.hidden = true;
       cekStokEl.textContent = "";
+      aturTipe("");
       return;
     }
-    cekStokEl.textContent = "Mengecek stok…";
-    const daftarUnit = daftarUnitReady.filter((u) => u.tipeId === tipeId);
+    const daftarUnit = daftarUnitReady
+      .filter((u) => g.ids.has(u.tipeId))
+      .sort((a, b) =>
+        String(a.warna || "").localeCompare(String(b.warna || "")) ||
+        (a.tglMasuk?.seconds || 0) - (b.tglMasuk?.seconds || 0));
 
     if (!daftarUnit.length) {
-      // Tidak ada stok Ready sama sekali — biarkan pilih Warna manual,
-      // SPK-nya nanti otomatis berstatus Indent.
+      // Tidak ada stok Ready sama sekali — biarkan pilih Warna manual
+      // (gabungan warna dari semua dokumen tipe di grup ini), SPK-nya
+      // nanti otomatis berstatus Indent.
       wadahWarnaManual.hidden = false;
-      const t = tipeDari(tipeId);
-      wadah.querySelector("#s-warna").innerHTML =
+      warnaManualEl.innerHTML =
         `<option value="">— pilih warna —</option>` +
-        ((t && t.warna) || []).map((w) =>
-          `<option value="${aman(w)}">${aman(w)}</option>`).join("");
+        g.warna.map((w) => `<option value="${aman(w)}">${aman(w)}</option>`).join("");
       cekStokEl.innerHTML = `<span style="color:var(--kuning)">Stok kosong — pilih warna
         yang diinginkan, SPK ini akan otomatis berstatus Indent.</span>`;
+      aturTipe(g.tipe[0].id);
       return;
     }
 
-    // Ada stok — tampilkan tabel, sembunyikan pilihan warna manual
-    // (warnanya otomatis ikut baris yang dicentang).
+    // Ada stok — langsung tampilkan warna & no. rangka yang tersedia.
+    // Ringkasan per warna jadi tombol saring cepat.
     wadahWarnaManual.hidden = true;
+    const perWarna = new Map();
+    daftarUnit.forEach((u) => {
+      const w = u.warna || "-";
+      perWarna.set(w, (perWarna.get(w) || 0) + 1);
+    });
+    const hargaBeda = new Set(daftarUnit.map((u) =>
+      (tipeDari(u.tipeId) || {}).hargaOtr || 0)).size > 1;
     cekStokEl.innerHTML = `<span style="color:var(--hijau)">✓ ${daftarUnit.length}
       unit Ready tersedia — centang salah satu:</span>`;
-    wadahTabelUnit.innerHTML = tabelPilihUnit(daftarUnit);
-    unitDipilihId = daftarUnit[0].id; // default: baris pertama (paling lama masuk)
+    wadahTabelUnit.innerHTML = `
+      ${perWarna.size > 1 ? `<div class="chip-baris" id="saring-warna" style="margin-top:6px">
+        <button type="button" class="chip aktif" data-warna="">Semua (${daftarUnit.length})</button>
+        ${[...perWarna].map(([w, n]) => `<button type="button" class="chip"
+          data-warna="${aman(String(w).toUpperCase())}">${aman(w)} (${n})</button>`).join("")}
+      </div>` : ""}
+      ${tabelPilihUnit(daftarUnit, hargaBeda)}`;
+
+    function pilihUnit(id) {
+      unitDipilihId = id;
+      const u = daftarUnit.find((x) => x.id === id);
+      aturTipe(u ? u.tipeId : g.tipe[0].id);
+    }
+    pilihUnit(daftarUnit[0].id); // default: baris pertama
     wadahTabelUnit.querySelectorAll('input[name="s-pilih-unit"]').forEach((r) =>
-      r.addEventListener("change", (e) => { unitDipilihId = e.target.value; }));
+      r.addEventListener("change", (e) => pilihUnit(e.target.value)));
+
+    const saring = wadahTabelUnit.querySelector("#saring-warna");
+    if (saring) {
+      saring.addEventListener("click", (e) => {
+        const c = e.target.closest("[data-warna]");
+        if (!c) return;
+        saring.querySelectorAll(".chip").forEach((x) => x.classList.toggle("aktif", x === c));
+        const w = c.dataset.warna;
+        let pertamaTampil = null, masihTerpilih = false;
+        wadahTabelUnit.querySelectorAll("tbody tr").forEach((tr) => {
+          const tampil = !w || tr.dataset.warna === w;
+          tr.hidden = !tampil;
+          const r = tr.querySelector('input[name="s-pilih-unit"]');
+          if (tampil && !pertamaTampil) pertamaTampil = r;
+          if (tampil && r.checked) masihTerpilih = true;
+        });
+        // Unit yang sedang dicentang ikut tersaring keluar → pindah
+        // otomatis ke baris pertama yang masih tampil.
+        if (!masihTerpilih && pertamaTampil) {
+          pertamaTampil.checked = true;
+          pilihUnit(pertamaTampil.value);
+        }
+      });
+    }
   }
 
-  let hargaOtrTerpilih = 0;
-  pilihTipe.addEventListener("change", () => {
-    const t = tipeDari(pilihTipe.value);
-    hargaOtrTerpilih = t ? (t.hargaOtr || 0) : 0;
-    otrEl.value = t ? rupiah(t.hargaOtr) : "Rp 0";
-    tampilkanUnitUntukTipe(pilihTipe.value);
-    perbaruiTagihanLeasing();
-    perbaruiTransferOtomatis();
+  pilihTipe.addEventListener("change", () => tampilkanUnitUntukGrup(grupTerpilih()));
+
+  // Indent: harga OTR & tipeId ikut dokumen tipe dalam grup yang
+  // memang punya warna ini.
+  warnaManualEl.addEventListener("change", () => {
+    const g = grupTerpilih();
+    if (!g) return;
+    const w = warnaManualEl.value.toUpperCase();
+    const t = g.tipe.find((x) => (x.warna || []).some((y) => String(y).toUpperCase() === w)) || g.tipe[0];
+    aturTipe(t.id);
   });
 
   // ── Payment: cara bayar ────────────────────────────────────────
@@ -444,7 +562,7 @@ export async function halamanSpk(wadah) {
       return;
     }
 
-    const tipeId = pilihTipe.value;
+    const tipeId = tipeIdTerpilih;
     // Warna ikut unit yang dicentang di tabel (kalau ada stok), atau
     // dari dropdown manual (kalau Indent/stok kosong).
     const unitDariTabel = unitDipilihId
@@ -830,7 +948,10 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
     const snapKaryawan = await getDocs(collection(dbase, "users"));
     daftarSalesPilihan = snapKaryawan.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((u) => u.aktif !== false && u.peran !== "owner")
+      // Biro Jasa = pihak eksternal (bukan karyawan penjual), jadi
+        // tidak ditawarkan sebagai "atas nama karyawan".
+        .filter((u) => u.aktif !== false && u.peran !== "owner" &&
+          u.peran !== "biro_jasa")
       .sort((a, b) => (a.nama || "").localeCompare(b.nama || ""));
   }
   const kredit = t.kredit || {};

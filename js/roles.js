@@ -2,8 +2,36 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.11.5";
-import { daftarKodeUntuk } from "./akses.js?v=3.11.5";
+import { labelItem, labelGrup } from "./label.js?v=3.12.0";
+import { daftarKodeUntuk } from "./akses.js?v=3.12.0";
+import { dbase, doc, getDoc } from "./db.js?v=3.12.0";
+
+// ── Batas diskon MENYELURUH (diinput manual oleh Owner) ─────────
+// Disimpan di /pengaturan/diskon { batas: <angka> | null }.
+// Kalau Owner sudah mengisi angka, angka itu berlaku SAMA untuk
+// SEMUA karyawan (semua peran selain Owner). Kalau belum pernah
+// diisi / dikosongkan (null), tiap peran kembali pakai batas bawaan
+// di blok PERAN di bawah.
+let batasGlobal = null;
+
+export async function muatBatasDiskon() {
+  try {
+    const snap = await getDoc(doc(dbase, "pengaturan", "diskon"));
+    const b = snap.exists() ? snap.data().batas : null;
+    batasGlobal = (typeof b === "number" && b >= 0) ? b : null;
+  } catch {
+    batasGlobal = null; // gagal baca → pakai bawaan per peran, jangan macet
+  }
+  return batasGlobal;
+}
+
+export function batasDiskonGlobal() {
+  return batasGlobal;
+}
+
+export function setBatasDiskonGlobal(nilai) {
+  batasGlobal = (typeof nilai === "number" && nilai >= 0) ? nilai : null;
+}
 
 // Daftar izin yang dikenal sistem:
 //   stok.lihat  stok.ubah
@@ -165,7 +193,9 @@ export function boleh(peran, izin) {
 export function batasDiskon(peran) {
   const p = PERAN[peran];
   if (!p) return 0;
-  return p.batasDiskon; // null = bebas
+  if (p.batasDiskon === null) return null; // Owner = bebas
+  if (batasGlobal !== null) return batasGlobal; // diinput Owner, berlaku semua karyawan
+  return p.batasDiskon; // bawaan per peran
 }
 
 export function perluPersetujuan(peran, nominal) {

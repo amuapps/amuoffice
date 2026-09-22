@@ -8,15 +8,15 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.11.5";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.11.5";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.11.5";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.11.5";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.11.5";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
-import { konfirmasiPassword } from "./auth.js?v=3.11.5";
-import { buatNotifikasi } from "./notifikasi.js?v=3.11.5";
-import { kabar } from "./ui.js?v=3.11.5";
+  nomorKuitansiSpk } from "./db.js?v=3.12.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.12.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.12.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.12.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.12.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
+import { konfirmasiPassword } from "./auth.js?v=3.12.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.12.0";
+import { kabar } from "./ui.js?v=3.12.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -651,12 +651,30 @@ function muatSheetJS() {
   return sheetJsSiap;
 }
 
-function barisEkspor(t) {
+// No. Rangka & No. Mesin tidak tersimpan di dokumen SPK — cuma
+// unitId-nya. Peta unitId → data unit diambil dari cache halaman
+// Laporan (petaAwal) kalau ada, sisanya dibaca satu per satu.
+async function muatUnitEkspor(daftar, petaAwal) {
+  const peta = new Map(petaAwal || []);
+  const kurang = [...new Set(daftar.map((t) => t.unitId).filter(Boolean))]
+    .filter((id) => !peta.has(id));
+  await Promise.all(kurang.map(async (id) => {
+    try {
+      const snap = await getDoc(doc(dbase, "units", id));
+      if (snap.exists()) peta.set(id, snap.data());
+    } catch { /* satu unit gagal dibaca bukan alasan gagalkan ekspor */ }
+  }));
+  return peta;
+}
+
+function barisEkspor(t, peta) {
   const batal = t.status === "batal";
+  const unit = (t.unitId && peta && peta.get(t.unitId)) || {};
   return {
     "No. SPK": t.spkNo || "", "Tanggal": tanggal(t.dibuatPada),
     "Pembeli": t.pembeli?.nama || "", "No. HP": t.pembeli?.telepon || "",
     "Unit": t.tipeNama || "", "Warna": t.warna || "",
+    "No. Rangka": unit.noRangka || "", "No. Mesin": unit.noMesin || "",
     "Harga OTR": t.hargaOtr || 0,
     "Diskon": t.diskon || 0,
     "Harga Efektif": hargaEfektif(t),
@@ -664,16 +682,17 @@ function barisEkspor(t) {
     "Status": batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas"),
     "Total Dibayar": hitungTotalDibayar(t),
     "Sisa Tagihan": Math.max(hargaEfektif(t) - hitungTotalDibayar(t), 0),
-    "Sales": t.salesNama || "", "Kondisi": t.kondisiUnit || "",
+    "Sales": t.salesNama || "", "Agen": t.agenNama || "",
+    "Kondisi": t.kondisiUnit || "",
     "Alasan Batal": t.alasanBatal || "",
   };
 }
 
-export async function unduhExcel(daftar) {
+export async function unduhExcel(daftar, petaUnit) {
   if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
   try {
-    await muatSheetJS();
-    const ws = window.XLSX.utils.json_to_sheet(daftar.map(barisEkspor));
+    const [peta] = await Promise.all([muatUnitEkspor(daftar, petaUnit), muatSheetJS()]);
+    const ws = window.XLSX.utils.json_to_sheet(daftar.map((t) => barisEkspor(t, peta)));
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, "Riwayat SPK");
     window.XLSX.writeFile(wb, `riwayat-spk-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -686,24 +705,34 @@ export async function unduhExcel(daftar) {
 // Sama seperti dokumen cetak lain di modul ini — buka tab baru berisi
 // tabel siap cetak, lalu window.print() (pengguna pilih "Simpan
 // sebagai PDF" di dialog printer). Tidak perlu pustaka tambahan.
-export function unduhPdf(daftar) {
+export async function unduhPdf(daftar, petaUnit) {
   if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
+  // Tab dibuka LANGSUNG saat klik (sebelum await apa pun) supaya
+  // tidak diblokir pop-up blocker, baru diisi setelah data unit siap.
   const tabBaru = window.open("", "_blank");
   if (!tabBaru) {
     alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
     return;
   }
+  tabBaru.document.write(`<p style="font-family:Arial;text-align:center;color:#777">
+    Menyiapkan laporan…</p>`);
+  const peta = await muatUnitEkspor(daftar, petaUnit);
   const baris = daftar.map((t) => {
     const batal = t.status === "batal";
+    const unit = (t.unitId && peta.get(t.unitId)) || {};
     return `<tr>
       <td>${aman(t.spkNo)}</td><td>${tanggal(t.dibuatPada)}</td>
       <td>${aman(t.pembeli?.nama)}</td><td>${aman(t.tipeNama)} ${aman(t.warna)}</td>
+      <td class="mono">${aman(unit.noRangka || "-")}</td>
+      <td class="mono">${aman(unit.noMesin || "-")}</td>
       <td style="text-align:right">${rupiah(t.hargaOtr)}</td>
       <td>${(t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash"}</td>
       <td>${batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas")}</td>
       <td>${aman(t.salesNama)}</td>
+      <td>${aman(t.agenNama || "-")}</td>
     </tr>`;
   }).join("");
+  tabBaru.document.open();
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"><title>Riwayat SPK</title>
     <style>
@@ -712,7 +741,9 @@ export function unduhPdf(daftar) {
       table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
       th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
       th { background: #eee; }
+      .mono { font-family: "Courier New", monospace; white-space: nowrap; }
       .aksi-cetak { text-align: center; margin-top: 14px; }
+      @page { size: A4 landscape; margin: 10mm; }
       @media print { .aksi-cetak { display: none; } }
     </style></head>
     <body>
@@ -720,7 +751,9 @@ export function unduhPdf(daftar) {
       <p style="font-size:10.5px;color:#555">Dicetak ${tanggal(new Date())} · ${daftar.length} SPK</p>
       <table><thead><tr>
         <th>No. SPK</th><th>Tanggal</th><th>Pembeli</th><th>Unit</th>
+        <th>No. Rangka</th><th>No. Mesin</th>
         <th>Harga OTR</th><th>Cara Bayar</th><th>Status</th><th>Sales</th>
+        <th>Nama Agen</th>
       </tr></thead><tbody>${baris}</tbody></table>
       <div class="aksi-cetak">
         <button onclick="window.print()">Cetak / Simpan PDF</button>

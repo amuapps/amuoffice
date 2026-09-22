@@ -19,12 +19,14 @@ import {
 import {
   dbase, auth, collection, doc, getDocs, setDoc, updateDoc, query, where,
   serverTimestamp, catat,
-} from "./db.js?v=3.11.5";
-import { sesi, bolehAkses } from "./auth.js?v=3.11.5";
-import { PERAN, batasDiskon } from "./roles.js?v=3.11.5";
-import { FIREBASE } from "./config.js?v=3.11.5";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.11.5";
-import { rupiah, aman, kabar, tanggal, keTanggal } from "./ui.js?v=3.11.5";
+} from "./db.js?v=3.12.0";
+import { sesi, bolehAkses } from "./auth.js?v=3.12.0";
+import { PERAN, batasDiskon, muatBatasDiskon, batasDiskonGlobal,
+  setBatasDiskonGlobal } from "./roles.js?v=3.12.0";
+import { FIREBASE } from "./config.js?v=3.12.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.12.0";
+import { rupiah, aman, kabar, tanggal, keTanggal, pasangFormatUang, bacaAngka }
+  from "./ui.js?v=3.12.0";
 
 const OPSI_PENDIDIKAN = ["SD", "SMP", "SMA/SMK", "D3", "S1", "S2", "S3", "Lainnya"];
 
@@ -120,7 +122,7 @@ function opsiPeran(terpilih) {
   return Object.entries(PERAN).filter(([k]) => k !== "biro_jasa").map(([k, v]) =>
     `<option value="${k}" ${k === terpilih ? "selected" : ""}>
       ${v.label} — batas diskon ${
-        v.batasDiskon === null ? "bebas" : rupiah(v.batasDiskon)
+        batasDiskon(k) === null ? "bebas" : rupiah(batasDiskon(k))
       }</option>`).join("");
 }
 
@@ -145,6 +147,21 @@ export async function halamanPengguna(wadah) {
       <button class="tombol tombol--kecil tombol--isi" id="tambah-pengguna">
         Tambah Karyawan
       </button>
+    </div>
+    <div class="kartu" id="kartu-batas-diskon" style="margin-bottom:14px">
+      <p class="pemisah" style="margin-top:0">Batas Diskon Karyawan</p>
+      <p class="petunjuk">Berlaku <b>sama untuk semua karyawan</b> (Admin,
+        Sales, dst — Owner tidak dibatasi). Diskon SPK di atas angka ini
+        otomatis diajukan ke Owner untuk disetujui dulu. Kosongkan lalu
+        simpan untuk kembali ke batas bawaan per peran.</p>
+      <label class="label label--gelap" for="batas-diskon-global">Batas diskon (Rp)</label>
+      <input class="isian isian--terang" id="batas-diskon-global" inputmode="numeric"
+             placeholder="Bawaan per peran">
+      <p class="petunjuk" id="ket-batas-diskon">Memuat…</p>
+      <div class="aksi aksi--rapat">
+        <button class="tombol tombol--kecil tombol--isi" type="button"
+                id="simpan-batas-diskon">Simpan batas diskon</button>
+      </div>
     </div>
     <div id="form-pengguna"></div>
     <div id="daftar-pengguna" class="daftar">
@@ -466,6 +483,52 @@ export async function halamanPengguna(wadah) {
       kabar("Gagal mengirim: " + err.message, "rem");
     }
   }
+
+  // ── Batas diskon menyeluruh ────────────────────────────────
+  const batasEl = wadah.querySelector("#batas-diskon-global");
+  const ketBatasEl = wadah.querySelector("#ket-batas-diskon");
+  pasangFormatUang(batasEl);
+  function gambarBatas() {
+    const g = batasDiskonGlobal();
+    batasEl.value = g === null ? "" : g.toLocaleString("id-ID");
+    ketBatasEl.textContent = g === null
+      ? "Saat ini: belum diatur — tiap peran memakai batas bawaan " +
+        `(Admin ${rupiah(PERAN.admin.batasDiskon)}, Sales ${rupiah(PERAN.sales.batasDiskon)}).`
+      : `Saat ini: ${rupiah(g)} untuk semua karyawan.`;
+  }
+  await muatBatasDiskon();
+  gambarBatas();
+  wadah.querySelector("#simpan-batas-diskon").addEventListener("click", async (e) => {
+    const kosong = !batasEl.value.replace(/\D/g, "");
+    const nilai = kosong ? null : bacaAngka(batasEl);
+    const jadi = await konfirmasi({
+      judul: "Ubah batas diskon",
+      pesan: nilai === null
+        ? "Batas diskon kembali ke bawaan masing-masing peran. Lanjutkan?"
+        : `Batas diskon untuk SEMUA karyawan menjadi ${rupiah(nilai)}. Lanjutkan?`,
+      oke: "Simpan",
+    });
+    if (!jadi) return;
+    const tombol = e.currentTarget;
+    tombol.disabled = true;
+    try {
+      await setDoc(doc(dbase, "pengaturan", "diskon"), {
+        batas: nilai, diubahOleh: sesi.uid, diubahPada: serverTimestamp(),
+      });
+      await catat("batas_diskon_diubah", {
+        koleksi: "pengaturan", docId: "diskon",
+        ringkas: nilai === null ? "bawaan per peran" : rupiah(nilai),
+      });
+      setBatasDiskonGlobal(nilai);
+      gambarBatas();
+      await gambar(); // kartu karyawan ikut menampilkan batas baru
+      kabar("Batas diskon disimpan.", "netral");
+    } catch (err) {
+      kabar("Gagal menyimpan: " + err.message, "rem");
+    } finally {
+      tombol.disabled = false;
+    }
+  });
 
   wadah.querySelector("#tambah-pengguna").addEventListener("click", buka);
   await gambar();

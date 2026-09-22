@@ -2,19 +2,19 @@
 // stok per rentang tanggal. Dari sini juga bisa cetak ulang SPK.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit, doc, getDoc, updateDoc, deleteDoc, writeBatch, catat }
-  from "./db.js?v=3.11.5";
-import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.11.5";
+  from "./db.js?v=3.12.0";
+import { rupiah, aman, tanggal, namaTampilan, kabar } from "./ui.js?v=3.12.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
   cetakUlangKuitansiTerakhir, hitungTotalDibayar, cetakTagihanLeasing,
   cetakTagihanLeasingBatch, unduhExcel, unduhPdf, hargaEfektif,
-  cetakKoreksiRiwayatBayar } from "./cetak.js?v=3.11.5";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.11.5";
-import { lepasUnitPermanen } from "./stok.js?v=3.11.5";
-import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.11.5";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.11.5";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.11.5";
-import { muatRekening, rekeningDari } from "./rekening.js?v=3.11.5";
+  cetakKoreksiRiwayatBayar } from "./cetak.js?v=3.12.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.12.0";
+import { lepasUnitPermanen } from "./stok.js?v=3.12.0";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.12.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.12.0";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.12.0";
+import { muatRekening, rekeningDari } from "./rekening.js?v=3.12.0";
 
 const LABEL_CARA_BAYAR = { tunai: "Tunai", transfer: "Transfer", kredit: "Kredit" };
 const BATAS_LAPORAN_DEFAULT = 500;
@@ -686,8 +686,8 @@ export async function halamanLaporan(wadah) {
       (t.caraBayar || []).includes("kredit") && t.kredit?.leasingId);
     cetakTagihanLeasingBatch(daftar);
   });
-  wadah.querySelector("#l-unduh-excel").addEventListener("click", () => unduhExcel(dataTampil));
-  wadah.querySelector("#l-unduh-pdf").addEventListener("click", () => unduhPdf(dataTampil));
+  wadah.querySelector("#l-unduh-excel").addEventListener("click", () => unduhExcel(dataTampil, petaUnitRingkas));
+  wadah.querySelector("#l-unduh-pdf").addEventListener("click", () => unduhPdf(dataTampil, petaUnitRingkas));
 
   function gambarTabel() {
     if (kemungkinanTerpotong) {

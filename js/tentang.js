@@ -3,16 +3,16 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.11.5";
-import { VERSI } from "./config.js?v=3.11.5";
-import { aman, rupiah, kabar } from "./ui.js?v=3.11.5";
-import { konfirmasi, tanya } from "./dialog.js?v=3.11.5";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.12.0";
+import { VERSI } from "./config.js?v=3.12.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.12.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.11.5";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.12.0";
 
 const RIWAYAT = [
   {
-    versi: "3.11.5", tanggal: "Agustus 2026",
+    versi: "3.12.0", tanggal: "Agustus 2026",
     judul: "Riwayat Perubahan di Tracking Dokumen Sekarang Bisa Dilipat",
     butir: [
       "Riwayat Perubahan tiap SPK di halaman Tracking Dokumen sebelumnya selalu tampil penuh — bisa jadi sangat panjang kalau SPK-nya banyak. Sekarang defaultnya tersembunyi, ada tombol \"Lihat Riwayat Perubahan\" buat buka/tutup per SPK, dan baru benar-benar diambil datanya begitu diklik pertama kali (bukan langsung semua dimuat sekaligus).",
