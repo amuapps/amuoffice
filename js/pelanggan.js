@@ -6,16 +6,16 @@
 import {
   dbase, collection, doc, getDocs, setDoc, updateDoc, writeBatch, query, where,
   orderBy, limit, serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.12.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.12.0";
-import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.12.0";
-import { konfirmasi } from "./dialog.js?v=3.12.0";
+} from "./db.js?v=3.13.0";
+import { bolehAkses, sesi } from "./auth.js?v=3.13.0";
+import { aman, kabar, tanggal, rupiah, pasangHurufBesar, namaTampilan } from "./ui.js?v=3.13.0";
+import { konfirmasi } from "./dialog.js?v=3.13.0";
 import { cetakSpk, mintaCetakKuitansi, labelTombolKuitansi, sudahLunas,
-  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.12.0";
-import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.12.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.12.0";
+  cetakUlangKuitansiTerakhir } from "./cetak.js?v=3.13.0";
+import { pasangEditPelangganSpk, mintaBatalkanSpk } from "./spk.js?v=3.13.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.13.0";
 import { muatSaranKecamatan, muatSaranKota, tambahSaranOtomatis }
-  from "./referensi.js?v=3.12.0";
+  from "./referensi.js?v=3.13.0";
 
 let cache = [];
 
@@ -157,10 +157,12 @@ export function formPelanggan(p = {}, awalan = "p", saranKecamatan = [], saranKo
            value="${aman(p.nama || "")}" placeholder="Sesuai KTP">
     <div class="dua">
       <div>
-        <label class="label label--gelap" for="${awalan}-telepon">Telepon</label>
+        <label class="label label--gelap" for="${awalan}-telepon">No. HP
+          <span class="kunci">wajib, tanpa spasi</span></label>
         <input class="isian isian--terang mono" id="${awalan}-telepon"
-               inputmode="tel" value="${aman(p.telepon || "")}"
-               placeholder="08…">
+               inputmode="tel" autocomplete="tel" maxlength="16"
+               value="${aman(bersihkanTelepon(p.telepon || ""))}"
+               placeholder="08xxxxxxxxxx">
       </div>
       <div>
         <label class="label label--gelap" for="${awalan}-nik">NIK</label>
@@ -220,7 +222,7 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
   };
   return {
     nama: v("nama"),
-    telepon: v("telepon").replace(/\s/g, ""),
+    telepon: bersihkanTelepon(v("telepon")),
     nik: v("nik").replace(/\D/g, ""),
     alamat: v("alamat"),
     kelurahan: v("kelurahan"),
@@ -237,6 +239,37 @@ export function bacaFormPelanggan(wadah, awalan = "p") {
 export function pasangHurufBesarPelanggan(wadah, awalan = "p") {
   ["nama", "alamat", "kelurahan", "kecamatan", "kota", "provinsi"].forEach((id) =>
     pasangHurufBesar(wadah.querySelector(`#${awalan}-${id}`)));
+  // No. HP: spasi (dan karakter selain angka) langsung dibuang saat
+  // diketik/ditempel, jadi tidak mungkin tersimpan dengan spasi.
+  const tel = wadah.querySelector(`#${awalan}-telepon`);
+  if (tel) {
+    tel.addEventListener("input", () => {
+      const bersih = bersihkanTelepon(tel.value);
+      if (bersih !== tel.value) tel.value = bersih;
+    });
+  }
+}
+
+// ── No. HP ────────────────────────────────────────────────────
+// Hanya angka (boleh diawali "+", mis. +62…). Spasi, strip, titik,
+// kurung dibuang semua.
+export function bersihkanTelepon(nilai) {
+  const s = String(nilai || "").trim();
+  const plus = s.startsWith("+") ? "+" : "";
+  return plus + s.replace(/\D/g, "");
+}
+
+// Kembalikan pesan kesalahan, atau null kalau No. HP sudah benar.
+// `siapa` dipakai di pesan (mis. "pembeli", "pemakai").
+export function cekTelepon(telepon, siapa = "") {
+  const label = siapa ? `No. HP ${siapa}` : "No. HP";
+  const t = bersihkanTelepon(telepon);
+  if (!t) return `${label} wajib diisi.`;
+  const angka = t.replace(/^\+/, "");
+  if (angka.length < 10 || angka.length > 15) {
+    return `${label} tidak valid — harus 10–15 digit angka, tanpa spasi.`;
+  }
+  return null;
 }
 
 // ── Riwayat pesanan seorang konsumen ─────────────────────────────
@@ -562,6 +595,12 @@ export async function halamanPelanggan(wadah) {
         e.preventDefault();
         const data = bacaFormPelanggan(formEl);
         if (!data.nama) { kabar("Nama wajib diisi.", "rem"); return; }
+        const salahTel = cekTelepon(data.telepon);
+        if (salahTel) {
+          kabar(salahTel, "rem");
+          formEl.querySelector("#p-telepon")?.focus();
+          return;
+        }
         try {
           const idTersimpan = await simpanPelanggan(data, p ? p.id : null);
           formEl.innerHTML = "";

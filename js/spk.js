@@ -11,25 +11,25 @@ import {
   dbase, doc, collection, setDoc, getDoc, updateDoc, getDocs, query, where,
   limit, writeBatch, serverTimestamp, increment, catat,
   sertakanLog, tandaBaru, nomorBerikutnya,
-} from "./db.js?v=3.12.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.12.0";
-import { batasDiskon, muatBatasDiskon, PERAN } from "./roles.js?v=3.12.0";
-import { DP_MINIMUM } from "./config.js?v=3.12.0";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.12.0";
+} from "./db.js?v=3.13.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.13.0";
+import { batasDiskon, muatBatasDiskon, PERAN } from "./roles.js?v=3.13.0";
+import { DP_MINIMUM } from "./config.js?v=3.13.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.13.0";
 import { cariUnitReady, muatSemuaUnitReadyRingkas,
-  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.12.0";
+  kunciUnitTransaksi, lepasUnitTransaksi } from "./stok.js?v=3.13.0";
 import { formPelanggan, bacaFormPelanggan, simpanPelangganOtomatis,
-         pasangHurufBesarPelanggan } from "./pelanggan.js?v=3.12.0";
-import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.12.0";
-import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.12.0";
-import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.12.0";
-import { muatAgen, agenAktif } from "./agen.js?v=3.12.0";
+         pasangHurufBesarPelanggan, cekTelepon } from "./pelanggan.js?v=3.13.0";
+import { muatSaranKecamatan, muatSaranKota } from "./referensi.js?v=3.13.0";
+import { muatLeasing, leasingAktif, leasingDari } from "./leasing.js?v=3.13.0";
+import { muatRekening, rekeningAktif, rekeningDari } from "./rekening.js?v=3.13.0";
+import { muatAgen, agenAktif } from "./agen.js?v=3.13.0";
 import { cetakSpk, mintaCetakKuitansi as catatPembayaran, labelTombolKuitansi,
   hitungTotalDibayar, resolveNamaSales, cetakKuitansiRevisi, hargaEfektif,
-  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.12.0";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.12.0";
-import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.12.0";
-import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.12.0";
+  cetakKoreksiRiwayatBayar, sudahLunas } from "./cetak.js?v=3.13.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.13.0";
+import { buatNotifikasi, beriTahuSemuaOwner } from "./notifikasi.js?v=3.13.0";
+import { rupiah, aman, kabar, pasangFormatUang, bacaAngka, namaTampilan, tanggal } from "./ui.js?v=3.13.0";
 
 // Master Tipe Motor bisa berisi beberapa dokumen dengan nama yang
 // SAMA (mis. satu tipe diinput ulang per warna/tahun/harga). Di form
@@ -76,6 +76,20 @@ function opsiTipe(grupTipe) {
   return grupTipe.map((g, i) =>
     `<option value="${i}">${aman(g.nama)}${
       g.jumlahReady ? ` — ${g.jumlahReady} unit ready` : " — indent"}</option>`).join("");
+}
+
+// No. HP pembeli/pemakai WAJIB & tanpa spasi — SPK tidak bisa
+// disimpan sebelum diisi benar. Kalau salah, pindah ke tab Customer
+// Info & fokus ke kotaknya supaya langsung kelihatan.
+function validTelepon(wadah, awalan, telepon, siapa = awalan) {
+  const salah = cekTelepon(telepon, siapa);
+  if (!salah) return true;
+  kabar(salah, "rem");
+  const tabCustomer = wadah.querySelector('[data-tab="customer"]');
+  if (tabCustomer) tabCustomer.click();
+  const el = wadah.querySelector(`#${awalan}-telepon`);
+  if (el) { el.focus(); el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+  return false;
 }
 
 function panelCustomer(saranKecamatan, saranKota) {
@@ -555,12 +569,14 @@ export async function halamanSpk(wadah) {
       kabar("Nama pembeli wajib diisi.", "rem");
       return;
     }
+    if (!validTelepon(wadah, "pembeli", pembeli.telepon)) return;
     const pemakaiSama = samaEl.checked;
     const pemakai = pemakaiSama ? null : bacaFormPelanggan(wadah, "pemakai");
     if (!pemakaiSama && !pemakai.nama) {
       kabar("Nama pemakai wajib diisi, atau centang \"sama dengan pembeli\".", "rem");
       return;
     }
+    if (!pemakaiSama && !validTelepon(wadah, "pemakai", pemakai.telepon)) return;
 
     const tipeId = tipeIdTerpilih;
     // Warna ikut unit yang dicentang di tabel (kalau ada stok), atau
@@ -715,6 +731,10 @@ export async function halamanSpk(wadah) {
         catatan: wadah.querySelector("#s-catatan").value.trim(),
         tipeId, tipeNama: `${t.merek} ${t.tipe} ${t.varian || ""}`.trim(),
         warna, hargaOtr: t.hargaOtr || 0,
+        // Snapshot BBN saat SPK dibuat — dipakai laporan (Harga Off The
+        // Road = OTR − BBN, dan hitungan profit), supaya tidak ikut
+        // berubah kalau Master Tipe diubah belakangan.
+        bbn: t.bbn || 0,
         kondisiUnit,
         unitId: unit ? unit.id : null,
         caraBayar,
@@ -1368,12 +1388,14 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
       kabar("Nama pembeli wajib diisi.", "rem");
       return;
     }
+    if (!validTelepon(kontainer, "epembeli", pembeli.telepon, "pembeli")) return;
     const sama = samaEl.checked;
     const pemakai = sama ? null : bacaFormPelanggan(kontainer, "epemakai");
     if (!sama && !pemakai.nama) {
       kabar("Nama pemakai wajib diisi, atau centang \"sama dengan pembeli\".", "rem");
       return;
     }
+    if (!sama && !validTelepon(kontainer, "epemakai", pemakai.telepon, "pemakai")) return;
 
     const tombol = e.target.querySelector('button[type="submit"]');
     tombol.disabled = true;
@@ -1464,6 +1486,9 @@ export async function pasangEditPelangganSpk(kontainer, t, muatUlang) {
         : t.tipeNama;
       dataBaru.warna = warnaBaru;
       dataBaru.hargaOtr = otrBaru;
+      if (tipeBaru !== t.tipeId && tipeDari(tipeBaru)) {
+        dataBaru.bbn = tipeDari(tipeBaru).bbn || 0; // tipe diganti → BBN ikut tipe baru
+      }
       dataBaru.caraBayar = caraBayarBaru;
       dataBaru.rekeningId = rekeningBaru;
       dataBaru.kredit = kreditBaru;

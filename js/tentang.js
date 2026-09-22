@@ -3,16 +3,49 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.12.0";
-import { VERSI } from "./config.js?v=3.12.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.12.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.13.0";
+import { VERSI } from "./config.js?v=3.13.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.13.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.13.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.12.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.13.0";
 
 const RIWAYAT = [
   {
-    versi: "3.12.0", tanggal: "Agustus 2026",
+    versi: "3.13.0", tanggal: "September 2026",
+    judul: "Report Excel/PDF: Total Profit, Kolom Keuangan Lengkap & Khusus Owner",
+    butir: [
+      "Report Excel/PDF (Riwayat & Laporan SPK) sekarang menampilkan TOTAL PROFIT dengan jelas: di PDF ada kotak ringkasan di atas tabel dan baris Total Profit di bawah; di Excel ada baris TOTAL PROFIT dan sheet baru \"Ringkasan\".",
+      "Kolom baru di report: No. Rangka, No. Mesin, Nama Agen, Harga Off The Road, BBN, DP, Diskon, Leasing, Tenor, Cicilan, Komisi Agen, Cashback, Harga Tebus, dan Profit (Harga OTR − Harga Tebus − BBN − Diskon − Komisi Agen − Cashback).",
+      "Tombol Unduh Excel/PDF sekarang KHUSUS Owner.",
+      "BBN sekarang ikut disimpan ke SPK saat dibuat, supaya laporan tidak berubah kalau Master Tipe diubah belakangan.",
+    ],
+  },
+  {
+    versi: "3.12.2", tanggal: "September 2026",
+    judul: "Perbaikan Simpan Batas Diskon",
+    butir: [
+      "PERBAIKAN BUG: tombol \"Simpan batas diskon\" di Data Karyawan gagal dengan pesan \"Cannot set properties of null\". Sekarang sudah bisa disimpan normal.",
+    ],
+  },
+  {
+    versi: "3.12.1", tanggal: "September 2026",
+    judul: "No. HP Konsumen Wajib & Tanpa Spasi",
+    butir: [
+      "No. HP pembeli/pemakai wajib diisi (10–15 digit angka). Spasi dan karakter selain angka otomatis dibuang saat diketik. SPK dan data konsumen tidak bisa disimpan sebelum No. HP diisi benar.",
+    ],
+  },
+  {
+    versi: "3.12.0", tanggal: "September 2026",
+    judul: "SPK: Tipe Motor Digabung + Batas Diskon Menyeluruh",
+    butir: [
+      "Payment Info: tipe motor dengan nama sama digabung jadi satu pilihan; unit Ready (warna, No. Rangka, No. Mesin) langsung tampil dengan saring per warna.",
+      "Internal Info: pilihan \"Atas nama karyawan\" (Owner) tidak lagi menampilkan akun Biro Jasa.",
+      "Data Karyawan: Owner bisa mengisi satu batas diskon yang berlaku sama untuk semua karyawan.",
+    ],
+  },
+  {
+    versi: "3.11.5", tanggal: "Agustus 2026",
     judul: "Riwayat Perubahan di Tracking Dokumen Sekarang Bisa Dilipat",
     butir: [
       "Riwayat Perubahan tiap SPK di halaman Tracking Dokumen sebelumnya selalu tampil penuh — bisa jadi sangat panjang kalau SPK-nya banyak. Sekarang defaultnya tersembunyi, ada tombol \"Lihat Riwayat Perubahan\" buat buka/tutup per SPK, dan baru benar-benar diambil datanya begitu diklik pertama kali (bukan langsung semua dimuat sekaligus).",

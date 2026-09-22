@@ -8,15 +8,16 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.12.0";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.12.0";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.12.0";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.12.0";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.12.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.12.0";
-import { konfirmasiPassword } from "./auth.js?v=3.12.0";
-import { buatNotifikasi } from "./notifikasi.js?v=3.12.0";
-import { kabar } from "./ui.js?v=3.12.0";
+  nomorKuitansiSpk } from "./db.js?v=3.13.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.13.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.13.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.13.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.13.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.13.0";
+import { konfirmasiPassword, bolehAkses, sesi } from "./auth.js?v=3.13.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.13.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.13.0";
+import { kabar } from "./ui.js?v=3.13.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -651,50 +652,187 @@ function muatSheetJS() {
   return sheetJsSiap;
 }
 
-// No. Rangka & No. Mesin tidak tersimpan di dokumen SPK — cuma
-// unitId-nya. Peta unitId → data unit diambil dari cache halaman
-// Laporan (petaAwal) kalau ada, sisanya dibaca satu per satu.
-async function muatUnitEkspor(daftar, petaAwal) {
+// ── Data ekspor (Excel & PDF) ─────────────────────────────────────
+// No. Rangka/Mesin & harga tebus tidak tersimpan di dokumen SPK —
+// cuma unitId-nya. Peta unitId → data unit diambil dari cache halaman
+// Laporan (petaAwal) kalau ada, sisanya dibaca satu per satu. Harga
+// tebus (subdokumen units/{id}/rahasia/harga) HANYA dibaca kalau
+// peran ini punya izin laba.lihat (Owner/Admin) — sama seperti
+// firestore.rules, Sales memang tidak boleh melihatnya.
+async function siapkanDataEkspor(daftar, petaAwal) {
+  const bisaLihatLaba = bolehAkses("laba.lihat");
   const peta = new Map(petaAwal || []);
-  const kurang = [...new Set(daftar.map((t) => t.unitId).filter(Boolean))]
-    .filter((id) => !peta.has(id));
-  await Promise.all(kurang.map(async (id) => {
-    try {
-      const snap = await getDoc(doc(dbase, "units", id));
-      if (snap.exists()) peta.set(id, snap.data());
-    } catch { /* satu unit gagal dibaca bukan alasan gagalkan ekspor */ }
-  }));
-  return peta;
+  const tebus = new Map();
+  const idUnik = [...new Set(daftar.map((t) => t.unitId).filter(Boolean))];
+  await Promise.all([
+    muatTipe().catch(() => []),
+    muatLeasing().catch(() => []),
+    ...idUnik.map(async (id) => {
+      try {
+        if (!peta.has(id)) {
+          const snap = await getDoc(doc(dbase, "units", id));
+          if (snap.exists()) peta.set(id, snap.data());
+        }
+        if (bisaLihatLaba) {
+          const r = await getDoc(doc(dbase, "units", id, "rahasia", "harga"));
+          if (r.exists() && r.data().hargaTebus) tebus.set(id, Number(r.data().hargaTebus) || 0);
+        }
+      } catch { /* satu unit gagal dibaca bukan alasan gagalkan ekspor */ }
+    }),
+  ]);
+  return {
+    peta, tebus, bisaLihatLaba,
+    bisaLihatAgen: bolehAkses("agen.lihat") || bolehAkses("kelola.pengguna"),
+  };
 }
 
-function barisEkspor(t, peta) {
-  const batal = t.status === "batal";
-  const unit = (t.unitId && peta && peta.get(t.unitId)) || {};
+// Semua angka keuangan satu SPK, dipakai bareng oleh Excel & PDF.
+//   Harga Off The Road = Harga OTR − BBN
+//   Profit = Harga OTR − Harga Tebus − BBN − Diskon − Komisi Agen − Cashback
+// BBN diambil dari SPK (disimpan sejak v3.13.0); SPK lama yang belum
+// punya field ini memakai BBN dari Master Tipe saat ini. Harga tebus
+// diambil dari unit fisik yang terkunci ke SPK; kalau belum ada unit
+// (Indent) atau tebus unitnya belum diisi, memakai Harga Tebus
+// standar di Master Tipe.
+function hitungKeuangan(t, d) {
+  const tipe = tipeDari(t.tipeId) || {};
+  const otr = Number(t.hargaOtr || 0);
+  const bbn = Number(t.bbn ?? tipe.bbn ?? 0) || 0;
+  const offroad = Math.max(otr - bbn, 0);
+  const diskon = Number(t.diskon || 0);
+  const komisi = Number(t.feeAgen || 0);
+  const cashback = Number(t.cashbackDisetujui || 0);
+  let hargaTebus = t.unitId ? d.tebus.get(t.unitId) : undefined;
+  let sumberTebus = "Unit";
+  if (!hargaTebus) {
+    hargaTebus = Number(tipe.hargaTebusTipe || 0);
+    sumberTebus = hargaTebus ? "Standar tipe" : "Belum diisi";
+  }
+  const kredit = (t.caraBayar || []).includes("kredit") && t.kredit;
+  const leasing = kredit ? leasingDari(t.kredit.leasingId) : null;
   return {
+    otr, bbn, offroad, diskon, komisi, cashback, hargaTebus, sumberTebus,
+    profit: otr - hargaTebus - bbn - diskon - komisi - cashback,
+    dp: Number(t.jumlahBayar || 0),
+    leasing: kredit ? (leasing?.nama || "-") : "",
+    tenor: kredit && t.kredit.tenor ? Number(t.kredit.tenor) : "",
+    cicilan: kredit ? Number(t.kredit.cicilan || 0) : "",
+  };
+}
+
+function barisEkspor(t, d) {
+  const batal = t.status === "batal";
+  const unit = (t.unitId && d.peta.get(t.unitId)) || {};
+  const k = hitungKeuangan(t, d);
+  const kreditYa = (t.caraBayar || []).includes("kredit");
+  const baris = {
     "No. SPK": t.spkNo || "", "Tanggal": tanggal(t.dibuatPada),
     "Pembeli": t.pembeli?.nama || "", "No. HP": t.pembeli?.telepon || "",
     "Unit": t.tipeNama || "", "Warna": t.warna || "",
     "No. Rangka": unit.noRangka || "", "No. Mesin": unit.noMesin || "",
-    "Harga OTR": t.hargaOtr || 0,
-    "Diskon": t.diskon || 0,
+    "Harga Off The Road": k.offroad,
+    "BBN": k.bbn,
+    "Harga OTR": k.otr,
+    "Diskon": k.diskon,
     "Harga Efektif": hargaEfektif(t),
-    "Cara Bayar": (t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash",
+    "DP": k.dp,
+    "Cara Bayar": kreditYa ? "Kredit" : "Cash",
+    "Leasing": k.leasing,
+    "Tenor (bln)": k.tenor,
+    "Cicilan/bln": k.cicilan,
     "Status": batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas"),
     "Total Dibayar": hitungTotalDibayar(t),
     "Sisa Tagihan": Math.max(hargaEfektif(t) - hitungTotalDibayar(t), 0),
-    "Sales": t.salesNama || "", "Agen": t.agenNama || "",
-    "Kondisi": t.kondisiUnit || "",
-    "Alasan Batal": t.alasanBatal || "",
+    "Sales": t.salesNama || "", "Nama Agen": t.agenNama || "",
   };
+  if (d.bisaLihatAgen) baris["Komisi Agen"] = k.komisi;
+  baris["Cashback"] = k.cashback;
+  if (d.bisaLihatLaba) {
+    baris["Harga Tebus"] = k.hargaTebus;
+    baris["Sumber Tebus"] = k.sumberTebus;
+    // SPK batal tidak menghasilkan profit — dikosongkan, bukan minus.
+    baris["Profit"] = batal ? "" : k.profit;
+  }
+  baris["Kondisi"] = t.kondisiUnit || "";
+  baris["Alasan Batal"] = t.alasanBatal || "";
+  return baris;
+}
+
+const KOLOM_UANG_EKSPOR = [
+  "Harga Off The Road", "BBN", "Harga OTR", "Diskon", "Harga Efektif", "DP",
+  "Cicilan/bln", "Total Dibayar", "Sisa Tagihan", "Komisi Agen", "Cashback",
+  "Harga Tebus", "Profit",
+];
+
+// Report Excel/PDF khusus Owner (dijaga juga di sini, bukan cuma
+// tombolnya yang disembunyikan di laporan.js).
+function reportKhususOwner() {
+  if (sesi && sesi.peran === "owner") return true;
+  kabar("Report Excel/PDF hanya bisa diakses Owner.", "rem");
+  return false;
 }
 
 export async function unduhExcel(daftar, petaUnit) {
+  if (!reportKhususOwner()) return;
   if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
   try {
-    const [peta] = await Promise.all([muatUnitEkspor(daftar, petaUnit), muatSheetJS()]);
-    const ws = window.XLSX.utils.json_to_sheet(daftar.map((t) => barisEkspor(t, peta)));
+    const [d] = await Promise.all([siapkanDataEkspor(daftar, petaUnit), muatSheetJS()]);
+    const isi = daftar.map((t) => barisEkspor(t, d));
+    // Baris TOTAL di bawah (SPK batal tidak ikut dijumlah).
+    const aktif = isi.filter((b) => b.Status !== "Batal");
+    const total = { "No. SPK": `TOTAL (${aktif.length} SPK, tanpa yang batal)` };
+    KOLOM_UANG_EKSPOR.forEach((kol) => {
+      if (kol in isi[0] && kol !== "Cicilan/bln") {
+        total[kol] = aktif.reduce((n, b) => n + (Number(b[kol]) || 0), 0);
+      }
+    });
+    // Baris TOTAL PROFIT tersendiri di bawah baris TOTAL, supaya
+    // langsung terlihat tanpa harus menggeser ke kolom paling kanan.
+    const totalProfit = { "No. SPK": "TOTAL PROFIT", "Tanggal": total["Profit"] || 0 };
+    const ws = window.XLSX.utils.json_to_sheet([...isi, {}, total, totalProfit]);
+    const selProfit = ws[window.XLSX.utils.encode_cell({ r: isi.length + 3, c: 1 })];
+    if (selProfit) selProfit.z = "#,##0";
+    // Format ribuan untuk kolom uang.
+    const kepala = Object.keys(isi[0]);
+    const rentang = window.XLSX.utils.decode_range(ws["!ref"]);
+    kepala.forEach((kol, c) => {
+      if (!KOLOM_UANG_EKSPOR.includes(kol)) return;
+      for (let r = 1; r <= rentang.e.r; r++) {
+        const sel = ws[window.XLSX.utils.encode_cell({ r, c })];
+        if (sel && sel.t === "n") sel.z = "#,##0";
+      }
+    });
+    ws["!cols"] = kepala.map((k) => ({ wch: Math.max(k.length + 2, 12) }));
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, "Riwayat SPK");
+
+    // Sheet kedua: ringkasan total (SPK batal tidak dihitung).
+    const ringkas = [
+      ["RINGKASAN LAPORAN SPK", ""],
+      ["Dicetak", tanggal(new Date())],
+      ["Jumlah SPK (tanpa batal)", aktif.length],
+      ["Jumlah SPK batal", isi.length - aktif.length],
+      ["", ""],
+      ["Total Harga Off The Road", total["Harga Off The Road"] || 0],
+      ["Total BBN", total["BBN"] || 0],
+      ["Total Harga OTR", total["Harga OTR"] || 0],
+      ["Total Diskon", total["Diskon"] || 0],
+      ["Total DP", total["DP"] || 0],
+      ["Total Komisi Agen", total["Komisi Agen"] || 0],
+      ["Total Cashback", total["Cashback"] || 0],
+      ["Total Harga Tebus", total["Harga Tebus"] || 0],
+      ["", ""],
+      ["TOTAL PROFIT", total["Profit"] || 0],
+      ["", ""],
+      ["Rumus", "Profit = Harga OTR − Harga Tebus − BBN − Diskon − Komisi Agen − Cashback"],
+    ];
+    const wsR = window.XLSX.utils.aoa_to_sheet(ringkas);
+    ringkas.forEach((b, r) => {
+      const sel = wsR[window.XLSX.utils.encode_cell({ r, c: 1 })];
+      if (sel && sel.t === "n" && r >= 5) sel.z = "#,##0";
+    });
+    wsR["!cols"] = [{ wch: 28 }, { wch: 22 }];
+    window.XLSX.utils.book_append_sheet(wb, wsR, "Ringkasan");
     window.XLSX.writeFile(wb, `riwayat-spk-${new Date().toISOString().slice(0, 10)}.xlsx`);
   } catch (err) {
     kabar("Gagal membuat Excel: " + err.message, "rem");
@@ -706,9 +844,10 @@ export async function unduhExcel(daftar, petaUnit) {
 // tabel siap cetak, lalu window.print() (pengguna pilih "Simpan
 // sebagai PDF" di dialog printer). Tidak perlu pustaka tambahan.
 export async function unduhPdf(daftar, petaUnit) {
+  if (!reportKhususOwner()) return;
   if (!daftar.length) { kabar("Tidak ada data untuk diunduh.", "rem"); return; }
   // Tab dibuka LANGSUNG saat klik (sebelum await apa pun) supaya
-  // tidak diblokir pop-up blocker, baru diisi setelah data unit siap.
+  // tidak diblokir pop-up blocker, baru diisi setelah data siap.
   const tabBaru = window.open("", "_blank");
   if (!tabBaru) {
     alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
@@ -716,45 +855,110 @@ export async function unduhPdf(daftar, petaUnit) {
   }
   tabBaru.document.write(`<p style="font-family:Arial;text-align:center;color:#777">
     Menyiapkan laporan…</p>`);
-  const peta = await muatUnitEkspor(daftar, petaUnit);
+  const d = await siapkanDataEkspor(daftar, petaUnit);
+  const uang = (n) => (n === "" || n === null || n === undefined) ? "-" : rupiah(n);
+  const jml = { offroad: 0, bbn: 0, otr: 0, diskon: 0, dp: 0, komisi: 0,
+    cashback: 0, hargaTebus: 0, profit: 0 };
+  let nAktif = 0;
   const baris = daftar.map((t) => {
     const batal = t.status === "batal";
-    const unit = (t.unitId && peta.get(t.unitId)) || {};
-    return `<tr>
-      <td>${aman(t.spkNo)}</td><td>${tanggal(t.dibuatPada)}</td>
-      <td>${aman(t.pembeli?.nama)}</td><td>${aman(t.tipeNama)} ${aman(t.warna)}</td>
-      <td class="mono">${aman(unit.noRangka || "-")}</td>
-      <td class="mono">${aman(unit.noMesin || "-")}</td>
-      <td style="text-align:right">${rupiah(t.hargaOtr)}</td>
-      <td>${(t.caraBayar || []).includes("kredit") ? "Kredit" : "Cash"}</td>
+    const unit = (t.unitId && d.peta.get(t.unitId)) || {};
+    const k = hitungKeuangan(t, d);
+    const kreditYa = (t.caraBayar || []).includes("kredit");
+    if (!batal) {
+      nAktif++;
+      Object.keys(jml).forEach((x) => { jml[x] += Number(k[x]) || 0; });
+    }
+    return `<tr${batal ? ' class="batal"' : ""}>
+      <td>${aman(t.spkNo)}<br><span class="kecil">${tanggal(t.dibuatPada)}</span></td>
+      <td>${aman(t.pembeli?.nama)}<br><span class="kecil mono">${aman(t.pembeli?.telepon || "")}</span></td>
+      <td>${aman(t.tipeNama)}<br><span class="kecil">${aman(t.warna)}</span></td>
+      <td class="mono">${aman(unit.noRangka || "-")}<br>${aman(unit.noMesin || "-")}</td>
+      <td class="k">${uang(k.offroad)}</td>
+      <td class="k">${uang(k.bbn)}</td>
+      <td class="k">${uang(k.otr)}</td>
+      <td class="k">${uang(k.diskon)}</td>
+      <td class="k">${uang(k.dp)}</td>
+      <td>${kreditYa ? `Kredit<br><span class="kecil">${aman(k.leasing)}${
+        k.tenor ? ` · ${k.tenor} bln` : ""}</span>` : "Cash"}</td>
       <td>${batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas")}</td>
       <td>${aman(t.salesNama)}</td>
       <td>${aman(t.agenNama || "-")}</td>
+      ${d.bisaLihatAgen ? `<td class="k">${uang(k.komisi)}</td>` : ""}
+      <td class="k">${uang(k.cashback)}</td>
+      ${d.bisaLihatLaba ? `<td class="k">${uang(k.hargaTebus)}${
+        k.sumberTebus !== "Unit" ? `<br><span class="kecil">${aman(k.sumberTebus)}</span>` : ""}</td>
+      <td class="k"><b>${batal ? "-" : uang(k.profit)}</b></td>` : ""}
     </tr>`;
   }).join("");
+  const totalBaris = `<tr class="total">
+      <td colspan="4">TOTAL (${nAktif} SPK, tanpa yang batal)</td>
+      <td class="k">${rupiah(jml.offroad)}</td>
+      <td class="k">${rupiah(jml.bbn)}</td>
+      <td class="k">${rupiah(jml.otr)}</td>
+      <td class="k">${rupiah(jml.diskon)}</td>
+      <td class="k">${rupiah(jml.dp)}</td>
+      <td colspan="4"></td>
+      ${d.bisaLihatAgen ? `<td class="k">${rupiah(jml.komisi)}</td>` : ""}
+      <td class="k">${rupiah(jml.cashback)}</td>
+      ${d.bisaLihatLaba ? `<td class="k">${rupiah(jml.hargaTebus)}</td>
+      <td class="k">${rupiah(jml.profit)}</td>` : ""}
+    </tr>`;
   tabBaru.document.open();
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"><title>Riwayat SPK</title>
     <style>
-      body { font-family: Arial, Helvetica, sans-serif; padding: 20px; color: #000; }
-      h1 { font-size: 16px; }
-      table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-      th, td { border: 1px solid #999; padding: 4px 6px; text-align: left; }
+      body { font-family: Arial, Helvetica, sans-serif; padding: 16px; color: #000; }
+      h1 { font-size: 15px; margin: 0 0 4px; }
+      table { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+      th, td { border: 1px solid #999; padding: 3px 4px; text-align: left; vertical-align: top; }
       th { background: #eee; }
+      td.k, th.k { text-align: right; white-space: nowrap; }
       .mono { font-family: "Courier New", monospace; white-space: nowrap; }
+      .kecil { color: #555; font-size: 8px; }
+      tr.batal td { color: #999; text-decoration: line-through; }
+      tr.total td { font-weight: bold; background: #f4f4f4; }
+      .rumus { font-size: 9px; color: #555; margin-top: 8px; }
+      .ringkas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+      .ringkas div { border: 1px solid #999; padding: 4px 8px; font-size: 9px; }
+      .ringkas span { display: block; color: #555; }
+      .ringkas b { font-size: 11px; }
+      .ringkas .profit { border: 2px solid #000; background: #f4f4f4; }
+      .ringkas .profit b { font-size: 13px; }
+      .profit-akhir { text-align: right; font-size: 12px; margin-top: 6px; }
       .aksi-cetak { text-align: center; margin-top: 14px; }
-      @page { size: A4 landscape; margin: 10mm; }
+      @page { size: A4 landscape; margin: 8mm; }
       @media print { .aksi-cetak { display: none; } }
     </style></head>
     <body>
       <h1>Riwayat &amp; Laporan SPK — ${aman(SHOWROOM.nama)}</h1>
-      <p style="font-size:10.5px;color:#555">Dicetak ${tanggal(new Date())} · ${daftar.length} SPK</p>
+      <p style="font-size:10px;color:#555;margin:0 0 8px">Dicetak ${tanggal(new Date())} · ${daftar.length} SPK</p>
+      ${d.bisaLihatLaba ? `<div class="ringkas">
+        <div><span>SPK (tanpa batal)</span><b>${nAktif}</b></div>
+        <div><span>Total Harga OTR</span><b>${rupiah(jml.otr)}</b></div>
+        <div><span>Total Diskon</span><b>${rupiah(jml.diskon)}</b></div>
+        <div><span>Total Komisi Agen</span><b>${rupiah(jml.komisi)}</b></div>
+        <div><span>Total Cashback</span><b>${rupiah(jml.cashback)}</b></div>
+        <div><span>Total Harga Tebus</span><b>${rupiah(jml.hargaTebus)}</b></div>
+        <div class="profit"><span>TOTAL PROFIT</span><b>${rupiah(jml.profit)}</b></div>
+      </div>` : ""}
       <table><thead><tr>
-        <th>No. SPK</th><th>Tanggal</th><th>Pembeli</th><th>Unit</th>
-        <th>No. Rangka</th><th>No. Mesin</th>
-        <th>Harga OTR</th><th>Cara Bayar</th><th>Status</th><th>Sales</th>
+        <th>No. SPK / Tgl</th><th>Pembeli / No. HP</th><th>Unit / Warna</th>
+        <th>No. Rangka / No. Mesin</th>
+        <th class="k">Off The Road</th><th class="k">BBN</th><th class="k">Harga OTR</th>
+        <th class="k">Diskon</th><th class="k">DP</th>
+        <th>Cara Bayar / Leasing · Tenor</th><th>Status</th><th>Sales</th>
         <th>Nama Agen</th>
-      </tr></thead><tbody>${baris}</tbody></table>
+        ${d.bisaLihatAgen ? `<th class="k">Komisi Agen</th>` : ""}
+        <th class="k">Cashback</th>
+        ${d.bisaLihatLaba ? `<th class="k">Harga Tebus</th><th class="k">Profit</th>` : ""}
+      </tr></thead><tbody>${baris}${totalBaris}</tbody></table>
+      ${d.bisaLihatLaba ? `<p class="profit-akhir">TOTAL PROFIT
+        (${nAktif} SPK, tanpa yang batal): <b>${rupiah(jml.profit)}</b></p>` : ""}
+      ${d.bisaLihatLaba ? `<p class="rumus">Profit = Harga OTR − Harga Tebus − BBN − Diskon
+        − Komisi Agen − Cashback. Off The Road = Harga OTR − BBN. Harga tebus
+        bertanda "Standar tipe" memakai harga tebus di Master Tipe karena
+        unit belum ada (Indent) atau tebus unitnya belum diisi.</p>` : ""}
       <div class="aksi-cetak">
         <button onclick="window.print()">Cetak / Simpan PDF</button>
       </div>

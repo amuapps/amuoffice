@@ -19,14 +19,14 @@ import {
 import {
   dbase, auth, collection, doc, getDocs, setDoc, updateDoc, query, where,
   serverTimestamp, catat,
-} from "./db.js?v=3.12.0";
-import { sesi, bolehAkses } from "./auth.js?v=3.12.0";
+} from "./db.js?v=3.13.0";
+import { sesi, bolehAkses } from "./auth.js?v=3.13.0";
 import { PERAN, batasDiskon, muatBatasDiskon, batasDiskonGlobal,
-  setBatasDiskonGlobal } from "./roles.js?v=3.12.0";
-import { FIREBASE } from "./config.js?v=3.12.0";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.12.0";
+  setBatasDiskonGlobal } from "./roles.js?v=3.13.0";
+import { FIREBASE } from "./config.js?v=3.13.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.13.0";
 import { rupiah, aman, kabar, tanggal, keTanggal, pasangFormatUang, bacaAngka }
-  from "./ui.js?v=3.12.0";
+  from "./ui.js?v=3.13.0";
 
 const OPSI_PENDIDIKAN = ["SD", "SMP", "SMA/SMK", "D3", "S1", "S2", "S3", "Lainnya"];
 
@@ -499,6 +499,9 @@ export async function halamanPengguna(wadah) {
   await muatBatasDiskon();
   gambarBatas();
   wadah.querySelector("#simpan-batas-diskon").addEventListener("click", async (e) => {
+    // Ambil tombolnya SEBELUM await — setelah await, e.currentTarget
+    // sudah null (penyebab error "setting 'disabled'" sebelumnya).
+    const tombol = e.currentTarget;
     const kosong = !batasEl.value.replace(/\D/g, "");
     const nilai = kosong ? null : bacaAngka(batasEl);
     const jadi = await konfirmasi({
@@ -509,7 +512,6 @@ export async function halamanPengguna(wadah) {
       oke: "Simpan",
     });
     if (!jadi) return;
-    const tombol = e.currentTarget;
     tombol.disabled = true;
     try {
       await setDoc(doc(dbase, "pengaturan", "diskon"), {
