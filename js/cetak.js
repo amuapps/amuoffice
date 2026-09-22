@@ -8,16 +8,16 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.13.0";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.13.0";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.13.0";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.13.0";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.13.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.13.0";
-import { konfirmasiPassword, bolehAkses, sesi } from "./auth.js?v=3.13.0";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.13.0";
-import { buatNotifikasi } from "./notifikasi.js?v=3.13.0";
-import { kabar } from "./ui.js?v=3.13.0";
+  nomorKuitansiSpk } from "./db.js?v=3.13.1";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.13.1";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.13.1";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.13.1";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.13.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.13.1";
+import { konfirmasiPassword, bolehAkses, sesi } from "./auth.js?v=3.13.1";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.13.1";
+import { buatNotifikasi } from "./notifikasi.js?v=3.13.1";
+import { kabar } from "./ui.js?v=3.13.1";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -689,35 +689,70 @@ async function siapkanDataEkspor(daftar, petaAwal) {
 // Semua angka keuangan satu SPK, dipakai bareng oleh Excel & PDF.
 //   Harga Off The Road = Harga OTR − BBN
 //   Profit = Harga OTR − Harga Tebus − BBN − Diskon − Komisi Agen − Cashback
-// BBN diambil dari SPK (disimpan sejak v3.13.0); SPK lama yang belum
-// punya field ini memakai BBN dari Master Tipe saat ini. Harga tebus
-// diambil dari unit fisik yang terkunci ke SPK; kalau belum ada unit
-// (Indent) atau tebus unitnya belum diisi, memakai Harga Tebus
-// standar di Master Tipe.
+//
+// Harga tebus HANYA diambil dari unit fisik yang terkunci ke SPK
+// (Data Unit → Harga tebus). Sengaja TIDAK ada cadangan ke "Harga
+// Tebus standar" di Master Tipe: di sana Harga Offroad = Tebus
+// standar + Kirim + Aksesoris + Lain-lain, jadi selisihnya hampir
+// selalu 0 (atau minus kalau Master Tipe diubah setelah SPK dibuat)
+// — itu bukan profit sungguhan. SPK yang tebus unitnya belum diisi
+// (atau Indent, belum ada unit) ditandai "Belum diisi", profitnya
+// TIDAK dihitung & TIDAK ikut total, supaya total profit tidak
+// menggelembung (dulu tebus kosong = dianggap Rp0 = seluruh harga
+// jual terhitung profit).
+//
+// BBN diambil dari SPK (disimpan sejak v3.12.1); SPK lama yang belum
+// punya field ini memakai BBN dari Master Tipe saat ini.
 function hitungKeuangan(t, d) {
   const tipe = tipeDari(t.tipeId) || {};
+  const batal = t.status === "batal";
   const otr = Number(t.hargaOtr || 0);
   const bbn = Number(t.bbn ?? tipe.bbn ?? 0) || 0;
   const offroad = Math.max(otr - bbn, 0);
   const diskon = Number(t.diskon || 0);
   const komisi = Number(t.feeAgen || 0);
   const cashback = Number(t.cashbackDisetujui || 0);
-  let hargaTebus = t.unitId ? d.tebus.get(t.unitId) : undefined;
-  let sumberTebus = "Unit";
-  if (!hargaTebus) {
-    hargaTebus = Number(tipe.hargaTebusTipe || 0);
-    sumberTebus = hargaTebus ? "Standar tipe" : "Belum diisi";
-  }
+  const tebusUnit = t.unitId ? d.tebus.get(t.unitId) : undefined;
+  const adaTebus = Number(tebusUnit) > 0;
+  let ketProfit = "";
+  if (batal) ketProfit = "SPK batal";
+  else if (!t.unitId) ketProfit = "Indent — belum ada unit";
+  else if (!adaTebus) ketProfit = "Harga tebus unit belum diisi";
   const kredit = (t.caraBayar || []).includes("kredit") && t.kredit;
   const leasing = kredit ? leasingDari(t.kredit.leasingId) : null;
   return {
-    otr, bbn, offroad, diskon, komisi, cashback, hargaTebus, sumberTebus,
-    profit: otr - hargaTebus - bbn - diskon - komisi - cashback,
+    batal, otr, bbn, offroad, diskon, komisi, cashback,
+    hargaTebus: adaTebus ? Number(tebusUnit) : null,
+    // null = tidak dihitung (lihat ketProfit)
+    profit: (!batal && adaTebus)
+      ? otr - Number(tebusUnit) - bbn - diskon - komisi - cashback : null,
+    ketProfit,
     dp: Number(t.jumlahBayar || 0),
     leasing: kredit ? (leasing?.nama || "-") : "",
     tenor: kredit && t.kredit.tenor ? Number(t.kredit.tenor) : "",
     cicilan: kredit ? Number(t.kredit.cicilan || 0) : "",
   };
+}
+
+// Rekap total seluruh report. Total uang (OTR, diskon, dst) dari
+// semua SPK yang tidak batal; total tebus & profit HANYA dari SPK yang
+// profitnya bisa dihitung (tebus unit lengkap).
+function rekapKeuangan(daftar, d) {
+  const r = { nAktif: 0, nBatal: 0, nProfit: 0, belum: [],
+    offroad: 0, bbn: 0, otr: 0, diskon: 0, dp: 0, komisi: 0, cashback: 0,
+    hargaTebus: 0, profit: 0 };
+  daftar.forEach((t) => {
+    const k = hitungKeuangan(t, d);
+    if (k.batal) { r.nBatal++; return; }
+    r.nAktif++;
+    ["offroad", "bbn", "otr", "diskon", "dp", "komisi", "cashback"]
+      .forEach((x) => { r[x] += k[x] || 0; });
+    if (k.profit === null) { r.belum.push(t.spkNo || "-"); return; }
+    r.nProfit++;
+    r.hargaTebus += k.hargaTebus;
+    r.profit += k.profit;
+  });
+  return r;
 }
 
 function barisEkspor(t, d) {
@@ -735,7 +770,7 @@ function barisEkspor(t, d) {
     "Harga OTR": k.otr,
     "Diskon": k.diskon,
     "Harga Efektif": hargaEfektif(t),
-    "DP": k.dp,
+    "Bayar Awal (DP)": k.dp,
     "Cara Bayar": kreditYa ? "Kredit" : "Cash",
     "Leasing": k.leasing,
     "Tenor (bln)": k.tenor,
@@ -748,10 +783,9 @@ function barisEkspor(t, d) {
   if (d.bisaLihatAgen) baris["Komisi Agen"] = k.komisi;
   baris["Cashback"] = k.cashback;
   if (d.bisaLihatLaba) {
-    baris["Harga Tebus"] = k.hargaTebus;
-    baris["Sumber Tebus"] = k.sumberTebus;
-    // SPK batal tidak menghasilkan profit — dikosongkan, bukan minus.
-    baris["Profit"] = batal ? "" : k.profit;
+    baris["Harga Tebus"] = k.hargaTebus === null ? "" : k.hargaTebus;
+    baris["Profit"] = k.profit === null ? "" : k.profit;
+    baris["Keterangan Profit"] = k.ketProfit;
   }
   baris["Kondisi"] = t.kondisiUnit || "";
   baris["Alasan Batal"] = t.alasanBatal || "";
@@ -759,9 +793,9 @@ function barisEkspor(t, d) {
 }
 
 const KOLOM_UANG_EKSPOR = [
-  "Harga Off The Road", "BBN", "Harga OTR", "Diskon", "Harga Efektif", "DP",
-  "Cicilan/bln", "Total Dibayar", "Sisa Tagihan", "Komisi Agen", "Cashback",
-  "Harga Tebus", "Profit",
+  "Harga Off The Road", "BBN", "Harga OTR", "Diskon", "Harga Efektif",
+  "Bayar Awal (DP)", "Cicilan/bln", "Total Dibayar", "Sisa Tagihan",
+  "Komisi Agen", "Cashback", "Harga Tebus", "Profit",
 ];
 
 // Report Excel/PDF khusus Owner (dijaga juga di sini, bukan cuma
@@ -778,62 +812,84 @@ export async function unduhExcel(daftar, petaUnit) {
   try {
     const [d] = await Promise.all([siapkanDataEkspor(daftar, petaUnit), muatSheetJS()]);
     const isi = daftar.map((t) => barisEkspor(t, d));
-    // Baris TOTAL di bawah (SPK batal tidak ikut dijumlah).
-    const aktif = isi.filter((b) => b.Status !== "Batal");
-    const total = { "No. SPK": `TOTAL (${aktif.length} SPK, tanpa yang batal)` };
-    KOLOM_UANG_EKSPOR.forEach((kol) => {
-      if (kol in isi[0] && kol !== "Cicilan/bln") {
-        total[kol] = aktif.reduce((n, b) => n + (Number(b[kol]) || 0), 0);
+    const r = rekapKeuangan(daftar, d);
+    const X = window.XLSX;
+
+    // Baris TOTAL di bawah tabel.
+    const total = {
+      "No. SPK": `TOTAL (${r.nAktif} SPK, tanpa yang batal)`,
+      "Harga Off The Road": r.offroad, "BBN": r.bbn, "Harga OTR": r.otr,
+      "Diskon": r.diskon, "Bayar Awal (DP)": r.dp, "Cashback": r.cashback,
+    };
+    if (d.bisaLihatAgen) total["Komisi Agen"] = r.komisi;
+    if (d.bisaLihatLaba) {
+      total["Harga Tebus"] = r.hargaTebus;
+      total["Profit"] = r.profit;
+      total["Keterangan Profit"] = `Profit & tebus dari ${r.nProfit} SPK yang tebusnya lengkap`;
+    }
+    const barisAkhir = [...isi, {}, total];
+    if (d.bisaLihatLaba) {
+      barisAkhir.push({ "No. SPK": "TOTAL PROFIT", "Tanggal": r.profit,
+        "Pembeli": `dari ${r.nProfit} SPK` });
+      if (r.belum.length) {
+        barisAkhir.push({ "No. SPK": "BELUM DIHITUNG",
+          "Tanggal": `${r.belum.length} SPK`,
+          "Pembeli": `Harga tebus unit belum diisi / Indent: ${r.belum.join(", ")}` });
       }
-    });
-    // Baris TOTAL PROFIT tersendiri di bawah baris TOTAL, supaya
-    // langsung terlihat tanpa harus menggeser ke kolom paling kanan.
-    const totalProfit = { "No. SPK": "TOTAL PROFIT", "Tanggal": total["Profit"] || 0 };
-    const ws = window.XLSX.utils.json_to_sheet([...isi, {}, total, totalProfit]);
-    const selProfit = ws[window.XLSX.utils.encode_cell({ r: isi.length + 3, c: 1 })];
-    if (selProfit) selProfit.z = "#,##0";
-    // Format ribuan untuk kolom uang.
+    }
+    const ws = X.utils.json_to_sheet(barisAkhir);
     const kepala = Object.keys(isi[0]);
-    const rentang = window.XLSX.utils.decode_range(ws["!ref"]);
+    const rentang = X.utils.decode_range(ws["!ref"]);
     kepala.forEach((kol, c) => {
       if (!KOLOM_UANG_EKSPOR.includes(kol)) return;
-      for (let r = 1; r <= rentang.e.r; r++) {
-        const sel = ws[window.XLSX.utils.encode_cell({ r, c })];
+      for (let rr = 1; rr <= rentang.e.r; rr++) {
+        const sel = ws[X.utils.encode_cell({ r: rr, c })];
         if (sel && sel.t === "n") sel.z = "#,##0";
       }
     });
+    const selProfit = ws[X.utils.encode_cell({ r: isi.length + 3, c: 1 })];
+    if (selProfit && selProfit.t === "n") selProfit.z = "#,##0";
     ws["!cols"] = kepala.map((k) => ({ wch: Math.max(k.length + 2, 12) }));
-    const wb = window.XLSX.utils.book_new();
-    window.XLSX.utils.book_append_sheet(wb, ws, "Riwayat SPK");
+    const wb = X.utils.book_new();
+    X.utils.book_append_sheet(wb, ws, "Riwayat SPK");
 
-    // Sheet kedua: ringkasan total (SPK batal tidak dihitung).
+    // Sheet kedua: ringkasan.
     const ringkas = [
       ["RINGKASAN LAPORAN SPK", ""],
       ["Dicetak", tanggal(new Date())],
-      ["Jumlah SPK (tanpa batal)", aktif.length],
-      ["Jumlah SPK batal", isi.length - aktif.length],
+      ["Jumlah SPK (tanpa batal)", r.nAktif],
+      ["Jumlah SPK batal", r.nBatal],
       ["", ""],
-      ["Total Harga Off The Road", total["Harga Off The Road"] || 0],
-      ["Total BBN", total["BBN"] || 0],
-      ["Total Harga OTR", total["Harga OTR"] || 0],
-      ["Total Diskon", total["Diskon"] || 0],
-      ["Total DP", total["DP"] || 0],
-      ["Total Komisi Agen", total["Komisi Agen"] || 0],
-      ["Total Cashback", total["Cashback"] || 0],
-      ["Total Harga Tebus", total["Harga Tebus"] || 0],
-      ["", ""],
-      ["TOTAL PROFIT", total["Profit"] || 0],
-      ["", ""],
-      ["Rumus", "Profit = Harga OTR − Harga Tebus − BBN − Diskon − Komisi Agen − Cashback"],
+      ["Total Harga Off The Road", r.offroad],
+      ["Total BBN", r.bbn],
+      ["Total Harga OTR", r.otr],
+      ["Total Diskon", r.diskon],
+      ["Total Bayar Awal (DP)", r.dp],
     ];
-    const wsR = window.XLSX.utils.aoa_to_sheet(ringkas);
-    ringkas.forEach((b, r) => {
-      const sel = wsR[window.XLSX.utils.encode_cell({ r, c: 1 })];
-      if (sel && sel.t === "n" && r >= 5) sel.z = "#,##0";
+    if (d.bisaLihatAgen) ringkas.push(["Total Komisi Agen", r.komisi]);
+    ringkas.push(["Total Cashback", r.cashback]);
+    if (d.bisaLihatLaba) {
+      ringkas.push(
+        ["", ""],
+        ["SPK yang profitnya dihitung", r.nProfit],
+        ["Total Harga Tebus (SPK tsb)", r.hargaTebus],
+        ["TOTAL PROFIT", r.profit],
+        ["", ""],
+        ["SPK belum dihitung profitnya", r.belum.length],
+        ["Daftar SPK tsb", r.belum.join(", ") || "-"],
+        ["Alasan", "Harga tebus unit belum diisi di Data Unit, atau SPK Indent (belum ada unit)"],
+        ["", ""],
+        ["Rumus", "Profit = Harga OTR − Harga Tebus unit − BBN − Diskon − Komisi Agen − Cashback"],
+      );
+    }
+    const wsR = X.utils.aoa_to_sheet(ringkas);
+    ringkas.forEach((b, rr) => {
+      const sel = wsR[X.utils.encode_cell({ r: rr, c: 1 })];
+      if (sel && sel.t === "n") sel.z = "#,##0";
     });
-    wsR["!cols"] = [{ wch: 28 }, { wch: 22 }];
-    window.XLSX.utils.book_append_sheet(wb, wsR, "Ringkasan");
-    window.XLSX.writeFile(wb, `riwayat-spk-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    wsR["!cols"] = [{ wch: 30 }, { wch: 60 }];
+    X.utils.book_append_sheet(wb, wsR, "Ringkasan");
+    X.writeFile(wb, `riwayat-spk-${new Date().toISOString().slice(0, 10)}.xlsx`);
   } catch (err) {
     kabar("Gagal membuat Excel: " + err.message, "rem");
   }
@@ -856,54 +912,55 @@ export async function unduhPdf(daftar, petaUnit) {
   tabBaru.document.write(`<p style="font-family:Arial;text-align:center;color:#777">
     Menyiapkan laporan…</p>`);
   const d = await siapkanDataEkspor(daftar, petaUnit);
-  const uang = (n) => (n === "" || n === null || n === undefined) ? "-" : rupiah(n);
-  const jml = { offroad: 0, bbn: 0, otr: 0, diskon: 0, dp: 0, komisi: 0,
-    cashback: 0, hargaTebus: 0, profit: 0 };
-  let nAktif = 0;
+  const r = rekapKeuangan(daftar, d);
   const baris = daftar.map((t) => {
-    const batal = t.status === "batal";
     const unit = (t.unitId && d.peta.get(t.unitId)) || {};
     const k = hitungKeuangan(t, d);
     const kreditYa = (t.caraBayar || []).includes("kredit");
-    if (!batal) {
-      nAktif++;
-      Object.keys(jml).forEach((x) => { jml[x] += Number(k[x]) || 0; });
-    }
-    return `<tr${batal ? ' class="batal"' : ""}>
+    return `<tr${k.batal ? ' class="batal"' : ""}>
       <td>${aman(t.spkNo)}<br><span class="kecil">${tanggal(t.dibuatPada)}</span></td>
       <td>${aman(t.pembeli?.nama)}<br><span class="kecil mono">${aman(t.pembeli?.telepon || "")}</span></td>
       <td>${aman(t.tipeNama)}<br><span class="kecil">${aman(t.warna)}</span></td>
       <td class="mono">${aman(unit.noRangka || "-")}<br>${aman(unit.noMesin || "-")}</td>
-      <td class="k">${uang(k.offroad)}</td>
-      <td class="k">${uang(k.bbn)}</td>
-      <td class="k">${uang(k.otr)}</td>
-      <td class="k">${uang(k.diskon)}</td>
-      <td class="k">${uang(k.dp)}</td>
+      <td class="k">${rupiah(k.offroad)}</td>
+      <td class="k">${rupiah(k.bbn)}</td>
+      <td class="k">${rupiah(k.otr)}</td>
+      <td class="k">${rupiah(k.diskon)}</td>
+      <td class="k">${rupiah(k.dp)}</td>
       <td>${kreditYa ? `Kredit<br><span class="kecil">${aman(k.leasing)}${
         k.tenor ? ` · ${k.tenor} bln` : ""}</span>` : "Cash"}</td>
-      <td>${batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas")}</td>
+      <td>${k.batal ? "Batal" : (sudahLunas(t) ? "Lunas" : "Belum Lunas")}</td>
       <td>${aman(t.salesNama)}</td>
       <td>${aman(t.agenNama || "-")}</td>
-      ${d.bisaLihatAgen ? `<td class="k">${uang(k.komisi)}</td>` : ""}
-      <td class="k">${uang(k.cashback)}</td>
-      ${d.bisaLihatLaba ? `<td class="k">${uang(k.hargaTebus)}${
-        k.sumberTebus !== "Unit" ? `<br><span class="kecil">${aman(k.sumberTebus)}</span>` : ""}</td>
-      <td class="k"><b>${batal ? "-" : uang(k.profit)}</b></td>` : ""}
+      ${d.bisaLihatAgen ? `<td class="k">${rupiah(k.komisi)}</td>` : ""}
+      <td class="k">${rupiah(k.cashback)}</td>
+      ${d.bisaLihatLaba ? `<td class="k">${k.hargaTebus === null
+        ? `<span class="peringatan">${k.batal ? "-" : "Belum diisi"}</span>`
+        : rupiah(k.hargaTebus)}</td>
+      <td class="k">${k.profit === null
+        ? `<span class="kecil">${aman(k.batal ? "-" : "tidak dihitung")}</span>`
+        : `<b${k.profit < 0 ? ' class="minus"' : ""}>${rupiah(k.profit)}</b>`}</td>` : ""}
     </tr>`;
   }).join("");
   const totalBaris = `<tr class="total">
-      <td colspan="4">TOTAL (${nAktif} SPK, tanpa yang batal)</td>
-      <td class="k">${rupiah(jml.offroad)}</td>
-      <td class="k">${rupiah(jml.bbn)}</td>
-      <td class="k">${rupiah(jml.otr)}</td>
-      <td class="k">${rupiah(jml.diskon)}</td>
-      <td class="k">${rupiah(jml.dp)}</td>
+      <td colspan="4">TOTAL (${r.nAktif} SPK, tanpa yang batal)</td>
+      <td class="k">${rupiah(r.offroad)}</td>
+      <td class="k">${rupiah(r.bbn)}</td>
+      <td class="k">${rupiah(r.otr)}</td>
+      <td class="k">${rupiah(r.diskon)}</td>
+      <td class="k">${rupiah(r.dp)}</td>
       <td colspan="4"></td>
-      ${d.bisaLihatAgen ? `<td class="k">${rupiah(jml.komisi)}</td>` : ""}
-      <td class="k">${rupiah(jml.cashback)}</td>
-      ${d.bisaLihatLaba ? `<td class="k">${rupiah(jml.hargaTebus)}</td>
-      <td class="k">${rupiah(jml.profit)}</td>` : ""}
+      ${d.bisaLihatAgen ? `<td class="k">${rupiah(r.komisi)}</td>` : ""}
+      <td class="k">${rupiah(r.cashback)}</td>
+      ${d.bisaLihatLaba ? `<td class="k">${rupiah(r.hargaTebus)}</td>
+      <td class="k">${rupiah(r.profit)}</td>` : ""}
     </tr>`;
+  const peringatanBelum = (d.bisaLihatLaba && r.belum.length) ? `<div class="kotak-peringatan">
+      <b>${r.belum.length} SPK belum dihitung profitnya</b> karena harga tebus
+      unitnya belum diisi di Data Unit (atau SPK masih Indent):
+      ${r.belum.map(aman).join(", ")}. Total profit di atas BELUM termasuk
+      SPK-SPK ini — isi harga tebusnya lewat Data Unit → Ubah, lalu unduh
+      ulang report ini.</div>` : "";
   tabBaru.document.open();
   tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
     <meta charset="utf-8"><title>Riwayat SPK</title>
@@ -916,15 +973,19 @@ export async function unduhPdf(daftar, petaUnit) {
       td.k, th.k { text-align: right; white-space: nowrap; }
       .mono { font-family: "Courier New", monospace; white-space: nowrap; }
       .kecil { color: #555; font-size: 8px; }
+      .peringatan { color: #b45309; font-weight: bold; }
+      .minus { color: #b91c1c; }
       tr.batal td { color: #999; text-decoration: line-through; }
       tr.total td { font-weight: bold; background: #f4f4f4; }
       .rumus { font-size: 9px; color: #555; margin-top: 8px; }
-      .ringkas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+      .ringkas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
       .ringkas div { border: 1px solid #999; padding: 4px 8px; font-size: 9px; }
       .ringkas span { display: block; color: #555; }
       .ringkas b { font-size: 11px; }
       .ringkas .profit { border: 2px solid #000; background: #f4f4f4; }
       .ringkas .profit b { font-size: 13px; }
+      .kotak-peringatan { border: 1px solid #d97706; background: #fffbeb;
+        padding: 6px 8px; font-size: 9.5px; margin: 0 0 10px; }
       .profit-akhir { text-align: right; font-size: 12px; margin-top: 6px; }
       .aksi-cetak { text-align: center; margin-top: 14px; }
       @page { size: A4 landscape; margin: 8mm; }
@@ -934,31 +995,32 @@ export async function unduhPdf(daftar, petaUnit) {
       <h1>Riwayat &amp; Laporan SPK — ${aman(SHOWROOM.nama)}</h1>
       <p style="font-size:10px;color:#555;margin:0 0 8px">Dicetak ${tanggal(new Date())} · ${daftar.length} SPK</p>
       ${d.bisaLihatLaba ? `<div class="ringkas">
-        <div><span>SPK (tanpa batal)</span><b>${nAktif}</b></div>
-        <div><span>Total Harga OTR</span><b>${rupiah(jml.otr)}</b></div>
-        <div><span>Total Diskon</span><b>${rupiah(jml.diskon)}</b></div>
-        <div><span>Total Komisi Agen</span><b>${rupiah(jml.komisi)}</b></div>
-        <div><span>Total Cashback</span><b>${rupiah(jml.cashback)}</b></div>
-        <div><span>Total Harga Tebus</span><b>${rupiah(jml.hargaTebus)}</b></div>
-        <div class="profit"><span>TOTAL PROFIT</span><b>${rupiah(jml.profit)}</b></div>
-      </div>` : ""}
+        <div><span>SPK (tanpa batal)</span><b>${r.nAktif}</b></div>
+        <div><span>Total Harga OTR</span><b>${rupiah(r.otr)}</b></div>
+        <div><span>Total Diskon</span><b>${rupiah(r.diskon)}</b></div>
+        <div><span>Total Komisi Agen</span><b>${rupiah(r.komisi)}</b></div>
+        <div><span>Total Cashback</span><b>${rupiah(r.cashback)}</b></div>
+        <div><span>Total Harga Tebus (${r.nProfit} SPK)</span><b>${rupiah(r.hargaTebus)}</b></div>
+        <div class="profit"><span>TOTAL PROFIT (${r.nProfit} dari ${r.nAktif} SPK)</span>
+          <b>${rupiah(r.profit)}</b></div>
+      </div>${peringatanBelum}` : ""}
       <table><thead><tr>
         <th>No. SPK / Tgl</th><th>Pembeli / No. HP</th><th>Unit / Warna</th>
         <th>No. Rangka / No. Mesin</th>
         <th class="k">Off The Road</th><th class="k">BBN</th><th class="k">Harga OTR</th>
-        <th class="k">Diskon</th><th class="k">DP</th>
+        <th class="k">Diskon</th><th class="k">Bayar Awal (DP)</th>
         <th>Cara Bayar / Leasing · Tenor</th><th>Status</th><th>Sales</th>
         <th>Nama Agen</th>
         ${d.bisaLihatAgen ? `<th class="k">Komisi Agen</th>` : ""}
         <th class="k">Cashback</th>
-        ${d.bisaLihatLaba ? `<th class="k">Harga Tebus</th><th class="k">Profit</th>` : ""}
+        ${d.bisaLihatLaba ? `<th class="k">Harga Tebus Unit</th><th class="k">Profit</th>` : ""}
       </tr></thead><tbody>${baris}${totalBaris}</tbody></table>
       ${d.bisaLihatLaba ? `<p class="profit-akhir">TOTAL PROFIT
-        (${nAktif} SPK, tanpa yang batal): <b>${rupiah(jml.profit)}</b></p>` : ""}
-      ${d.bisaLihatLaba ? `<p class="rumus">Profit = Harga OTR − Harga Tebus − BBN − Diskon
-        − Komisi Agen − Cashback. Off The Road = Harga OTR − BBN. Harga tebus
-        bertanda "Standar tipe" memakai harga tebus di Master Tipe karena
-        unit belum ada (Indent) atau tebus unitnya belum diisi.</p>` : ""}
+        (${r.nProfit} dari ${r.nAktif} SPK, tanpa yang batal): <b>${rupiah(r.profit)}</b></p>
+      <p class="rumus">Profit = Harga OTR − Harga Tebus unit − BBN − Diskon
+        − Komisi Agen − Cashback. Off The Road = Harga OTR − BBN. SPK yang
+        harga tebus unitnya belum diisi (atau masih Indent) tidak dihitung
+        profitnya dan tidak masuk total.</p>` : ""}
       <div class="aksi-cetak">
         <button onclick="window.print()">Cetak / Simpan PDF</button>
       </div>

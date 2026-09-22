@@ -3,14 +3,23 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.13.0";
-import { VERSI } from "./config.js?v=3.13.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.13.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.13.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.13.1";
+import { VERSI } from "./config.js?v=3.13.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.13.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.13.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.13.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.13.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.13.1", tanggal: "September 2026",
+    judul: "Koreksi Hitungan Profit di Report",
+    butir: [
+      "PERBAIKAN: SPK yang harga tebus unitnya belum diisi sebelumnya dihitung tebus Rp0, sehingga hampir seluruh harga jual terhitung sebagai profit dan Total Profit menggelembung. Sekarang SPK seperti itu ditandai \"Belum diisi\", profitnya tidak dihitung dan tidak masuk total, dan daftarnya ditampilkan di report supaya bisa dilengkapi.",
+      "PERBAIKAN: cadangan ke \"Harga Tebus standar\" Master Tipe dihapus. Karena Harga Offroad di Master Tipe dihitung dari tebus standar itu sendiri, hasilnya selalu Rp0 atau minus, bukan profit sungguhan. Profit sekarang HANYA memakai harga tebus unit fisik (Data Unit).",
+      "Kolom \"DP\" diganti nama menjadi \"Bayar Awal (DP)\", karena untuk pembelian cash isinya adalah pembayaran pertama (bisa langsung lunas).",
+    ],
+  },
   {
     versi: "3.13.0", tanggal: "September 2026",
     judul: "Report Excel/PDF: Total Profit, Kolom Keuangan Lengkap & Khusus Owner",

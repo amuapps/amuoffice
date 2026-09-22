@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.13.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.13.0";
-import { aman, tanggal, kabar } from "./ui.js?v=3.13.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.13.0";
-import { muatBiro, biroAktif } from "./biro.js?v=3.13.0";
-import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.13.0";
-import { SHOWROOM } from "./config.js?v=3.13.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.13.0";
+  serverTimestamp, catat } from "./db.js?v=3.13.1";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.13.1";
+import { aman, tanggal, kabar } from "./ui.js?v=3.13.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.13.1";
+import { muatBiro, biroAktif } from "./biro.js?v=3.13.1";
+import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.13.1";
+import { SHOWROOM } from "./config.js?v=3.13.1";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.13.1";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
