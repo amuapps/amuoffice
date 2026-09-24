@@ -279,15 +279,22 @@ button, input, select { font: inherit; }
   padding: 7px 11px; border-radius: var(--r);
 }
 
+/* Tombol ☰ sekarang tampil juga di layar lebar: menyembunyikan /
+   menampilkan panel menu kiri (pilihan disimpan di browser). */
 .hamburger {
-  display: none; background: none; border: 0; cursor: pointer;
+  display: flex; background: none; border: 0; cursor: pointer; border-radius: 6px;
   padding: 7px 6px; margin-right: 2px; flex-direction: column; gap: 4px;
 }
 .hamburger span {
   display: block; width: 17px; height: 1.5px;
   background: var(--tinta); border-radius: 2px;
 }
+.hamburger:hover { background: var(--lapis); }
 .tirai { position: absolute; inset: 0; background: rgba(0,0,0,.3); z-index: 5; }
+@media (min-width: 821px) {
+  .aplikasi--tanpa-sisi .sisi { display: none; }
+  .aplikasi--tanpa-sisi .konten { max-width: none; }
+}
 
 /* ── Area kerja ──────────────────────────────────────────── */
 .konten {
@@ -377,9 +384,12 @@ button, input, select { font: inherit; }
   font-size: 13px; cursor: pointer;
 }
 .chip:hover { background: var(--lapis); }
-.chip.aktif {
-  background: var(--biru-muda); color: var(--biru-tua);
-  border-color: #C9E0F5; font-weight: 600;
+/* Pilihan/tab aktif di dalam halaman (Semua/Menunggu/Disetujui,
+   Ready/Dipesan, Customer/Internal/Payment, dst) — warna PENUH,
+   seragam dengan tab aplikasi yang aktif. */
+.chip.aktif, .chip.aktif:hover {
+  background: var(--biru); color: #fff;
+  border-color: var(--biru); font-weight: 600;
 }
 
 /* ── Formulir ────────────────────────────────────────────── */
@@ -959,7 +969,8 @@ select.isian {
 }
 .tab:hover { color: var(--tinta); background: var(--lapis); }
 .tab.aktif {
-  color: var(--biru); border-bottom-color: var(--biru); font-weight: 600;
+  background: var(--biru); color: #fff; border-bottom-color: var(--biru-tua);
+  font-weight: 600; border-radius: var(--r) var(--r) 0 0;
 }
 .panel-tab {
   border: 1px solid var(--garis); border-top: 0;
