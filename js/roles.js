@@ -2,9 +2,9 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.15.1";
-import { daftarKodeUntuk } from "./akses.js?v=3.15.1";
-import { dbase, doc, getDoc } from "./db.js?v=3.15.1";
+import { labelItem, labelGrup } from "./label.js?v=3.16.0";
+import { daftarKodeUntuk } from "./akses.js?v=3.16.0";
+import { dbase, doc, getDoc } from "./db.js?v=3.16.0";
 
 // ── Batas diskon MENYELURUH (diinput manual oleh Owner) ─────────
 // Disimpan di /pengaturan/diskon { batas: <angka> | null }.
@@ -76,6 +76,13 @@ const TRACKING_DOKUMEN = { grup: "Dokumen", butir: [
   { label: "Tracking Dokumen", rute: "#/dokumen", kode: "DOK-01" },
 ]};
 
+// Owner/Admin: Tracking Dokumen + Pengajuan Faktur. Biro Jasa tetap
+// cuma TRACKING_DOKUMEN (tidak ikut mengajukan faktur).
+const DOKUMEN_LENGKAP = { grup: "Dokumen", butir: [
+  { label: "Tracking Dokumen", rute: "#/dokumen", kode: "DOK-01" },
+  { label: "Pengajuan Faktur", rute: "#/faktur", kode: "DOK-02" },
+]};
+
 const DASHBOARD = { grup: "Dashboard", butir: [
   { label: "Dashboard Penjualan", rute: "#/dashboard", kode: "DSH-01" },
 ]};
@@ -112,7 +119,7 @@ export const PERAN = {
   owner: {
     label: "Owner", kode: "OWN", warna: "sein",
     beranda: "#/dashboard", batasDiskon: null, izin: ["*"],
-    menu: [DASHBOARD, INBOX, SALES, INVENTORY, TRACKING_DOKUMEN, MASTER_DATA, SISTEM_LENGKAP],
+    menu: [DASHBOARD, INBOX, SALES, INVENTORY, DOKUMEN_LENGKAP, MASTER_DATA, SISTEM_LENGKAP],
   },
 
   admin: {
@@ -125,7 +132,7 @@ export const PERAN = {
     ],
     // Admin tidak diberi izin kelola.pengguna, jadi menu Pengguna
     // tidak ditampilkan untuk peran ini.
-    menu: [INBOX, SALES, INVENTORY, TRACKING_DOKUMEN, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
+    menu: [INBOX, SALES, INVENTORY, DOKUMEN_LENGKAP, MASTER_DATA, SISTEM_PELANGGAN_SAJA],
   },
 
   sales: {

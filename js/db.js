@@ -14,7 +14,7 @@ import { getAuth, EmailAuthProvider, reauthenticateWithCredential, updatePasswor
   updateEmail }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-import { FIREBASE, MODE_UJI } from "./config.js?v=3.15.1";
+import { FIREBASE, MODE_UJI, ZONA } from "./config.js?v=3.16.0";
 
 export const app = initializeApp(FIREBASE);
 export const auth = getAuth(app);
@@ -91,6 +91,30 @@ export async function nomorBerikutnya(kunci, awalan) {
   return `${awalan}/${thn}/${String(angka).padStart(4, "0")}`;
 }
 
+// ── Penomoran BULANAN dengan bulan romawi ────────────────────
+// Format: SPK/2026/IX/0001. Counter-nya per bulan (kunci
+// "spk_2026_09"), jadi nomor urut otomatis mulai lagi dari 0001
+// setiap ganti bulan. Bulan & tahun diambil dari zona waktu
+// showroom (bukan jam perangkat yang mungkin salah zona).
+const ROMAWI = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+
+export function bulanTahunSekarang(d = new Date()) {
+  const [thn, bln] = d.toLocaleDateString("en-CA", { timeZone: ZONA }).split("-");
+  return { tahun: Number(thn), bulan: Number(bln) };
+}
+
+export async function nomorBerikutnyaBulanan(kunci, awalan) {
+  const { tahun, bulan } = bulanTahunSekarang();
+  const ref = doc(dbase, "counters", `${kunci}_${tahun}_${String(bulan).padStart(2, "0")}`);
+  const angka = await runTransaction(dbase, async (t) => {
+    const snap = await t.get(ref);
+    const berikut = (snap.exists() ? snap.data().terakhir : 0) + 1;
+    t.set(ref, { terakhir: berikut, diubah: serverTimestamp() }, { merge: true });
+    return berikut;
+  });
+  return `${awalan}/${tahun}/${ROMAWI[bulan - 1]}/${String(angka).padStart(4, "0")}`;
+}
+
 // Nomor kuitansi yang IKUT nomor SPK-nya — KWT/2026/0002-1,
 // KWT/2026/0002-2, dst (bukan urutan global lintas-SPK) — supaya
 // dari nomornya saja sudah kelihatan itu punya SPK yang mana.
@@ -107,8 +131,9 @@ export async function nomorKuitansiSpk(spkId, spkNo) {
           { merge: true });
     return berikut;
   });
-  // spkNo formatnya "SPK/2026/0002" — ambil bagian setelah "SPK/"
-  // (yaitu "2026/0002"), ganti awalannya jadi "KWT".
+  // spkNo formatnya "SPK/2026/IX/0002" (atau format lama
+  // "SPK/2026/0002") — ambil bagian setelah "SPK/", ganti awalannya
+  // jadi "KWT" → KWT/2026/IX/0002-1.
   const bagian = (spkNo || "").split("/").slice(1).join("/") || "0000/0000";
   return `KWT/${bagian}-${urut}`;
 }

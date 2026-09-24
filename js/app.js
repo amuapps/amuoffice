@@ -8,20 +8,20 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.15.1";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.16.0";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.15.1";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.15.1";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.15.1";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.16.0";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.16.0";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.16.0";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.15.1";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.15.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
-import { muatLabelKustom } from "./label.js?v=3.15.1";
-import { muatAksesKustom } from "./akses.js?v=3.15.1";
-import { muatBatasDiskon } from "./roles.js?v=3.15.1";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.15.1";
-import { halamanSegera } from "./segera.js?v=3.15.1";
+  from "./router.js?v=3.16.0";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.16.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
+import { muatLabelKustom } from "./label.js?v=3.16.0";
+import { muatAksesKustom } from "./akses.js?v=3.16.0";
+import { muatBatasDiskon } from "./roles.js?v=3.16.0";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.16.0";
+import { halamanSegera } from "./segera.js?v=3.16.0";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
@@ -33,7 +33,7 @@ import { halamanSegera } from "./segera.js?v=3.15.1";
 // tetap cepat) — aplikasi jadi jauh lebih ringan waktu pertama kali
 // dibuka/masuk.
 async function muatHalaman(modul, nama) {
-  const m = await import(`./${modul}.js?v=3.15.1`);
+  const m = await import(`./${modul}.js?v=3.16.0`);
   return m[nama];
 }
 
@@ -122,8 +122,9 @@ function gambarJejak() {
       if (!wadahGrup) return;
       wadahGrup.classList.remove("nav-grup--tutup");
       wadahGrup.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      el("aplikasi").classList.remove("aplikasi--tanpa-sisi");
       el("sisi").classList.add("sisi--buka");
-      el("tirai").hidden = false;
+      el("tirai").hidden = !layarSempit();
     });
   }
 }
@@ -282,6 +283,7 @@ function daftarkanHalaman(profil) {
     "#/dashboard": async (w) => (await muatHalaman("dashboard", "halamanDashboard"))(w),
     "#/tentang": async (w) => (await muatHalaman("tentang", "halamanTentang"))(w),
     "#/dokumen": async (w) => (await muatHalaman("dokumen", "halamanDokumen"))(w),
+    "#/faktur": async (w) => (await muatHalaman("faktur", "halamanFaktur"))(w),
     "#/inbox": (w) => halamanInbox(w),
     "#/pengajuan-saya": async (w) => (await muatHalaman("persetujuan", "halamanPengajuanSaya"))(w),
   };
@@ -417,7 +419,25 @@ window.addEventListener("hashchange", () => {
 // ── Jalan ─────────────────────────────────────────────────────
 siapkanLayarMasuk();
 
+// ── Tampilkan / sembunyikan panel menu kiri ─────────────────────
+// Layar sempit (HP): tetap laci geser seperti sebelumnya.
+// Layar lebar: panel kiri disembunyikan/ditampilkan, dan pilihannya
+// diingat di browser ini (localStorage) untuk kunjungan berikutnya.
+const KUNCI_SISI = "amu.sembunyikanSisi";
+const layarSempit = () => window.matchMedia("(max-width: 820px)").matches;
+function aturSisiDesktop(sembunyi) {
+  el("aplikasi").classList.toggle("aplikasi--tanpa-sisi", sembunyi);
+  try { localStorage.setItem(KUNCI_SISI, sembunyi ? "1" : "0"); } catch { /* abaikan */ }
+}
+try {
+  if (localStorage.getItem(KUNCI_SISI) === "1") el("aplikasi").classList.add("aplikasi--tanpa-sisi");
+} catch { /* abaikan */ }
+
 el("buka-sisi").addEventListener("click", () => {
+  if (!layarSempit()) {
+    aturSisiDesktop(!el("aplikasi").classList.contains("aplikasi--tanpa-sisi"));
+    return;
+  }
   const sisi = el("sisi");
   const buka = sisi.classList.toggle("sisi--buka");
   el("tirai").hidden = !buka;

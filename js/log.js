@@ -4,9 +4,9 @@
 // menampilkannya, tidak menulis apa pun ke sana.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
-  from "./db.js?v=3.15.1";
-import { bolehAkses } from "./auth.js?v=3.15.1";
-import { aman, tanggalJam } from "./ui.js?v=3.15.1";
+  from "./db.js?v=3.16.0";
+import { bolehAkses } from "./auth.js?v=3.16.0";
+import { aman, tanggalJam } from "./ui.js?v=3.16.0";
 
 // Nama aksi teknis → kalimat yang gampang dibaca. Aksi yang belum
 // ada di sini tetap tampil (pakai nama aslinya) supaya tidak ada
@@ -78,6 +78,7 @@ export const LABEL_AKSI = {
   transfer_unit_dibuat: "Mentransfer unit ke channel",
   transfer_unit_dikembalikan: "Mengembalikan unit dari channel",
   tarik_unit_dibuat: "Menarik unit dari channel",
+  faktur_diajukan: "Mencetak pengajuan faktur",
   transfer_unit_migrasi: "Memulihkan status unit di channel (perbaikan stok)",
 };
 

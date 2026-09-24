@@ -11,14 +11,14 @@
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
 import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.15.1";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.15.1";
-import { aman, tanggal, kabar } from "./ui.js?v=3.15.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
-import { muatBiro, biroAktif } from "./biro.js?v=3.15.1";
-import { cetakBastBerkas, cetakBastDokumenJadi } from "./cetak.js?v=3.15.1";
-import { SHOWROOM } from "./config.js?v=3.15.1";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.15.1";
+  serverTimestamp, catat } from "./db.js?v=3.16.0";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.16.0";
+import { aman, tanggal, kabar } from "./ui.js?v=3.16.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
+import { muatBiro, biroAktif } from "./biro.js?v=3.16.0";
+import { cetakBastBerkas, cetakBastDokumenJadi, cetakBastBerkasBanyak } from "./cetak.js?v=3.16.0";
+import { SHOWROOM } from "./config.js?v=3.16.0";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.16.0";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -69,7 +69,9 @@ async function muatDaftar() {
   const snapT = await getDocs(qTransaksi);
   const semuaTransaksi = snapT.docs.map((d) => ({ id: d.id, ...d.data() }))
     .filter((t) => t.status !== "batal")
-    .sort((a, b) => (b.spkNo || "").localeCompare(a.spkNo || ""));
+    // Urut berdasarkan tanggal dibuat (bukan teks No. SPK — sejak nomor
+    // pakai bulan romawi, urutan abjad "IX" vs "X" tidak lagi kronologis).
+    .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
 
   const snapD = await getDocs(sesi.peran === "biro_jasa"
     ? query(collection(dbase, "dokumen_kendaraan"), where("biroJasaId", "==", sesi.biroJasaId))
@@ -92,12 +94,28 @@ export async function halamanDokumen(wadah) {
       <button class="tombol tombol--kecil" data-filter="diserahkan">Menunggu Konfirmasi</button>
       <button class="tombol tombol--kecil" data-filter="dikonfirmasi">Sudah di Biro Jasa</button>
     </div>
+    <div id="d-massal" class="kartu" style="margin-bottom:10px;display:flex;flex-wrap:wrap;
+         align-items:center;gap:8px;background:var(--lapis)" hidden></div>
     <div id="d-daftar" class="daftar"><p class="hampa">Memuat…</p></div>
   </section>`;
 
   const daftarEl = wadah.querySelector("#d-daftar");
+  const massalEl = wadah.querySelector("#d-massal");
   let semuaData = [];
   let filterAktif = "semua";
+  // ── Pilih banyak (checklist) ─────────────────────────────────
+  // Sama seperti Transfer Unit: centang beberapa SPK, lalu jalankan
+  // satu aksi untuk semuanya (satu kali konfirmasi password).
+  const terpilih = new Set();
+  function bisaDipilih(dok) {
+    if (bisaAksiAdmin) {
+      return ["belum_diserahkan", "ditarik_kembali", "dikonfirmasi"].includes(dok.berkasStatus);
+    }
+    if (bisaAksiBiro) {
+      return dok.berkasStatus === "diserahkan" && dok.biroJasaId === sesi.biroJasaId;
+    }
+    return false;
+  }
 
   // muatBiro() cuma dibutuhkan buat dropdown "Serahkan ke Biro Jasa"
   // (Admin/Owner) — Biro Jasa sendiri TIDAK diberi izin baca daftar
@@ -108,11 +126,17 @@ export async function halamanDokumen(wadah) {
   if (bisaAksiAdmin) await muatBiro();
 
   function baris({ t, dok }) {
+    const pilih = bisaDipilih(dok);
     return `<article class="kartu">
       <div class="kartu-atas">
-        <div>
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          ${pilih ? `<input type="checkbox" class="d-pilih" value="${t.id}"
+            style="width:18px;height:18px;margin-top:2px"
+            ${terpilih.has(t.id) ? "checked" : ""} title="Pilih untuk aksi massal">` : ""}
+          <div>
           <h3 class="kartu-judul">${aman(t.spkNo)}</h3>
           <p class="kartu-sub">${aman(t.pembeli?.nama || "-")} — ${aman(t.tipeNama)} · ${aman(t.warna)}</p>
+          </div>
         </div>
         <span class="tanda tanda--${WARNA_BERKAS[dok.berkasStatus] || "netral"}">
           ${LABEL_BERKAS[dok.berkasStatus] || dok.berkasStatus}
@@ -282,6 +306,7 @@ export async function halamanDokumen(wadah) {
     daftarEl.innerHTML = dataTampil.length
       ? dataTampil.map(baris).join("")
       : `<div class="hampa"><p>Tidak ada SPK di kategori ini.</p></div>`;
+    gambarMassal(dataTampil);
     dataTampil.forEach(({ t, dok }) => {
       const wadahAksi = daftarEl.querySelector(`[data-aksi-wadah="${t.id}"]`);
       if (wadahAksi) pasangAksi(t, dok, wadahAksi);
@@ -320,7 +345,162 @@ export async function halamanDokumen(wadah) {
   async function muat() {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     semuaData = await muatDaftar();
+    // Buang pilihan yang sudah tidak valid (status berubah).
+    [...terpilih].forEach((id) => {
+      const x = semuaData.find((d) => d.t.id === id);
+      if (!x || !bisaDipilih(x.dok)) terpilih.delete(id);
+    });
     await gambarUlang();
+  }
+
+  // ── Bilah aksi massal ────────────────────────────────────────
+  function dataTerpilih() {
+    return semuaData.filter((x) => terpilih.has(x.t.id));
+  }
+  function gambarMassal(dataTampil) {
+    const bisaPilihTampil = dataTampil.filter((x) => bisaDipilih(x.dok));
+    if (!bisaPilihTampil.length && !terpilih.size) { massalEl.hidden = true; return; }
+    massalEl.hidden = false;
+    const pilih = dataTerpilih();
+    const nSerah = pilih.filter((x) => ["belum_diserahkan", "ditarik_kembali"].includes(x.dok.berkasStatus)).length;
+    const nBast = pilih.filter((x) => x.dok.berkasStatus === "dikonfirmasi").length;
+    const nKonf = pilih.filter((x) => x.dok.berkasStatus === "diserahkan").length;
+    const semuaTercentang = bisaPilihTampil.length > 0 &&
+      bisaPilihTampil.every((x) => terpilih.has(x.t.id));
+    massalEl.innerHTML = `
+      <label class="pilihan" style="margin:0"><input type="checkbox" id="d-pilih-semua"
+        ${semuaTercentang ? "checked" : ""}> Pilih semua yang tampil</label>
+      <b style="margin-right:auto">${pilih.length} SPK dipilih</b>
+      ${bisaAksiAdmin ? `
+        <select class="isian isian--terang" id="d-massal-biro" style="width:auto;min-width:170px">
+          <option value="">— Biro Jasa —</option>
+          ${biroAktif().map((b) => `<option value="${b.id}">${aman(b.nama)}</option>`).join("")}
+        </select>
+        <button class="tombol tombol--kecil tombol--isi" id="d-massal-serah" ${nSerah ? "" : "disabled"}>
+          Serahkan ke Biro Jasa (${nSerah})</button>
+        <button class="tombol tombol--kecil" id="d-massal-bast" ${nBast ? "" : "disabled"}>
+          Cetak BAST gabungan (${nBast})</button>` : ""}
+      ${bisaAksiBiro ? `
+        <button class="tombol tombol--kecil tombol--isi" id="d-massal-konf" ${nKonf ? "" : "disabled"}>
+          Konfirmasi terima berkas (${nKonf})</button>` : ""}
+      ${pilih.length ? `<button class="tombol tombol--kecil tombol--sunyi" id="d-massal-kosong">
+        Batal pilih</button>` : ""}`;
+
+    massalEl.querySelector("#d-pilih-semua").addEventListener("change", (e) => {
+      bisaPilihTampil.forEach((x) => {
+        if (e.target.checked) terpilih.add(x.t.id); else terpilih.delete(x.t.id);
+      });
+      gambarUlang();
+    });
+    massalEl.querySelector("#d-massal-kosong")?.addEventListener("click", () => {
+      terpilih.clear(); gambarUlang();
+    });
+    massalEl.querySelector("#d-massal-serah")?.addEventListener("click", aksiSerahkanMassal);
+    massalEl.querySelector("#d-massal-bast")?.addEventListener("click", () =>
+      cetakBastBerkasBanyak(dataTerpilih().filter((x) => x.dok.berkasStatus === "dikonfirmasi")));
+    massalEl.querySelector("#d-massal-konf")?.addEventListener("click", aksiKonfirmasiMassal);
+  }
+
+  daftarEl.addEventListener("change", (e) => {
+    if (!e.target.classList.contains("d-pilih")) return;
+    if (e.target.checked) terpilih.add(e.target.value); else terpilih.delete(e.target.value);
+    const dataTampil = filterAktif === "semua"
+      ? semuaData : semuaData.filter((x) => x.dok.berkasStatus === filterAktif);
+    gambarMassal(dataTampil);
+  });
+
+  async function mintaPassword() {
+    const password = await tanya({
+      judul: "Konfirmasi Password", pesan: "Masukkan password Anda.",
+      petunjuk: "Password", tipeIsian: "password",
+    });
+    if (password === null) return false;
+    try {
+      await konfirmasiPassword(password);
+      return true;
+    } catch {
+      kabar("Password salah.", "rem");
+      return false;
+    }
+  }
+
+  async function aksiSerahkanMassal() {
+    const idBiro = massalEl.querySelector("#d-massal-biro").value;
+    if (!idBiro) { kabar("Pilih Biro Jasa dulu.", "rem"); return; }
+    const biro = biroAktif().find((b) => b.id === idBiro);
+    const daftar = dataTerpilih().filter((x) =>
+      ["belum_diserahkan", "ditarik_kembali"].includes(x.dok.berkasStatus));
+    if (!daftar.length) return;
+    const lanjut = await konfirmasi({
+      judul: "Serahkan Berkas (Massal)",
+      pesan: `Menyerahkan berkas (KTP + Faktur) <b>${daftar.length} SPK</b> ke Biro Jasa
+        <b>${aman(biro.nama)}</b>:<br>${daftar.map((x) => aman(x.t.spkNo)).join(", ")}`,
+      oke: "Ya, Serahkan",
+    });
+    if (!lanjut || !(await mintaPassword())) return;
+    let ok = 0;
+    for (const { t } of daftar) {
+      try {
+        await setDoc(doc(dbase, "dokumen_kendaraan", t.id), {
+          ...dataDefault(t),
+          biroJasaId: biro.id, biroJasaNama: biro.nama,
+          berkasStatus: "diserahkan",
+          berkasDiserahkanPada: serverTimestamp(),
+          berkasDiserahkanOleh: sesi.uid, berkasDiserahkanOlehNama: sesi.nama,
+        }, { merge: true });
+        await updateDoc(doc(dbase, "transaksi", t.id), {
+          biroJasaId: biro.id, biroJasaNama: biro.nama,
+        });
+        await catat("berkas_diserahkan_biro", {
+          koleksi: "dokumen_kendaraan", docId: t.id,
+          ringkas: `${t.spkNo} · diserahkan ke ${biro.nama} (massal)`,
+        });
+        ok++;
+      } catch (err) {
+        kabar(`Gagal ${t.spkNo}: ${err.message}`, "rem");
+      }
+    }
+    terpilih.clear();
+    kabar(`${ok} berkas ditandai diserahkan ke ${biro.nama}.`, "netral");
+    await muat();
+  }
+
+  async function aksiKonfirmasiMassal() {
+    const daftar = dataTerpilih().filter((x) =>
+      x.dok.berkasStatus === "diserahkan" && x.dok.biroJasaId === sesi.biroJasaId);
+    if (!daftar.length) return;
+    const lanjut = await konfirmasi({
+      judul: "Konfirmasi Terima Berkas (Massal)",
+      pesan: `Anda mengonfirmasi telah menerima berkas (KTP + Faktur) untuk
+        <b>${daftar.length} SPK</b> dari ${aman(SHOWROOM.nama)}:<br>
+        ${daftar.map((x) => aman(x.t.spkNo)).join(", ")}`,
+      oke: "Ya, Sudah Terima",
+    });
+    if (!lanjut || !(await mintaPassword())) return;
+    const berhasil = [];
+    for (const x of daftar) {
+      try {
+        await updateDoc(doc(dbase, "dokumen_kendaraan", x.t.id), {
+          berkasStatus: "dikonfirmasi",
+          berkasDikonfirmasiPada: serverTimestamp(),
+          berkasDikonfirmasiOleh: sesi.uid, berkasDikonfirmasiOlehNama: sesi.nama,
+        });
+        await catat("berkas_dikonfirmasi_biro", {
+          koleksi: "dokumen_kendaraan", docId: x.t.id,
+          ringkas: `${x.t.spkNo} · dikonfirmasi diterima (massal)`,
+        });
+        berhasil.push({ t: x.t, dok: { ...x.dok, berkasStatus: "dikonfirmasi",
+          berkasDikonfirmasiPada: new Date() } });
+      } catch (err) {
+        kabar(`Gagal ${x.t.spkNo}: ${err.message}`, "rem");
+      }
+    }
+    terpilih.clear();
+    if (berhasil.length) {
+      kabar(`${berhasil.length} berkas dikonfirmasi. Mencetak BAST gabungan…`, "netral");
+      await cetakBastBerkasBanyak(berhasil);
+    }
+    await muat();
   }
 
   wadah.querySelectorAll("[data-filter]").forEach((b) => {

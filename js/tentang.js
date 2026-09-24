@@ -3,14 +3,26 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.15.1";
-import { VERSI } from "./config.js?v=3.15.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.15.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.16.0";
+import { VERSI } from "./config.js?v=3.16.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.16.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.15.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.16.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.16.0", tanggal: "September 2026",
+    judul: "Pengajuan Faktur, Pilih Banyak di Tracking Dokumen, No. SPK Bulanan",
+    butir: [
+      "Menu baru Dokumen → Pengajuan Faktur (Owner/Admin): lembar pengajuan faktur berwarna hijau, mirip SPK tapi tanpa No. HP, harga, diskon, DP, cicilan, rekening, dan syarat SPK. Bisa centang banyak SPK dan dicetak sekaligus; tanggal terakhir diajukan tercatat.",
+      "Tracking Dokumen: centang banyak SPK sekaligus. Admin bisa menyerahkan berkas ke Biro Jasa dan mencetak BAST gabungan; Biro Jasa bisa mengonfirmasi terima banyak berkas sekaligus (BAST gabungan tercetak otomatis). Cukup satu kali password.",
+      "Nomor SPK baru memakai bulan romawi dan direset setiap ganti bulan: SPK/2026/IX/0001. Nomor SPK lama tidak berubah; nomor kuitansi ikut menyesuaikan (KWT/2026/IX/0001-1).",
+      "Tombol ☰ di kiri atas sekarang juga bisa menyembunyikan/menampilkan panel menu kiri di layar komputer (pilihan diingat di browser).",
+      "Pilihan/tab aktif di dalam halaman (mis. Semua/Menunggu/Disetujui di Pengajuan Saya, Ready/Dipesan di Data Unit) sekarang berwarna biru penuh seperti tab aplikasi.",
+      "BAST Transfer Unit: kalimat pernyataan diperbarui dan ditambah watermark nama perusahaan + logo.",
+    ],
+  },
   {
     versi: "3.15.1", tanggal: "September 2026",
     judul: "Transfer Unit = Pindah Lokasi (Stok Tidak Berkurang) + Tarik Unit",

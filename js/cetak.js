@@ -8,16 +8,16 @@
 // aplikasi utama (sidebar, tab, dsb).
 
 import { dbase, doc, getDoc, setDoc, updateDoc, serverTimestamp, catat,
-  nomorKuitansiSpk } from "./db.js?v=3.15.1";
-import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.15.1";
-import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.15.1";
-import { rekeningDari, muatRekening } from "./rekening.js?v=3.15.1";
-import { leasingDari, muatLeasing } from "./leasing.js?v=3.15.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
-import { konfirmasiPassword, bolehAkses, sesi } from "./auth.js?v=3.15.1";
-import { muatTipe, tipeDari } from "./tipe.js?v=3.15.1";
-import { buatNotifikasi } from "./notifikasi.js?v=3.15.1";
-import { kabar } from "./ui.js?v=3.15.1";
+  nomorKuitansiSpk } from "./db.js?v=3.16.0";
+import { SHOWROOM, SYARAT_SPK, MASA_BERLAKU_SPK, DP_MINIMUM } from "./config.js?v=3.16.0";
+import { rupiah, terbilang, aman, tanggal } from "./ui.js?v=3.16.0";
+import { rekeningDari, muatRekening } from "./rekening.js?v=3.16.0";
+import { leasingDari, muatLeasing } from "./leasing.js?v=3.16.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
+import { konfirmasiPassword, bolehAkses, sesi } from "./auth.js?v=3.16.0";
+import { muatTipe, tipeDari } from "./tipe.js?v=3.16.0";
+import { buatNotifikasi } from "./notifikasi.js?v=3.16.0";
+import { kabar } from "./ui.js?v=3.16.0";
 
 function baris(label, isi) {
   return `<tr><td class="c-label">${label}</td>
@@ -505,6 +505,162 @@ export async function cetakSpk(t) {
 
   // Timpa seluruh isi <body> tab barunya dengan lembar yang sudah jadi.
   tabBaru.document.body.innerHTML = isi;
+}
+
+// ── Pengajuan Faktur Kendaraan ──────────────────────────────────
+// Tata letak sengaja MIRIP SPK (kop, dua kolom data, keterangan unit,
+// tanda tangan) supaya konsisten, tapi berwarna HIJAU supaya tidak
+// tertukar dengan lembar SPK. Isinya hanya data yang dibutuhkan
+// untuk faktur: identitas atas nama (sesuai KTP), pemakai, dan unit.
+// SENGAJA TIDAK memuat: No. HP, harga, diskon, cashback, DP, cicilan,
+// rekening, dan syarat & ketentuan SPK.
+// Bisa mencetak BANYAK SPK sekaligus — satu SPK satu halaman.
+const CSS_FAKTUR = `
+  .faktur { border-top: 6px solid #0F7B0F; }
+  .faktur .c-kop { border-bottom-color: #0F7B0F; }
+  .faktur .c-pt { color: #0B5E0B; }
+  .faktur .c-judul { background: #0F7B0F; color: #fff; padding: 6px 0; border-radius: 4px; }
+  .faktur .c-sub { color: #0B5E0B; border-bottom-color: #0F7B0F; }
+  .faktur .c-dua, .faktur .c-badan, .faktur .c-ttd { border-color: #7DB87D; }
+  .faktur .c-dua { background: #F1F8F1; }
+  .faktur .c-label { color: #2E4E2E; }
+  .faktur .c-isi { font-weight: 600; }
+  .faktur-cap { display: inline-block; border: 1.5px solid #0F7B0F; color: #0F7B0F;
+    font-weight: 700; font-size: 10px; letter-spacing: .08em; padding: 2px 8px;
+    border-radius: 3px; margin-top: 4px; }
+  .lembar-cetak.faktur + .lembar-cetak.faktur { page-break-before: always; break-before: page; }
+  @media print {
+    .faktur, .faktur * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .faktur { border-top: 6px solid #0F7B0F !important; }
+    .faktur .c-kop { border-bottom-color: #0F7B0F !important; }
+    .faktur .c-pt, .faktur .c-sub { color: #0B5E0B !important; }
+    .faktur .c-judul { background: #0F7B0F !important; color: #fff !important; }
+    .faktur .c-sub { border-bottom-color: #0F7B0F !important; }
+    .faktur .c-dua, .faktur .c-badan, .faktur .c-ttd { border-color: #0F7B0F !important; }
+    .faktur .c-dua { background: #F1F8F1 !important; }
+    .faktur .faktur-cap { color: #0F7B0F !important; border-color: #0F7B0F !important; }
+  }
+`;
+
+function alamatLengkap(p) {
+  return [p?.alamat, p?.kelurahan, p?.kecamatan].filter(Boolean).join(", ");
+}
+
+function satuPengajuanFaktur(t, unit, namaSalesTampil, leasing) {
+  const kredit = (t.caraBayar || []).includes("kredit");
+  const pemakaiSama = t.pemakaiSamaDenganPembeli !== false;
+  const p = t.pembeli || {};
+  const m = t.pemakai || {};
+  return `<div class="lembar-cetak faktur">
+    <header class="c-kop">
+      <div class="c-kop-kiri">
+        <img class="c-kop-logo" src="${location.origin}/logo.png" alt="">
+        <div>
+          <p class="c-pt">${aman(SHOWROOM.nama)}</p>
+          <p class="c-kecil">${aman(SHOWROOM.alamat || "")}</p>
+          <p class="c-kecil">${aman(SHOWROOM.telepon || "")}
+            ${SHOWROOM.npwp ? " · NPWP " + aman(SHOWROOM.npwp) : ""}</p>
+        </div>
+      </div>
+      <div class="c-nomor">
+        <table>
+          ${baris("No. SPK", t.spkNo)}
+          ${baris("Tanggal SPK", tanggal(t.dibuatPada))}
+          ${baris("Tgl Pengajuan", tanggal(new Date()))}
+        </table>
+      </div>
+    </header>
+
+    <h1 class="c-judul">PENGAJUAN FAKTUR KENDARAAN</h1>
+
+    <section class="c-dua">
+      <div>
+        <p class="c-sub">Atas Nama Faktur (Sesuai KTP)</p>
+        <table class="c-tabel">
+          ${baris("Nama", p.nama)}
+          ${baris("NIK", p.nik)}
+          ${baris("Alamat", alamatLengkap(p))}
+          ${baris("Kota / Kab.", p.kota)}
+          ${baris("Provinsi", p.provinsi)}
+        </table>
+      </div>
+      <div>
+        <p class="c-sub">Pemakai</p>
+        <table class="c-tabel">
+          ${pemakaiSama
+            ? baris("Pemakai", "Sama dengan atas nama faktur")
+            : baris("Nama", m.nama) + baris("NIK", m.nik) +
+              baris("Alamat", alamatLengkap(m)) + baris("Kota / Kab.", m.kota) +
+              baris("Provinsi", m.provinsi)}
+        </table>
+      </div>
+    </section>
+
+    <section class="c-badan">
+      <div>
+        <p class="c-sub">Keterangan Unit</p>
+        <table class="c-tabel">
+          ${baris("Merk / Tipe", t.tipeNama)}
+          ${baris("Warna", t.warna)}
+          ${baris("Tahun Rakitan", unit?.tahun || "-")}
+          ${baris("Nomor Rangka", unit?.noRangka || "Belum ada unit (Indent)")}
+          ${baris("Nomor Mesin", unit?.noMesin || "-")}
+        </table>
+      </div>
+      <div>
+        <p class="c-sub">Keterangan Penjualan</p>
+        <table class="c-tabel">
+          ${baris("Jenis Penjualan", kredit ? "Kredit" : "Cash")}
+          ${kredit ? baris("Leasing", leasing?.nama || "-") : ""}
+          ${baris("Salesman", namaSalesTampil)}
+        </table>
+        <span class="faktur-cap">DOKUMEN INTERNAL — BUKAN SPK</span>
+      </div>
+    </section>
+
+    <section class="c-ttd">
+      <div><span class="c-garis"></span>Diajukan oleh
+        <br><span class="c-kecil">Admin</span></div>
+      <div><span class="c-garis"></span>Diperiksa oleh
+        <br><span class="c-kecil">SPV</span></div>
+      <div><span class="c-garis"></span>Disetujui oleh
+        <br><span class="c-kecil">Pimpinan</span></div>
+    </section>
+    <p class="c-kaki">${aman(SHOWROOM.nama)} — dicetak ${tanggal(new Date())}</p>
+  </div>`;
+}
+
+export async function cetakPengajuanFaktur(daftar) {
+  const list = (Array.isArray(daftar) ? daftar : [daftar]).filter(Boolean);
+  if (!list.length) return;
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>Pengajuan Faktur${list.length === 1 ? " " + aman(list[0].spkNo || "") : ` (${list.length} SPK)`}</title>
+    <style>${CSS_CETAK}${CSS_FAKTUR}</style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  await muatLeasing().catch(() => []);
+  const halaman = await Promise.all(list.map(async (t) => {
+    let unit = null;
+    if (t.unitId) {
+      try {
+        const snap = await getDoc(doc(dbase, "units", t.unitId));
+        if (snap.exists()) unit = snap.data();
+      } catch { /* tetap bisa cetak tanpa data unit */ }
+    }
+    const namaSalesTampil = await resolveNamaSales(t).catch(() => t.salesNama || "-");
+    const leasing = t.kredit?.leasingId ? leasingDari(t.kredit.leasingId) : null;
+    return satuPengajuanFaktur(t, unit, namaSalesTampil, leasing);
+  }));
+  tabBaru.document.body.innerHTML = halaman.join("") + `
+    <div class="aksi-cetak">
+      <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+    </div>`;
 }
 
 // ── Tagihan ke Leasing ──────────────────────────────────────────
@@ -1350,6 +1506,93 @@ export async function cetakBastBerkas(t, dok) {
   </div>`;
 
   tabBaru.document.body.innerHTML = isi;
+}
+
+// ── BAST Berkas GABUNGAN (banyak SPK sekaligus) ─────────────────
+// Dipakai dari Tracking Dokumen saat beberapa SPK dicentang. SPK
+// dikelompokkan per Biro Jasa — satu Biro Jasa satu lembar BAST.
+export async function cetakBastBerkasBanyak(daftar) {
+  const list = (daftar || []).filter(Boolean);
+  if (!list.length) return;
+  const tabBaru = window.open("", "_blank");
+  if (!tabBaru) {
+    alert("Browser memblokir tab baru. Izinkan pop-up untuk situs ini, lalu coba lagi.");
+    return;
+  }
+  tabBaru.document.write(`<!DOCTYPE html><html lang="id"><head>
+    <meta charset="utf-8"><title>BAST Berkas (${list.length} SPK)</title>
+    <style>${CSS_KUITANSI}
+      .bast-tabel { width:100%; border-collapse:collapse; margin-top:10px; }
+      .bast-tabel th, .bast-tabel td {
+        border:1px solid #333; padding:5px 7px; font-size:12px; text-align:left;
+      }
+      .bast-tabel th { background:#e3e3e3; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .bast-watermark {
+        position:absolute; top:45%; left:50%; transform:translate(-50%,-50%) rotate(-30deg);
+        font-size:60px; font-weight:800; color:rgba(0,0,0,0.06); z-index:0;
+        white-space:nowrap; pointer-events:none;
+      }
+      .bast-hal { position:relative; overflow:hidden; }
+      .bast-hal + .bast-hal { page-break-before: always; break-before: page; }
+    </style></head>
+    <body><p style="text-align:center;color:#777">Menyiapkan lembar cetak…</p></body></html>`);
+  tabBaru.document.close();
+
+  const unitPer = new Map();
+  await Promise.all(list.map(async ({ t }) => {
+    if (!t.unitId) return;
+    try {
+      const snap = await getDoc(doc(dbase, "units", t.unitId));
+      if (snap.exists()) unitPer.set(t.id, snap.data());
+    } catch { /* unit tidak wajib */ }
+  }));
+
+  const grup = new Map();
+  list.forEach((x) => {
+    const k = x.dok.biroJasaNama || "-";
+    if (!grup.has(k)) grup.set(k, []);
+    grup.get(k).push(x);
+  });
+
+  const halaman = [...grup].map(([namaBiro, isi]) => `<div class="bast-hal">
+    <div class="bast-watermark">${aman(SHOWROOM.nama)}</div>
+    <div class="k-kuitansi" style="position:relative;z-index:1">
+      <div class="k-atas">
+        <div class="k-kop">
+          <img class="k-kop-logo" src="${location.origin}/logo.png" alt="">
+          <div><p class="k-pt">${aman(SHOWROOM.nama)}</p></div>
+        </div>
+        <table class="k-jenis-tabel">
+          <tr><td>KETERANGAN</td><td>Serah Terima Berkas ke Biro Jasa</td></tr>
+        </table>
+      </div>
+      <h2 class="k-judul">BERITA ACARA SERAH TERIMA (BAST) BERKAS</h2>
+      <p class="k-nomor-tgl">${tanggal(new Date())} · ${isi.length} SPK · Biro Jasa: ${aman(namaBiro)}</p>
+      <p class="k-kecil" style="margin-top:8px">Dokumen yang diserahterimakan untuk setiap SPK:
+        KTP Pembeli/Pemakai (1 lembar) dan Faktur Kendaraan (1 lembar).</p>
+      <table class="bast-tabel">
+        <tr><th style="width:5%">No.</th><th>No. SPK</th><th>Nama di KTP (STNK)</th><th>NIK</th>
+          <th>Unit / Warna</th><th>No. Rangka</th><th>No. Mesin</th></tr>
+        ${isi.map(({ t }, i) => {
+          const u = unitPer.get(t.id);
+          return `<tr><td>${i + 1}</td><td class="mono">${aman(t.spkNo)}</td>
+            <td>${aman(t.pembeli?.nama || "-")}</td><td class="mono">${aman(t.pembeli?.nik || "-")}</td>
+            <td>${aman(t.tipeNama)} · ${aman(t.warna || "")}</td>
+            <td class="mono">${aman(u?.noRangka || "-")}</td><td class="mono">${aman(u?.noMesin || "-")}</td></tr>`;
+        }).join("")}
+      </table>
+      <section class="k-ttd">
+        <div><span class="k-garis"></span>Diserahkan Oleh
+          <br><span class="k-kecil">${aman(SHOWROOM.nama)}</span></div>
+        <div><span class="k-garis"></span>Diterima Oleh
+          <br><span class="k-kecil">${aman(namaBiro)}</span></div>
+      </section>
+      <p class="k-kaki">Dicetak otomatis oleh sistem — ${tanggal(new Date())}</p>
+    </div>
+  </div>`).join("");
+
+  tabBaru.document.body.innerHTML = halaman + `<div class="aksi-cetak">
+    <button type="button" onclick="window.print()">Cetak / Simpan PDF</button></div>`;
 }
 
 // ── BAST Dokumen Jadi (STNK/BPKB/Plat) dari Biro Jasa ke Admin ──

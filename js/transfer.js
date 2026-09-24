@@ -1,6 +1,6 @@
 // transfer.js — Inventory → Transfer / Tarik Unit.
 //
-// PRINSIP (sejak v3.15.1): transfer HANYA memindahkan LOKASI unit,
+// PRINSIP (sejak v3.16.0): transfer HANYA memindahkan LOKASI unit,
 // BUKAN mengubah stok. Unit di Channel tetap stok milik showroom —
 // status tetap "ready" (tetap bisa dijual lewat SPK) dan jumlahReady
 // di Tipe Motor TIDAK berubah. Yang berubah cuma field lokasi:
@@ -25,13 +25,13 @@
 import {
   dbase, collection, doc, getDocs, query, where, limit, orderBy,
   runTransaction, increment, nomorBerikutnya, catat, tandaBaru,
-} from "./db.js?v=3.15.1";
-import { bolehAkses, sesi } from "./auth.js?v=3.15.1";
-import { muatChannel, channelDari } from "./channel.js?v=3.15.1";
-import { muatTipe, sinkronKatalog } from "./tipe.js?v=3.15.1";
-import { konfirmasi } from "./dialog.js?v=3.15.1";
-import { SHOWROOM } from "./config.js?v=3.15.1";
-import { aman, kabar, tanggal, kunciHari, pasangHurufBesar } from "./ui.js?v=3.15.1";
+} from "./db.js?v=3.16.0";
+import { bolehAkses, sesi } from "./auth.js?v=3.16.0";
+import { muatChannel, channelDari } from "./channel.js?v=3.16.0";
+import { muatTipe, sinkronKatalog } from "./tipe.js?v=3.16.0";
+import { konfirmasi } from "./dialog.js?v=3.16.0";
+import { SHOWROOM } from "./config.js?v=3.16.0";
+import { aman, kabar, tanggal, kunciHari, pasangHurufBesar } from "./ui.js?v=3.16.0";
 
 // "" = Showroom (pusat). Dipakai sebagai nilai <option> & pembanding.
 const PUSAT = "";
@@ -472,7 +472,7 @@ export async function halamanTransfer(wadah) {
   if (bisaUbah) {
     wadah.querySelector("#tambah-transfer").addEventListener("click", () => bukaForm(false));
     wadah.querySelector("#tarik-unit").addEventListener("click", () => bukaForm(true));
-    // Perbaiki data dari v3.15.1 (status "transfer" + stok berkurang).
+    // Perbaiki data dari v3.16.0 (status "transfer" + stok berkurang).
     try {
       const n = await migrasiStatusTransfer();
       if (n) kabar(`${n} unit di Channel dipulihkan: status kembali Ready & stok dikembalikan.`, "netral");
@@ -494,7 +494,7 @@ export function cetakBastTransfer(t) {
   const unit = t.unit || [];
   const kopAlamat = [SHOWROOM.alamat, SHOWROOM.kota].filter(Boolean).join(", ");
   const kopTelp = SHOWROOM.telepon ? `Telp. ${SHOWROOM.telepon}` : "";
-  // Transfer lama (v3.15.1) belum punya data asal = dari Showroom.
+  // Transfer lama (v3.16.0) belum punya data asal = dari Showroom.
   const dari = {
     nama: t.dariNama || namaPusat(),
     jenis: t.dariJenis || "Showroom",
@@ -513,7 +513,17 @@ export function cetakBastTransfer(t) {
     body { margin: 0; padding: 20px; background: #f3f3f3; color: #000;
       font-family: "Segoe UI", Arial, Helvetica, sans-serif; }
     .lembar { max-width: 800px; margin: 0 auto 14px; background: #fff; padding: 22px 26px;
-      box-shadow: 0 1px 3px rgba(0,0,0,.15); font-size: 12px; line-height: 1.45; }
+      box-shadow: 0 1px 3px rgba(0,0,0,.15); font-size: 12px; line-height: 1.45;
+      position: relative; overflow: hidden; }
+    .lembar > * { position: relative; z-index: 1; }
+    /* Watermark: nama perusahaan miring besar di tengah + logo samar. */
+    .lembar > .wm { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      display: flex; align-items: center; justify-content: center; }
+    .wm-teks { transform: rotate(-30deg); font-size: 58px; font-weight: 800;
+      color: rgba(0,0,0,.07); white-space: nowrap; letter-spacing: .04em; text-align: center; }
+    .wm-teks small { display: block; font-size: 26px; letter-spacing: .3em; }
+    .wm-logo { position: absolute; width: 320px; height: 320px; object-fit: contain; opacity: .05; }
+    .wm, .wm * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .kop { display: flex; align-items: center; gap: 12px; border-bottom: 2.5px solid #000;
       padding-bottom: 8px; }
     .kop img { width: 54px; height: 54px; object-fit: contain; }
@@ -550,6 +560,10 @@ export function cetakBastTransfer(t) {
     }
   </style></head><body>
   <div class="lembar">
+    <div class="wm" aria-hidden="true">
+      <img class="wm-logo" src="${location.origin}/logo.png" alt="" onerror="this.remove()">
+      <div class="wm-teks">${aman(SHOWROOM.nama)}<small>BAST KENDARAAN</small></div>
+    </div>
     <div class="kop">
       <img src="${location.origin}/logo.png" alt="" onerror="this.style.display='none'">
       <div>
@@ -609,10 +623,8 @@ export function cetakBastTransfer(t) {
     </table>
     ${t.keterangan ? `<p style="margin:8px 0 0"><b>Keterangan:</b> ${aman(t.keterangan)}</p>` : ""}
 
-    <p class="pernyataan">Kendaraan tersebut di atas telah diterima dalam keadaan baik,
-      lengkap, dan sesuai dengan No. Rangka / No. Mesin yang tercantum. Kendaraan tetap
-      merupakan milik ${aman(SHOWROOM.nama)}. Kerusakan atau kekurangan yang ditemukan
-      setelah surat ini ditandatangani menjadi tanggung jawab penerima.</p>
+    <p class="pernyataan">Setelah BAST ini ditandatangani penerima, maka segala kerusakan
+      dan kekurangan dari unit kendaraan yang diterima menjadi tanggung jawab pihak penerima.</p>
 
     <div class="ttd">
       <div>Diserahkan oleh,<div class="ruang"></div>
