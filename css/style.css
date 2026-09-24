@@ -1000,9 +1000,13 @@ select.isian {
   padding: 9px 12px; text-align: left; white-space: nowrap;
   border-bottom: 1px solid var(--garis);
 }
+/* Header kolom tabel (No., Merek, Tipe, dst) — abu-abu lebih gelap
+   supaya jelas terpisah dari isi tabel. Berlaku untuk semua tabel
+   (Riwayat SPK, Data Unit, Tipe Motor, Transfer Unit, dst). */
 .tabel th {
-  font-weight: 600; color: var(--tinta); background: var(--lapis);
-  position: sticky; top: 0;
+  font-weight: 700; color: #1B1B1B; background: #D4D7DC;
+  border-bottom: 1px solid #B8BCC3;
+  position: sticky; top: 0; z-index: 1;
 }
 .tabel tbody tr:hover { background: var(--lapis); }
 
@@ -1054,6 +1058,9 @@ select.isian {
 .baris-status--ready   { background: rgba(34,176,125,.06); }
 .baris-status--booked  { background: rgba(245,166,35,.08); }
 .baris-status--terjual { background: rgba(120,120,130,.08); }
+.baris-status--transfer { background: rgba(110,80,200,.06); }
+.baris-status--transfer:hover { filter: brightness(0.97); }
+.tanda--transfer { background: #EFEAFB; color: #5B3FB5; border-color: #DCD2F5; }
 .baris-status--ready:hover,
 .baris-status--booked:hover,
 .baris-status--terjual:hover { filter: brightness(0.97); }
