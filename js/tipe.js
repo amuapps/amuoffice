@@ -4,15 +4,16 @@
 // masuk nanti hanya butuh dua nomor.
 
 import {
-  dbase, collection, doc, getDocs, setDoc, query, orderBy,
-  serverTimestamp, catat, tandaBaru,
-} from "./db.js?v=3.13.1";
-import { bolehAkses } from "./auth.js?v=3.13.1";
-import { MEREK_UTAMA } from "./config.js?v=3.13.1";
-import { muatSaranTipe, muatSaranWarna } from "./referensi.js?v=3.13.1";
+  dbase, collection, doc, getDocs, setDoc, deleteDoc, query, where, limit,
+  orderBy, serverTimestamp, catat, tandaBaru,
+} from "./db.js?v=3.14.0";
+import { bolehAkses, sesi, konfirmasiPassword } from "./auth.js?v=3.14.0";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.14.0";
+import { MEREK_UTAMA } from "./config.js?v=3.14.0";
+import { muatSaranTipe, muatSaranWarna } from "./referensi.js?v=3.14.0";
 import {
   rupiah, aman, kabar, pasangFormatUang, bacaAngka,
-} from "./ui.js?v=3.13.1";
+} from "./ui.js?v=3.14.0";
 
 let cache = [];
 
@@ -56,7 +57,7 @@ export async function sinkronKatalog() {
 }
 
 // ── Tampilan ──────────────────────────────────────────────────
-function tabelTipe(daftar, bisaUbah) {
+function tabelTipe(daftar, bisaUbah, bisaHapus = false) {
   return `<div style="overflow-x:auto">
     <table class="tabel">
       <thead>
@@ -78,8 +79,10 @@ function tabelTipe(daftar, bisaUbah) {
           <td>${rupiah(t.hargaOtr)}</td>
           <td><span class="tanda ${t.jumlahReady ? "tanda--ada" : "tanda--habis"}">
             ${t.jumlahReady || 0}</span></td>
-          ${bisaUbah ? `<td><button class="tombol tombol--kecil"
-              data-ubah="${t.id}">Ubah</button></td>` : ""}
+          ${bisaUbah ? `<td style="white-space:nowrap"><button class="tombol tombol--kecil"
+              data-ubah="${t.id}">Ubah</button>${bisaHapus ? `
+            <button class="tombol tombol--kecil tombol--bahaya"
+              data-hapus="${t.id}">Hapus</button>` : ""}</td>` : ""}
         </tr>`).join("")}
       </tbody>
     </table>
@@ -197,6 +200,8 @@ function formTipe(t = {}, saranTipe = [], saranWarna = [], bisaLihatBiayaInterna
 
 export async function halamanTipe(wadah, hanyaLihat = false) {
   const bisaUbah = !hanyaLihat && bolehAkses("stok.ubah");
+  // Hapus tipe KHUSUS Owner (dijaga juga di firestore.rules).
+  const bisaHapus = bisaUbah && !!(sesi && sesi.peran === "owner");
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas">
       <h2 class="judul">${hanyaLihat ? "Katalog" : "Tipe motor"}</h2>
@@ -254,11 +259,16 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
       return true;
     });
     daftarEl.innerHTML = hasil.length
-      ? tabelTipe(hasil, bisaUbah)
+      ? tabelTipe(hasil, bisaUbah, bisaHapus)
       : `<div class="hampa"><p>Tidak ada tipe yang cocok.</p></div>`;
     if (bisaUbah) {
       daftarEl.querySelectorAll("[data-ubah]").forEach((b) => {
         b.addEventListener("click", () => bukaForm(tipeDari(b.dataset.ubah)));
+      });
+    }
+    if (bisaHapus) {
+      daftarEl.querySelectorAll("[data-hapus]").forEach((b) => {
+        b.addEventListener("click", () => hapusTipe(tipeDari(b.dataset.hapus), b));
       });
     }
   }
@@ -395,6 +405,66 @@ export async function halamanTipe(wadah, hanyaLihat = false) {
       kabar(id ? "Tipe diperbarui." : "Tipe ditambahkan.", "netral");
     } catch (err) {
       kabar("Gagal menyimpan: " + err.message, "rem");
+    }
+  }
+
+  // ── Hapus tipe (Owner) ───────────────────────────────────────
+  // Ditolak kalau tipe ini masih dipakai unit (stok, termasuk yang
+  // sudah terjual) atau SPK — kalau dihapus, data unit/SPK itu
+  // kehilangan acuan tipenya (nama, BBN, harga). Tipe seperti itu
+  // cukup DIUBAH, tidak dihapus.
+  async function hapusTipe(t, tombol) {
+    if (!t) return;
+    const nama = `${t.merek || ""} ${t.tipe || ""} ${t.varian || ""}`.replace(/\s+/g, " ").trim();
+    tombol.disabled = true;
+    try {
+      const [snapUnit, snapSpk] = await Promise.all([
+        getDocs(query(collection(dbase, "units"), where("tipeId", "==", t.id), limit(1))),
+        getDocs(query(collection(dbase, "transaksi"), where("tipeId", "==", t.id), limit(1))),
+      ]);
+      if (!snapUnit.empty || !snapSpk.empty) {
+        const dipakai = [!snapUnit.empty && "Data Unit", !snapSpk.empty && "SPK"]
+          .filter(Boolean).join(" dan ");
+        await beritahu({
+          judul: "Tipe tidak bisa dihapus",
+          pesan: `"${aman(nama)}" masih dipakai di ${dipakai}. Menghapusnya akan ` +
+            "membuat data tersebut kehilangan acuan tipe (nama, harga, BBN). " +
+            "Kalau datanya salah, gunakan tombol Ubah saja.",
+          oke: "Mengerti",
+        });
+        return;
+      }
+      const yakin = await konfirmasi({
+        judul: "Hapus tipe motor",
+        pesan: `Hapus "${aman(nama)}" dari Master Tipe Motor? Tipe ini juga akan ` +
+          "hilang dari katalog publik. Tindakan ini tidak bisa dibatalkan.",
+        oke: "Hapus", bahaya: true,
+      });
+      if (!yakin) return;
+      const password = await tanya({
+        judul: "Konfirmasi Password",
+        pesan: "Langkah terakhir — masukkan password untuk benar-benar menghapus.",
+        petunjuk: "Password", tipeIsian: "password",
+      });
+      if (password === null) return;
+      try {
+        await konfirmasiPassword(password);
+      } catch {
+        kabar("Password salah. Penghapusan dibatalkan.", "rem");
+        return;
+      }
+      await deleteDoc(doc(dbase, "tipe_motor", t.id));
+      await catat("tipe_dihapus", {
+        koleksi: "tipe_motor", docId: t.id, ringkas: nama,
+      });
+      await sinkronKatalog();
+      if (sedangDiubah && sedangDiubah.id === t.id) formEl.innerHTML = "";
+      await gambar();
+      kabar(`Tipe "${nama}" dihapus.`, "netral");
+    } catch (err) {
+      kabar("Gagal menghapus: " + err.message, "rem");
+    } finally {
+      if (tombol.isConnected) tombol.disabled = false;
     }
   }
 

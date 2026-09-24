@@ -3,14 +3,23 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.13.1";
-import { VERSI } from "./config.js?v=3.13.1";
-import { aman, rupiah, kabar } from "./ui.js?v=3.13.1";
-import { konfirmasi, tanya } from "./dialog.js?v=3.13.1";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.14.0";
+import { VERSI } from "./config.js?v=3.14.0";
+import { aman, rupiah, kabar } from "./ui.js?v=3.14.0";
+import { konfirmasi, tanya } from "./dialog.js?v=3.14.0";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.13.1";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.14.0";
 
 const RIWAYAT = [
+  {
+    versi: "3.14.0", tanggal: "September 2026",
+    judul: "Hapus Tipe Motor & Warna Tab Aktif",
+    butir: [
+      "Master Tipe Motor: tombol Hapus (khusus Owner, wajib konfirmasi password). Tipe yang masih dipakai Data Unit atau SPK tidak bisa dihapus supaya data tersebut tidak kehilangan acuan tipenya; gunakan Ubah untuk memperbaikinya.",
+      "Tab aplikasi: tab yang sedang aktif sekarang berwarna biru penuh supaya langsung terlihat panel mana yang sedang dibuka.",
+      "firestore.rules: penghapusan tipe motor dibatasi hanya untuk Owner (wajib Publish ulang rules).",
+    ],
+  },
   {
     versi: "3.13.1", tanggal: "September 2026",
     judul: "Koreksi Hitungan Profit di Report",

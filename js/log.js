@@ -4,9 +4,9 @@
 // menampilkannya, tidak menulis apa pun ke sana.
 
 import { dbase, collection, getDocs, query, where, orderBy, limit }
-  from "./db.js?v=3.13.1";
-import { bolehAkses } from "./auth.js?v=3.13.1";
-import { aman, tanggalJam } from "./ui.js?v=3.13.1";
+  from "./db.js?v=3.14.0";
+import { bolehAkses } from "./auth.js?v=3.14.0";
+import { aman, tanggalJam } from "./ui.js?v=3.14.0";
 
 // Nama aksi teknis → kalimat yang gampang dibaca. Aksi yang belum
 // ada di sini tetap tampil (pakai nama aslinya) supaya tidak ada
@@ -71,6 +71,7 @@ export const LABEL_AKSI = {
   label_diubah: "Mengubah nama menu",
   akses_diubah: "Mengubah hak akses peran",
   batas_diskon_diubah: "Mengubah batas diskon karyawan",
+  tipe_dihapus: "Menghapus tipe motor",
 };
 
 function awalBulanIni() {
