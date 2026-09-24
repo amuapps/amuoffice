@@ -134,6 +134,22 @@ service cloud.firestore {
       allow write: if salahSatu(['owner', 'admin']);
     }
 
+    // ── Master Channel (tujuan Transfer Unit) ────────────────
+    // Sama seperti Supplier — bukan data rahasia.
+    match /channel/{id} {
+      allow read:  if aktif();
+      allow write: if salahSatu(['owner', 'admin']);
+    }
+
+    // ── Transfer Unit ke Channel (+ BAST / Surat Jalan) ──────
+    // Cuma Owner/Admin (yang memang boleh mengubah Data Unit).
+    // Riwayat transfer tidak boleh dihapus — jejak serah terima.
+    match /transfer_unit/{id} {
+      allow read:           if salahSatu(['owner', 'admin']);
+      allow create, update: if salahSatu(['owner', 'admin']);
+      allow delete:         if false;
+    }
+
     // ── Master Agen ─────────────────────────────────────────
     // SELURUHNYA cuma Owner — konsisten dengan aturan Fee Agen
     // yang juga cuma boleh dilihat Owner.
