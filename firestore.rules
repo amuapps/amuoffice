@@ -66,7 +66,9 @@ service cloud.firestore {
       // dst). Sales: HANYA boleh ubah jumlahReady — itu efek samping
       // sah dari mengunci/melepas unit saat bikin/ubah/batalkan SPK
       // (lihat kunciUnitTransaksi/lepasUnitTransaksi di stok.js).
-      allow write: if salahSatu(['owner', 'admin']) ||
+      // Hapus tipe KHUSUS Owner (tombol Hapus di Master Tipe Motor).
+      allow delete: if salahSatu(['owner']);
+      allow create, update: if salahSatu(['owner', 'admin']) ||
         (salahSatu(['sales']) &&
          request.resource.data.diff(resource.data).affectedKeys()
            .hasOnly(['jumlahReady']));
