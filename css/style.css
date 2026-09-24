@@ -1021,10 +1021,15 @@ select.isian {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tab:hover { background: rgba(0,0,0,.04); }
-.tab--aktif {
-  background: var(--kartu); color: var(--tinta); font-weight: 600;
-  box-shadow: inset 0 2px 0 var(--biru);
+/* Tab aktif diberi warna penuh supaya langsung kelihatan panel mana
+   yang sedang dibuka. */
+.tab.tab--aktif,
+.tab.tab--aktif:hover {
+  background: var(--biru); color: #fff; font-weight: 600;
+  box-shadow: inset 0 -3px 0 var(--biru-tua);
 }
+.tab--aktif .tab-tutup { color: rgba(255,255,255,.85); }
+.tab--aktif .tab-tutup:hover { background: rgba(255,255,255,.22); color: #fff; }
 .tab-tutup {
   font-size: 15px; line-height: 1; color: var(--abu-2); padding: 2px 4px;
   border-radius: 4px;
