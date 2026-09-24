@@ -5,18 +5,18 @@ import {
   dbase, collection, doc, getDoc, getDocs, setDoc, deleteDoc, query, where,
   orderBy, limit, writeBatch, serverTimestamp, increment, pakaiNilaiUnik,
   sertakanLog, tandaBaru, catat, runTransaction,
-} from "./db.js?v=3.14.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.14.0";
-import { PERAN } from "./roles.js?v=3.14.0";
-import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js?v=3.14.0";
-import { pecahHarga } from "./config.js?v=3.14.0";
-import { beritahu } from "./dialog.js?v=3.14.0";
-import { muatSupplier, supplierAktif } from "./supplier.js?v=3.14.0";
-import { beriTahuSemuaOwner } from "./notifikasi.js?v=3.14.0";
-import { hitungTotalDibayar } from "./cetak.js?v=3.14.0";
+} from "./db.js?v=3.15.1";
+import { bolehAkses, sesi } from "./auth.js?v=3.15.1";
+import { PERAN } from "./roles.js?v=3.15.1";
+import { muatTipe, tipeDari, sinkronKatalog } from "./tipe.js?v=3.15.1";
+import { pecahHarga } from "./config.js?v=3.15.1";
+import { beritahu } from "./dialog.js?v=3.15.1";
+import { muatSupplier, supplierAktif } from "./supplier.js?v=3.15.1";
+import { beriTahuSemuaOwner } from "./notifikasi.js?v=3.15.1";
+import { hitungTotalDibayar } from "./cetak.js?v=3.15.1";
 import {
   rupiah, aman, kabar, tanggal, pasangFormatUang, bacaAngka, pasangBersihkanKode,
-} from "./ui.js?v=3.14.0";
+} from "./ui.js?v=3.15.1";
 
 // No. Rangka & No. Mesin sering diketik dengan spasi yang tidak
 // konsisten (mis. "MD17M 5027277" vs "MD17M5027277") — kalau cuma
@@ -31,7 +31,12 @@ const LABEL_STATUS = {
   ready: "Ready",
   booked: "Dipesan",
   terjual: "Terjual",
+  transfer: "Di Channel", // hanya data lama v3.15.1, dimigrasi otomatis
 };
+
+// Baris yang bisa diklik untuk melihat pembeli — hanya unit yang
+// memang terikat ke SPK (bukan Ready, bukan yang sedang di Channel).
+const PUNYA_PEMBELI = (s) => s === "booked" || s === "terjual";
 
 function tabelUnit(daftar, bisaUbah) {
   return `<div style="overflow-x:auto">
@@ -39,15 +44,15 @@ function tabelUnit(daftar, bisaUbah) {
       <thead>
         <tr>
           <th>No.</th><th>Tipe</th><th>Warna</th><th>Tahun</th><th>Rangka</th>
-          <th>Mesin</th><th>Status</th><th>Masuk</th><th>No. DO</th>
+          <th>Mesin</th><th>Status</th><th>Lokasi</th><th>Masuk</th><th>No. DO</th>
           ${bisaUbah ? "<th></th>" : ""}
         </tr>
       </thead>
       <tbody>
         ${daftar.map((u, i) => `<tr class="baris-status--${u.status} ${
-              u.status !== "ready" ? "baris-klik" : ""}"
-              ${u.status !== "ready" ? `data-lihat-pembeli="${u.id}"` : ""}
-              ${u.status !== "ready" ? `title="Klik untuk lihat pembelinya"` : ""}>
+              PUNYA_PEMBELI(u.status) ? "baris-klik" : ""}"
+              ${PUNYA_PEMBELI(u.status) ? `data-lihat-pembeli="${u.id}"` : ""}
+              ${PUNYA_PEMBELI(u.status) ? `title="Klik untuk lihat pembelinya"` : ""}>
           <td class="mono">${i + 1}</td>
           <td>${aman(u.tipeNama)}</td>
           <td>${aman(u.warna || "-")}</td>
@@ -56,6 +61,9 @@ function tabelUnit(daftar, bisaUbah) {
           <td class="mono">${aman(u.noMesin || "-")}</td>
           <td><span class="tanda tanda--${u.status}">
             ${LABEL_STATUS[u.status] || u.status}</span></td>
+          <td>${u.lokasiId
+            ? `<span class="tanda tanda--transfer">${aman(u.lokasiNama || "Channel")}</span>`
+            : `<span class="petunjuk" style="margin:0">Showroom</span>`}</td>
           <td>${tanggal(u.tglMasuk)}</td>
           <td class="mono">${aman(u.noDo || "-")}</td>
           ${bisaUbah ? `<td><button class="tombol tombol--kecil"
@@ -161,6 +169,7 @@ export async function halamanStok(wadah) {
       <button class="chip" data-status="ready">Ready</button>
       <button class="chip" data-status="booked">Dipesan</button>
       <button class="chip" data-status="terjual">Terjual</button>
+      <button class="chip" data-status="dichannel">Di Channel</button>
     </div>
 
     <div id="panel-filter-unit" class="lembar" style="margin-top:10px" hidden>
@@ -315,7 +324,9 @@ export async function halamanStok(wadah) {
     daftarEl.innerHTML = `<p class="hampa">Memuat…</p>`;
     // "Semua" tidak menyaring apa pun di query — sisanya (tipe,
     // warna, tanggal) disaring di aplikasi lewat terapkanFilterLokal().
-    const snap = status === "semua"
+    // "Di Channel" bukan status — itu LOKASI. Ambil semua lalu saring
+    // unit yang lokasiId-nya terisi (stoknya tetap dihitung Ready).
+    const snap = (status === "semua" || status === "dichannel")
       ? await getDocs(query(collection(dbase, "units"), limit(500)))
       : await getDocs(query(
           collection(dbase, "units"),
@@ -323,6 +334,7 @@ export async function halamanStok(wadah) {
           limit(500)
         ));
     unitSemua = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+      .filter((u) => status !== "dichannel" || !!u.lokasiId)
       .sort((a, b) => (b.dibuatPada?.seconds || 0) - (a.dibuatPada?.seconds || 0));
     terapkanFilterLokal();
   }
@@ -357,12 +369,13 @@ export async function halamanStok(wadah) {
       return;
     }
     const kolom = ["Tipe", "Warna", "Tahun", "No Rangka", "No Mesin",
-      "Status", "No DO", "Tanggal Masuk"];
+      "Status", "Lokasi", "No DO", "Tanggal Masuk"];
     const gStyle = "border:1px solid #999;padding:4px 8px;font-family:Calibri,Arial,sans-serif;font-size:12px;";
     const hStyle = gStyle + "background:#1F4E78;color:#fff;font-weight:bold;text-align:left;";
     const baris = unitTampil.map((u) => [
       u.tipeNama, u.warna, u.tahun, u.noRangka, u.noMesin,
-      LABEL_STATUS[u.status] || u.status, u.noDo, tanggal(u.tglMasuk),
+      LABEL_STATUS[u.status] || u.status, u.lokasiNama || "Showroom",
+      u.noDo, tanggal(u.tglMasuk),
     ]);
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
       <table>
@@ -703,6 +716,13 @@ export async function halamanStok(wadah) {
 
   if (bisaUbah) {
     wadah.querySelector("#tambah-unit").addEventListener("click", bukaForm);
+    // Perbaiki data transfer v3.15.1 (status "transfer" + stok
+    // berkurang) → Ready lagi, lokasi tetap di channel-nya.
+    try {
+      const { migrasiStatusTransfer } = await import("./transfer.js?v=3.15.1");
+      const n = await migrasiStatusTransfer();
+      if (n) kabar(`${n} unit di Channel dipulihkan: status Ready & stok dikembalikan.`, "netral");
+    } catch { /* tidak menghalangi halaman */ }
   }
   await gambar();
 }

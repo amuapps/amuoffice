@@ -2,9 +2,9 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.14.0";
-import { daftarKodeUntuk } from "./akses.js?v=3.14.0";
-import { dbase, doc, getDoc } from "./db.js?v=3.14.0";
+import { labelItem, labelGrup } from "./label.js?v=3.15.1";
+import { daftarKodeUntuk } from "./akses.js?v=3.15.1";
+import { dbase, doc, getDoc } from "./db.js?v=3.15.1";
 
 // ── Batas diskon MENYELURUH (diinput manual oleh Owner) ─────────
 // Disimpan di /pengaturan/diskon { batas: <angka> | null }.
@@ -59,11 +59,13 @@ const MASTER_DATA = { grup: "Master Data", butir: [
   { label: "Master Agen", rute: "#/agen", kode: "SYS-12" },
   { label: "Master Biro Jasa", rute: "#/biro", kode: "SYS-14" },
   { label: "Master Supplier", rute: "#/supplier", kode: "SYS-15" },
+  { label: "Master Channel", rute: "#/channel", kode: "SYS-16" },
   { label: "Data Karyawan", rute: "#/pengguna", kode: "SYS-03" },
 ]};
 
 const INVENTORY = { grup: "Inventory", butir: [
   { label: "Data Unit", rute: "#/stok", kode: "INV-06" },
+  { label: "Transfer Unit", rute: "#/transfer", kode: "INV-07" },
 ]};
 
 const KATALOG_SAJA = { grup: "Inventory", butir: [

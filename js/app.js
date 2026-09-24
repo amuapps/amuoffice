@@ -8,20 +8,20 @@
 // otomatis. Begitu modul itu mau dibangun lagi, tinggal impor
 // fungsinya dan tambahkan satu baris di peta `khusus` di bawah.
 
-import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.14.0";
+import { SHOWROOM, VERSI, MODE_UJI, MEREK } from "./config.js?v=3.15.1";
 import { masuk, keluar, pantauSesi, bolehAkses, pesanTolak, sesi,
-  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.14.0";
-import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.14.0";
-import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.14.0";
+  ubahPasswordSendiri, mintaResetPassword, ubahEmailSendiri } from "./auth.js?v=3.15.1";
+import { PERAN, batasDiskon, semuaMenu, menuBerlabel, boleh } from "./roles.js?v=3.15.1";
+import { saatKoneksiBerubah, catat, dbase, doc, getDoc } from "./db.js?v=3.15.1";
 import { daftar, mulaiRouter, pergiKe, saatDitolak, bersihkanRute }
-  from "./router.js?v=3.14.0";
-import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.14.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.14.0";
-import { muatLabelKustom } from "./label.js?v=3.14.0";
-import { muatAksesKustom } from "./akses.js?v=3.14.0";
-import { muatBatasDiskon } from "./roles.js?v=3.14.0";
-import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.14.0";
-import { halamanSegera } from "./segera.js?v=3.14.0";
+  from "./router.js?v=3.15.1";
+import { kabar, rupiah, aman, kunciHari, namaTampilan } from "./ui.js?v=3.15.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
+import { muatLabelKustom } from "./label.js?v=3.15.1";
+import { muatAksesKustom } from "./akses.js?v=3.15.1";
+import { muatBatasDiskon } from "./roles.js?v=3.15.1";
+import { halamanInbox, pasangLencana } from "./notifikasi.js?v=3.15.1";
+import { halamanSegera } from "./segera.js?v=3.15.1";
 
 // ── Muat-nanti (lazy) untuk halaman-halaman besar ────────────────
 // Sebelumnya SEMUA modul halaman (spk.js, laporan.js, stok.js, dst
@@ -33,7 +33,7 @@ import { halamanSegera } from "./segera.js?v=3.14.0";
 // tetap cepat) — aplikasi jadi jauh lebih ringan waktu pertama kali
 // dibuka/masuk.
 async function muatHalaman(modul, nama) {
-  const m = await import(`./${modul}.js?v=3.14.0`);
+  const m = await import(`./${modul}.js?v=3.15.1`);
   return m[nama];
 }
 
@@ -277,6 +277,8 @@ function daftarkanHalaman(profil) {
     "#/agen": async (w) => (await muatHalaman("agen", "halamanAgen"))(w),
     "#/biro": async (w) => (await muatHalaman("biro", "halamanBiro"))(w),
     "#/supplier": async (w) => (await muatHalaman("supplier", "halamanSupplier"))(w),
+    "#/channel": async (w) => (await muatHalaman("channel", "halamanChannel"))(w),
+    "#/transfer": async (w) => (await muatHalaman("transfer", "halamanTransfer"))(w),
     "#/dashboard": async (w) => (await muatHalaman("dashboard", "halamanDashboard"))(w),
     "#/tentang": async (w) => (await muatHalaman("tentang", "halamanTentang"))(w),
     "#/dokumen": async (w) => (await muatHalaman("dokumen", "halamanDokumen"))(w),

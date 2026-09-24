@@ -3,14 +3,37 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.14.0";
-import { VERSI } from "./config.js?v=3.14.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.14.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.14.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.15.1";
+import { VERSI } from "./config.js?v=3.15.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.15.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.15.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.14.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.15.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.15.1", tanggal: "September 2026",
+    judul: "Transfer Unit = Pindah Lokasi (Stok Tidak Berkurang) + Tarik Unit",
+    butir: [
+      "PERBAIKAN: transfer ke Channel tidak lagi mengurangi stok. Unit di Channel tetap berstatus Ready, tetap bisa dijual lewat SPK, dan tetap dihitung di stok Tipe Motor. Yang dicatat hanya LOKASI unit.",
+      "Unit yang sempat berstatus \"Di Channel\" di v3.15.0 otomatis dipulihkan (status Ready, stok dikembalikan, lokasi tetap di channel-nya) saat Owner/Admin membuka Data Unit atau Transfer Unit.",
+      "Tarik Unit: pindahkan unit dari posisinya sekarang ke mana saja: Channel → Showroom, Channel → Channel lain, atau Showroom → Channel. Satu surat jalan = satu lokasi asal → satu lokasi tujuan.",
+      "BAST / Surat Jalan menampilkan lokasi asal dan tujuan sesuai pemindahan (Transfer Unit / Penarikan Unit).",
+      "Data Unit & form SPK: kolom baru Lokasi (Showroom atau nama Channel). Tombol saring \"Di Channel\" menyaring berdasarkan lokasi.",
+    ],
+  },
+  {
+    versi: "3.15.0", tanggal: "September 2026",
+    judul: "Transfer Unit ke Channel + BAST Kendaraan / Surat Jalan",
+    butir: [
+      "Menu baru Master Data → Master Channel: daftar tujuan transfer unit (cabang, sub-dealer, showroom rekanan, gudang) lengkap dengan PIC, telepon, dan alamat.",
+      "Menu baru Inventory → Transfer Unit: kirim satu atau banyak unit Ready sekaligus ke Channel. Unit berubah status menjadi \"Di Channel\" dan tidak bisa dipilih di SPK sampai dikembalikan lewat tombol Kembalikan.",
+      "Cetak BAST Kendaraan / Surat Jalan per transfer: kop showroom, data pengirim & penerima, daftar unit (No. Rangka, No. Mesin, kelengkapan), dan tiga kolom tanda tangan.",
+      "Data Unit: status baru \"Di Channel\" (warna ungu) beserta nama channel & nomor transfernya.",
+      "Header kolom semua tabel sekarang abu-abu lebih gelap supaya lebih jelas terpisah dari isi.",
+      "firestore.rules: koleksi baru channel & transfer_unit (wajib Publish ulang rules).",
+    ],
+  },
   {
     versi: "3.14.0", tanggal: "September 2026",
     judul: "Hapus Tipe Motor & Warna Tab Aktif",

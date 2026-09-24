@@ -19,14 +19,14 @@ import {
 import {
   dbase, auth, collection, doc, getDocs, setDoc, updateDoc, query, where,
   serverTimestamp, catat,
-} from "./db.js?v=3.14.0";
-import { sesi, bolehAkses } from "./auth.js?v=3.14.0";
+} from "./db.js?v=3.15.1";
+import { sesi, bolehAkses } from "./auth.js?v=3.15.1";
 import { PERAN, batasDiskon, muatBatasDiskon, batasDiskonGlobal,
-  setBatasDiskonGlobal } from "./roles.js?v=3.14.0";
-import { FIREBASE } from "./config.js?v=3.14.0";
-import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.14.0";
+  setBatasDiskonGlobal } from "./roles.js?v=3.15.1";
+import { FIREBASE } from "./config.js?v=3.15.1";
+import { konfirmasi, tanya, beritahu } from "./dialog.js?v=3.15.1";
 import { rupiah, aman, kabar, tanggal, keTanggal, pasangFormatUang, bacaAngka }
-  from "./ui.js?v=3.14.0";
+  from "./ui.js?v=3.15.1";
 
 const OPSI_PENDIDIKAN = ["SD", "SMP", "SMA/SMK", "D3", "S1", "S2", "S3", "Lainnya"];
 
