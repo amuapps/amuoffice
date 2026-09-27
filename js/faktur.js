@@ -13,11 +13,11 @@
 import {
   dbase, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, limit,
   serverTimestamp, catat,
-} from "./db.js?v=3.16.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.16.0";
-import { muatLeasing, leasingDari } from "./leasing.js?v=3.16.0";
-import { cetakPengajuanFaktur } from "./cetak.js?v=3.16.0";
-import { aman, kabar, tanggal } from "./ui.js?v=3.16.0";
+} from "./db.js?v=3.16.1";
+import { bolehAkses, sesi } from "./auth.js?v=3.16.1";
+import { muatLeasing, leasingDari } from "./leasing.js?v=3.16.1";
+import { cetakPengajuanFaktur } from "./cetak.js?v=3.16.1";
+import { aman, kabar, tanggal } from "./ui.js?v=3.16.1";
 
 // Isi awal dokumen_kendaraan kalau SPK ini belum pernah punya —
 // harus sama dengan dataDefault() di dokumen.js supaya Tracking

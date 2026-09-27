@@ -3,14 +3,22 @@
 // git log atau semacamnya — ini aplikasi sederhana tanpa proses
 // build/CI, jadi cukup ditulis tangan di sini).
 
-import { sesi, konfirmasiPassword } from "./auth.js?v=3.16.0";
-import { VERSI } from "./config.js?v=3.16.0";
-import { aman, rupiah, kabar } from "./ui.js?v=3.16.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
+import { sesi, konfirmasiPassword } from "./auth.js?v=3.16.1";
+import { VERSI } from "./config.js?v=3.16.1";
+import { aman, rupiah, kabar } from "./ui.js?v=3.16.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.1";
 import { dbase, collection, getDocs, query, where, doc, getDoc, setDoc,
-  deleteDoc, updateDoc, catat } from "./db.js?v=3.16.0";
+  deleteDoc, updateDoc, catat } from "./db.js?v=3.16.1";
 
 const RIWAYAT = [
+  {
+    versi: "3.16.1", tanggal: "September 2026",
+    judul: "Tracking Dokumen Model Tabel & Geser Kiri-Kanan",
+    butir: [
+      "Tracking Dokumen sekarang berbentuk tabel seperti Pengajuan Faktur: kotak centang, saringan status, kotak pencarian, kolom No. Rangka, Biro Jasa, status berkas, serta STNK/BPKB/Plat. Rincian, tombol aksi, dan riwayat per SPK dibuka lewat tombol Detail.",
+      "Seluruh halaman kini bisa digeser kiri-kanan dengan scrollbar di bagian bawah aplikasi (seperti scrollbar atas-bawah di kanan). Tabel lebar tidak perlu lagi digulir sampai ujung bawah untuk menemukan scrollbar-nya, dan judul kolom tabel ikut menempel di atas saat digulir.",
+    ],
+  },
   {
     versi: "3.16.0", tanggal: "September 2026",
     judul: "Pengajuan Faktur, Pilih Banyak di Tracking Dokumen, No. SPK Bulanan",

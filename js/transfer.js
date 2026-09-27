@@ -1,6 +1,6 @@
 // transfer.js — Inventory → Transfer / Tarik Unit.
 //
-// PRINSIP (sejak v3.16.0): transfer HANYA memindahkan LOKASI unit,
+// PRINSIP (sejak v3.16.1): transfer HANYA memindahkan LOKASI unit,
 // BUKAN mengubah stok. Unit di Channel tetap stok milik showroom —
 // status tetap "ready" (tetap bisa dijual lewat SPK) dan jumlahReady
 // di Tipe Motor TIDAK berubah. Yang berubah cuma field lokasi:
@@ -25,13 +25,13 @@
 import {
   dbase, collection, doc, getDocs, query, where, limit, orderBy,
   runTransaction, increment, nomorBerikutnya, catat, tandaBaru,
-} from "./db.js?v=3.16.0";
-import { bolehAkses, sesi } from "./auth.js?v=3.16.0";
-import { muatChannel, channelDari } from "./channel.js?v=3.16.0";
-import { muatTipe, sinkronKatalog } from "./tipe.js?v=3.16.0";
-import { konfirmasi } from "./dialog.js?v=3.16.0";
-import { SHOWROOM } from "./config.js?v=3.16.0";
-import { aman, kabar, tanggal, kunciHari, pasangHurufBesar } from "./ui.js?v=3.16.0";
+} from "./db.js?v=3.16.1";
+import { bolehAkses, sesi } from "./auth.js?v=3.16.1";
+import { muatChannel, channelDari } from "./channel.js?v=3.16.1";
+import { muatTipe, sinkronKatalog } from "./tipe.js?v=3.16.1";
+import { konfirmasi } from "./dialog.js?v=3.16.1";
+import { SHOWROOM } from "./config.js?v=3.16.1";
+import { aman, kabar, tanggal, kunciHari, pasangHurufBesar } from "./ui.js?v=3.16.1";
 
 // "" = Showroom (pusat). Dipakai sebagai nilai <option> & pembanding.
 const PUSAT = "";
@@ -472,7 +472,7 @@ export async function halamanTransfer(wadah) {
   if (bisaUbah) {
     wadah.querySelector("#tambah-transfer").addEventListener("click", () => bukaForm(false));
     wadah.querySelector("#tarik-unit").addEventListener("click", () => bukaForm(true));
-    // Perbaiki data dari v3.16.0 (status "transfer" + stok berkurang).
+    // Perbaiki data dari v3.16.1 (status "transfer" + stok berkurang).
     try {
       const n = await migrasiStatusTransfer();
       if (n) kabar(`${n} unit di Channel dipulihkan: status kembali Ready & stok dikembalikan.`, "netral");
@@ -494,7 +494,7 @@ export function cetakBastTransfer(t) {
   const unit = t.unit || [];
   const kopAlamat = [SHOWROOM.alamat, SHOWROOM.kota].filter(Boolean).join(", ");
   const kopTelp = SHOWROOM.telepon ? `Telp. ${SHOWROOM.telepon}` : "";
-  // Transfer lama (v3.16.0) belum punya data asal = dari Showroom.
+  // Transfer lama (v3.16.1) belum punya data asal = dari Showroom.
   const dari = {
     nama: t.dariNama || namaPusat(),
     jenis: t.dariJenis || "Showroom",

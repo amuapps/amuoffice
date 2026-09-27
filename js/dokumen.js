@@ -10,15 +10,15 @@
 // Satu dokumen tracking per SPK, ID-nya SAMA PERSIS dengan ID
 // dokumen SPK-nya di "transaksi" — gampang dicari-silang.
 
-import { dbase, collection, doc, getDocs, setDoc, updateDoc, query, where,
-  serverTimestamp, catat } from "./db.js?v=3.16.0";
-import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.16.0";
-import { aman, tanggal, kabar } from "./ui.js?v=3.16.0";
-import { konfirmasi, tanya } from "./dialog.js?v=3.16.0";
-import { muatBiro, biroAktif } from "./biro.js?v=3.16.0";
-import { cetakBastBerkas, cetakBastDokumenJadi, cetakBastBerkasBanyak } from "./cetak.js?v=3.16.0";
-import { SHOWROOM } from "./config.js?v=3.16.0";
-import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.16.0";
+import { dbase, collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where,
+  serverTimestamp, catat } from "./db.js?v=3.16.1";
+import { sesi, bolehAkses, konfirmasiPassword } from "./auth.js?v=3.16.1";
+import { aman, tanggal, kabar } from "./ui.js?v=3.16.1";
+import { konfirmasi, tanya } from "./dialog.js?v=3.16.1";
+import { muatBiro, biroAktif } from "./biro.js?v=3.16.1";
+import { cetakBastBerkas, cetakBastDokumenJadi, cetakBastBerkasBanyak } from "./cetak.js?v=3.16.1";
+import { SHOWROOM } from "./config.js?v=3.16.1";
+import { muatRiwayatDokumen, htmlRiwayatDokumen } from "./log.js?v=3.16.1";
 
 export const LABEL_BERKAS = {
   belum_diserahkan: "Belum Diserahkan",
@@ -36,6 +36,10 @@ export const LABEL_DOKUMEN = {
 const WARNA_BERKAS = {
   belum_diserahkan: "batal", diserahkan: "booked",
   dikonfirmasi: "ready", ditarik_kembali: "belum",
+};
+const LABEL_DOKUMEN_SINGKAT = {
+  belum: "Belum", diproses: "Diproses", selesai: "Selesai",
+  diserahkan: "Dikirim", dikonfirmasi: "Diterima",
 };
 const JENIS_DOKUMEN = [["stnk", "STNK"], ["bpkb", "BPKB"], ["plat", "Plat Nomor"]];
 const WARNA_DOKUMEN = {
@@ -78,7 +82,21 @@ async function muatDaftar() {
     : collection(dbase, "dokumen_kendaraan"));
   const petaDok = new Map(snapD.docs.map((d) => [d.id, { id: d.id, ...d.data() }]));
 
-  return semuaTransaksi.map((t) => ({ t, dok: petaDok.get(t.id) || dataDefault(t) }));
+  // No. Rangka/Mesin untuk kolom tabel (seperti Pengajuan Faktur).
+  // Gagal baca unit tidak menggagalkan halaman — kolomnya jadi "-".
+  const petaUnit = new Map();
+  try {
+    const idUnit = [...new Set(semuaTransaksi.map((t) => t.unitId).filter(Boolean))];
+    await Promise.all(idUnit.map(async (id) => {
+      const snap = await getDoc(doc(dbase, "units", id));
+      if (snap.exists()) petaUnit.set(id, snap.data());
+    }));
+  } catch { /* abaikan */ }
+
+  return semuaTransaksi.map((t) => ({
+    t, dok: petaDok.get(t.id) || dataDefault(t),
+    unit: t.unitId ? petaUnit.get(t.unitId) || null : null,
+  }));
 }
 
 export async function halamanDokumen(wadah) {
@@ -88,18 +106,26 @@ export async function halamanDokumen(wadah) {
 
   wadah.innerHTML = `<section class="lembar">
     <div class="lembar-atas"><h2 class="judul">Tracking Dokumen Kendaraan</h2></div>
-    <div id="d-filter" class="tiga" style="margin-bottom:12px">
-      <button class="tombol tombol--kecil tombol--isi" data-filter="semua">Semua</button>
-      <button class="tombol tombol--kecil" data-filter="belum_diserahkan">Belum Diserahkan</button>
-      <button class="tombol tombol--kecil" data-filter="diserahkan">Menunggu Konfirmasi</button>
-      <button class="tombol tombol--kecil" data-filter="dikonfirmasi">Sudah di Biro Jasa</button>
+    <p class="petunjuk">Status berkas (KTP + Faktur) dan dokumen jadi (STNK / BPKB /
+      Plat) per SPK. Centang beberapa SPK untuk aksi sekaligus, atau klik
+      <b>Detail</b> untuk riwayat & aksi per SPK.</p>
+    <div id="d-filter" class="chip-baris">
+      <button class="chip aktif" data-filter="semua">Semua</button>
+      <button class="chip" data-filter="belum_diserahkan">Belum Diserahkan</button>
+      <button class="chip" data-filter="diserahkan">Menunggu Konfirmasi</button>
+      <button class="chip" data-filter="dikonfirmasi">Sudah di Biro Jasa</button>
+      <button class="chip" data-filter="ditarik_kembali">Ditarik Kembali</button>
     </div>
+    <input class="isian isian--terang" id="d-cari" style="margin-bottom:10px"
+      placeholder="Cari No. SPK / nama / No. Rangka / Biro Jasa…">
     <div id="d-massal" class="kartu" style="margin-bottom:10px;display:flex;flex-wrap:wrap;
          align-items:center;gap:8px;background:var(--lapis)" hidden></div>
-    <div id="d-daftar" class="daftar"><p class="hampa">Memuat…</p></div>
+    <div id="d-daftar"><p class="hampa">Memuat…</p></div>
   </section>`;
 
   const daftarEl = wadah.querySelector("#d-daftar");
+  const cariEl = wadah.querySelector("#d-cari");
+  const terbuka = new Set(); // baris Detail yang sedang dibuka
   const massalEl = wadah.querySelector("#d-massal");
   let semuaData = [];
   let filterAktif = "semua";
@@ -125,48 +151,71 @@ export async function halamanDokumen(wadah) {
   // total begitu buka halaman ini.
   if (bisaAksiAdmin) await muatBiro();
 
-  function baris({ t, dok }) {
+  function tandaDok(dok, k) {
+    const st = dok[`${k}Status`] || "belum";
+    return `<span class="tanda tanda--${WARNA_DOKUMEN[st] || "batal"}"
+      title="${aman(LABEL_DOKUMEN[st] || st)}">${aman(LABEL_DOKUMEN_SINGKAT[st] || st)}</span>`;
+  }
+
+  // Satu SPK = dua baris tabel: baris ringkas (seperti Pengajuan
+  // Faktur) + baris Detail (tersembunyi) berisi rincian, tombol aksi,
+  // dokumen jadi & riwayat — isi yang dulu ada di kartu.
+  function baris({ t, dok, unit }) {
     const pilih = bisaDipilih(dok);
-    return `<article class="kartu">
-      <div class="kartu-atas">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          ${pilih ? `<input type="checkbox" class="d-pilih" value="${t.id}"
-            style="width:18px;height:18px;margin-top:2px"
-            ${terpilih.has(t.id) ? "checked" : ""} title="Pilih untuk aksi massal">` : ""}
-          <div>
-          <h3 class="kartu-judul">${aman(t.spkNo)}</h3>
-          <p class="kartu-sub">${aman(t.pembeli?.nama || "-")} — ${aman(t.tipeNama)} · ${aman(t.warna)}</p>
-          </div>
+    const buka = terbuka.has(t.id);
+    const dokJadi = dok.berkasStatus === "dikonfirmasi" || dok.berkasStatus === "ditarik_kembali";
+    return `<tr class="${buka ? "d-baris-buka" : ""}">
+      <td>${pilih ? `<input type="checkbox" class="d-pilih" value="${t.id}"
+        ${terpilih.has(t.id) ? "checked" : ""} title="Pilih untuk aksi massal">` : ""}</td>
+      <td class="mono">${aman(t.spkNo)}</td>
+      <td>${tanggal(t.dibuatPada)}</td>
+      <td>${aman(t.pembeli?.nama || "-")}</td>
+      <td>${aman(t.tipeNama)}<br><span class="petunjuk" style="margin:0">${aman(t.warna || "")}</span></td>
+      <td class="mono">${unit ? aman(unit.noRangka || "-") : `<span class="tanda tanda--booked">Indent</span>`}</td>
+      <td>${aman(dok.biroJasaNama || "-")}</td>
+      <td><span class="tanda tanda--${WARNA_BERKAS[dok.berkasStatus] || "netral"}">
+        ${LABEL_BERKAS[dok.berkasStatus] || aman(dok.berkasStatus)}</span></td>
+      <td>${dokJadi ? tandaDok(dok, "stnk") : "-"}</td>
+      <td>${dokJadi ? tandaDok(dok, "bpkb") : "-"}</td>
+      <td>${dokJadi ? tandaDok(dok, "plat") : "-"}</td>
+      <td><button class="tombol tombol--kecil ${buka ? "tombol--isi" : ""}" type="button"
+        data-buka="${t.id}">Detail ${buka ? "▴" : "▾"}</button></td>
+    </tr>
+    <tr data-rinci="${t.id}" ${buka ? "" : "hidden"}>
+      <td></td>
+      <td colspan="11" class="d-rinci-sel">
+        <div class="lembar">
+        <dl class="rinci" style="margin-top:0;max-width:640px">
+          <div><dt>Biro Jasa</dt><dd>${aman(dok.biroJasaNama || "— belum ditugaskan —")}</dd></div>
+          ${unit ? `<div><dt>No. Rangka / Mesin</dt><dd class="mono">${aman(unit.noRangka || "-")}
+            / ${aman(unit.noMesin || "-")}</dd></div>` : ""}
+          ${dok.berkasDiserahkanPada ? `<div><dt>Diserahkan</dt>
+            <dd>${tanggal(dok.berkasDiserahkanPada)} oleh ${aman(dok.berkasDiserahkanOlehNama)}</dd></div>` : ""}
+          ${dok.berkasDikonfirmasiPada ? `<div><dt>Dikonfirmasi</dt>
+            <dd>${tanggal(dok.berkasDikonfirmasiPada)}</dd></div>` : ""}
+          ${dok.berkasDitarikPada ? `<div><dt>Ditarik Kembali</dt>
+            <dd>${tanggal(dok.berkasDitarikPada)} — ${aman(dok.berkasDitarikAlasan)}</dd></div>` : ""}
+          ${dok.fakturDiajukanPada ? `<div><dt>Faktur diajukan</dt>
+            <dd>${tanggal(dok.fakturDiajukanPada)}</dd></div>` : ""}
+        </dl>
+        <div class="aksi aksi--rapat" data-aksi-wadah="${t.id}"></div>
+        ${dokJadi ? `
+          <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--garis)">
+            <p class="d-judul" style="font-size:12.5px">Dokumen Jadi (STNK / BPKB / Plat)</p>
+            <dl class="rinci" style="max-width:640px">
+              ${JENIS_DOKUMEN.map(([k, label]) => `<div><dt>${label}</dt>
+                <dd><span class="tanda tanda--${WARNA_DOKUMEN[dok[`${k}Status`]] || "batal"}">
+                  ${LABEL_DOKUMEN[dok[`${k}Status`]] || "Belum Dikerjakan"}</span></dd></div>`).join("")}
+              ${dok.noPolisi ? `<div><dt>No. Polisi</dt><dd class="mono">${aman(dok.noPolisi)}</dd></div>` : ""}
+            </dl>
+            <div class="aksi aksi--rapat" data-aksi-dok-wadah="${t.id}"></div>
+          </div>` : ""}
+        ${bisaLihatRiwayat ? `<button type="button" class="tombol tombol--kecil tombol--sunyi"
+          style="margin-top:10px" data-toggle-riwayat="${t.id}">Lihat Riwayat Perubahan ▾</button>
+          <div data-log-wadah="${t.id}" hidden></div>` : ""}
         </div>
-        <span class="tanda tanda--${WARNA_BERKAS[dok.berkasStatus] || "netral"}">
-          ${LABEL_BERKAS[dok.berkasStatus] || dok.berkasStatus}
-        </span>
-      </div>
-      <dl class="rinci">
-        <div><dt>Biro Jasa</dt><dd>${aman(dok.biroJasaNama || "— belum ditugaskan —")}</dd></div>
-        ${dok.berkasDiserahkanPada ? `<div><dt>Diserahkan</dt>
-          <dd>${tanggal(dok.berkasDiserahkanPada)} oleh ${aman(dok.berkasDiserahkanOlehNama)}</dd></div>` : ""}
-        ${dok.berkasDikonfirmasiPada ? `<div><dt>Dikonfirmasi</dt>
-          <dd>${tanggal(dok.berkasDikonfirmasiPada)}</dd></div>` : ""}
-        ${dok.berkasDitarikPada ? `<div><dt>Ditarik Kembali</dt>
-          <dd>${tanggal(dok.berkasDitarikPada)} — ${aman(dok.berkasDitarikAlasan)}</dd></div>` : ""}
-      </dl>
-      <div class="aksi aksi--rapat" data-aksi-wadah="${t.id}"></div>
-      ${dok.berkasStatus === "dikonfirmasi" || dok.berkasStatus === "ditarik_kembali" ? `
-        <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--garis)">
-          <p class="d-judul" style="font-size:12.5px">Dokumen Jadi (STNK / BPKB / Plat)</p>
-          <dl class="rinci">
-            ${JENIS_DOKUMEN.map(([k, label]) => `<div><dt>${label}</dt>
-              <dd><span class="tanda tanda--${WARNA_DOKUMEN[dok[`${k}Status`]] || "batal"}">
-                ${LABEL_DOKUMEN[dok[`${k}Status`]] || "Belum Dikerjakan"}</span></dd></div>`).join("")}
-            ${dok.noPolisi ? `<div><dt>No. Polisi</dt><dd class="mono">${aman(dok.noPolisi)}</dd></div>` : ""}
-          </dl>
-          <div class="aksi aksi--rapat" data-aksi-dok-wadah="${t.id}"></div>
-        </div>` : ""}
-      ${bisaLihatRiwayat ? `<button type="button" class="tombol tombol--kecil tombol--sunyi"
-        style="margin-top:10px" data-toggle-riwayat="${t.id}">Lihat Riwayat Perubahan ▾</button>
-        <div data-log-wadah="${t.id}" hidden></div>` : ""}
-    </article>`;
+      </td>
+    </tr>`;
   }
 
   function pasangAksi(t, dok, wadahAksi) {
@@ -300,13 +349,51 @@ export async function halamanDokumen(wadah) {
     });
   }
 
+  function dataSaring() {
+    const kata = cariEl.value.trim().toLowerCase();
+    return semuaData.filter(({ t, dok, unit }) => {
+      if (filterAktif !== "semua" && dok.berkasStatus !== filterAktif) return false;
+      if (!kata) return true;
+      return [t.spkNo, t.pembeli?.nama, t.tipeNama, t.warna, unit?.noRangka,
+        unit?.noMesin, dok.biroJasaNama, dok.noPolisi]
+        .some((x) => String(x || "").toLowerCase().includes(kata));
+    });
+  }
+
   async function gambarUlang() {
-    const dataTampil = filterAktif === "semua"
-      ? semuaData : semuaData.filter((x) => x.dok.berkasStatus === filterAktif);
+    const dataTampil = dataSaring();
+    const bisaPilihTampil = dataTampil.filter((x) => bisaDipilih(x.dok));
+    const semuaTercentang = bisaPilihTampil.length > 0 &&
+      bisaPilihTampil.every((x) => terpilih.has(x.t.id));
     daftarEl.innerHTML = dataTampil.length
-      ? dataTampil.map(baris).join("")
+      ? `<div style="overflow-x:auto"><table class="tabel tabel--dokumen">
+          <thead><tr>
+            <th>${bisaPilihTampil.length ? `<input type="checkbox" id="d-semua"
+              title="Pilih semua yang tampil" ${semuaTercentang ? "checked" : ""}>` : ""}</th>
+            <th>No. SPK</th><th>Tanggal</th><th>Atas Nama</th><th>Unit / Warna</th>
+            <th>No. Rangka</th><th>Biro Jasa</th><th>Status Berkas</th>
+            <th>STNK</th><th>BPKB</th><th>Plat</th><th></th>
+          </tr></thead>
+          <tbody>${dataTampil.map(baris).join("")}</tbody>
+        </table></div>`
       : `<div class="hampa"><p>Tidak ada SPK di kategori ini.</p></div>`;
     gambarMassal(dataTampil);
+    daftarEl.querySelector("#d-semua")?.addEventListener("change", (e) => {
+      bisaPilihTampil.forEach((x) => {
+        if (e.target.checked) terpilih.add(x.t.id); else terpilih.delete(x.t.id);
+      });
+      gambarUlang();
+    });
+    daftarEl.querySelectorAll("[data-buka]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.buka;
+      const r = daftarEl.querySelector(`[data-rinci="${id}"]`);
+      const buka = !terbuka.has(id);
+      if (buka) terbuka.add(id); else terbuka.delete(id);
+      if (r) r.hidden = !buka;
+      b.classList.toggle("tombol--isi", buka);
+      b.textContent = `Detail ${buka ? "▴" : "▾"}`;
+      b.closest("tr").classList.toggle("d-baris-buka", buka);
+    }));
     dataTampil.forEach(({ t, dok }) => {
       const wadahAksi = daftarEl.querySelector(`[data-aksi-wadah="${t.id}"]`);
       if (wadahAksi) pasangAksi(t, dok, wadahAksi);
@@ -365,11 +452,7 @@ export async function halamanDokumen(wadah) {
     const nSerah = pilih.filter((x) => ["belum_diserahkan", "ditarik_kembali"].includes(x.dok.berkasStatus)).length;
     const nBast = pilih.filter((x) => x.dok.berkasStatus === "dikonfirmasi").length;
     const nKonf = pilih.filter((x) => x.dok.berkasStatus === "diserahkan").length;
-    const semuaTercentang = bisaPilihTampil.length > 0 &&
-      bisaPilihTampil.every((x) => terpilih.has(x.t.id));
     massalEl.innerHTML = `
-      <label class="pilihan" style="margin:0"><input type="checkbox" id="d-pilih-semua"
-        ${semuaTercentang ? "checked" : ""}> Pilih semua yang tampil</label>
       <b style="margin-right:auto">${pilih.length} SPK dipilih</b>
       ${bisaAksiAdmin ? `
         <select class="isian isian--terang" id="d-massal-biro" style="width:auto;min-width:170px">
@@ -386,12 +469,6 @@ export async function halamanDokumen(wadah) {
       ${pilih.length ? `<button class="tombol tombol--kecil tombol--sunyi" id="d-massal-kosong">
         Batal pilih</button>` : ""}`;
 
-    massalEl.querySelector("#d-pilih-semua").addEventListener("change", (e) => {
-      bisaPilihTampil.forEach((x) => {
-        if (e.target.checked) terpilih.add(x.t.id); else terpilih.delete(x.t.id);
-      });
-      gambarUlang();
-    });
     massalEl.querySelector("#d-massal-kosong")?.addEventListener("click", () => {
       terpilih.clear(); gambarUlang();
     });
@@ -404,8 +481,12 @@ export async function halamanDokumen(wadah) {
   daftarEl.addEventListener("change", (e) => {
     if (!e.target.classList.contains("d-pilih")) return;
     if (e.target.checked) terpilih.add(e.target.value); else terpilih.delete(e.target.value);
-    const dataTampil = filterAktif === "semua"
-      ? semuaData : semuaData.filter((x) => x.dok.berkasStatus === filterAktif);
+    const dataTampil = dataSaring();
+    const semuaEl = daftarEl.querySelector("#d-semua");
+    if (semuaEl) {
+      const bisa = dataTampil.filter((x) => bisaDipilih(x.dok));
+      semuaEl.checked = bisa.length > 0 && bisa.every((x) => terpilih.has(x.t.id));
+    }
     gambarMassal(dataTampil);
   });
 
@@ -507,10 +588,11 @@ export async function halamanDokumen(wadah) {
     b.addEventListener("click", () => {
       filterAktif = b.dataset.filter;
       wadah.querySelectorAll("[data-filter]").forEach((x) =>
-        x.classList.toggle("tombol--isi", x === b));
+        x.classList.toggle("aktif", x === b));
       gambarUlang();
     });
   });
+  cariEl.addEventListener("input", () => gambarUlang());
 
   // ── Aksi: Serahkan ke Biro Jasa ─────────────────────────────
   // Pilih Biro Jasa lewat dropdown beneran (bukan ketik nama) —

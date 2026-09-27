@@ -2,9 +2,9 @@
 // Menambah peran baru cukup menambah satu blok di bawah,
 // tanpa menyentuh kode fitur yang sudah jalan.
 
-import { labelItem, labelGrup } from "./label.js?v=3.16.0";
-import { daftarKodeUntuk } from "./akses.js?v=3.16.0";
-import { dbase, doc, getDoc } from "./db.js?v=3.16.0";
+import { labelItem, labelGrup } from "./label.js?v=3.16.1";
+import { daftarKodeUntuk } from "./akses.js?v=3.16.1";
+import { dbase, doc, getDoc } from "./db.js?v=3.16.1";
 
 // ── Batas diskon MENYELURUH (diinput manual oleh Owner) ─────────
 // Disimpan di /pengaturan/diskon { batas: <angka> | null }.
