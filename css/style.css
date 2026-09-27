@@ -298,7 +298,11 @@ button, input, select { font: inherit; }
 
 /* ── Area kerja ──────────────────────────────────────────── */
 .konten {
-  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  /* Gulir DUA arah: atas-bawah (kanan) DAN kiri-kanan (bawah jendela).
+     Tabel lebar tidak lagi punya scrollbar sendiri yang tersembunyi di
+     ujung bawah tabel — seluruh halaman yang bergeser, jadi scrollbar
+     kiri-kanan selalu kelihatan di bagian bawah aplikasi. */
+  flex: 1; overflow: auto; -webkit-overflow-scrolling: touch;
   padding: 18px 20px 28px; max-width: 1200px; width: 100%;
   /* Dinaikkan dari 860px — di layar laptop/PC lebar, batas sempit
      bikin banyak ruang terbuang di kanan & scrollbar vertikalnya
@@ -306,6 +310,22 @@ button, input, select { font: inherit; }
      seperti wajarnya), apalagi buat halaman tabel lebar seperti
      Riwayat & Laporan SPK. */
 }
+/* Pembungkus tabel lama (style="overflow-x:auto") tidak lagi menggulir
+   sendiri — lebarnya diteruskan ke .konten supaya scrollbar
+   kiri-kanan muncul di bawah jendela. Header tabel (sticky) jadi ikut
+   menempel di atas saat halaman digulir ke bawah. Daftar pilih unit
+   yang punya tinggi maksimum (overflow:auto + max-height) tetap
+   menggulir sendiri. */
+.konten [style*="overflow-x:auto"],
+.konten [style*="overflow-x: auto"] { overflow-x: visible !important; }
+.konten::-webkit-scrollbar { width: 12px; height: 12px; }
+.konten::-webkit-scrollbar-track { background: var(--lapis); }
+.konten::-webkit-scrollbar-thumb {
+  background: #A9AEB6; border-radius: 6px; border: 2px solid var(--lapis);
+}
+.konten::-webkit-scrollbar-thumb:hover { background: #8A9099; }
+.konten::-webkit-scrollbar-corner { background: var(--lapis); }
+
 .lembar { background: none; border: 0; border-radius: 0; padding: 0;
   /* Sama seperti .form — .lembar juga dipakai buat panel Ubah/Detail
      yang ditaruh di dalam <td> tabel, jadi perlu putus pewarisan
@@ -1116,3 +1136,12 @@ select.isian {
   flex: 0 0 auto; font-size: 13px; font-weight: 700; font-family: var(--angka);
   white-space: nowrap;
 }
+
+/* Tracking Dokumen — tampilan tabel (seperti Pengajuan Faktur) */
+.tabel--dokumen .d-baris-buka > td { background: var(--biru-muda); }
+.tabel--dokumen .d-rinci-sel {
+  white-space: normal; background: var(--lapis);
+  border-left: 3px solid var(--biru); padding: 12px 14px;
+}
+.tabel--dokumen .d-rinci-sel .aksi { flex-wrap: wrap; }
+.tabel--dokumen tbody tr[data-rinci]:hover { background: none; }
